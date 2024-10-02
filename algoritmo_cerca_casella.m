@@ -39,15 +39,20 @@ heatmap(N, 'Colormap', [1 1 1; 0 0 0; 1 0 0; 0 0 1], 'ColorLimits', [0 3]);
 %% Algoritmo per spostare la casella speciale se ci finisce sopra un pedone
 % tieni conto delle mosse del pedone ( COSA A PARTE)
 
-last_moved_x = 6
-last_moved_y = 6
+last_moved_x = 6;
+last_moved_y = 6;
 
-while N(last_moved_x,last_moved_y) == 1
+
+
+if N(last_moved_x,last_moved_y) == 1
 
     N(last_moved_x,last_moved_y)=0;
     M(last_moved_x,last_moved_y)=1;
+
+    figure
+    heatmap(M, 'Colormap', [1 1 1; 0 0 0; 1 0 0; 0 0 1], 'ColorLimits', [0 3]);
     
-    [x,y] = auxiliary_cerca_casella(M,size_table)
+    [x,y] = auxiliary_cerca_casella(M,size_table);
 
     N(x,y)=1;
     M(x,y)=10;

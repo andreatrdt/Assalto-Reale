@@ -51,10 +51,15 @@ function [x , y] = auxiliary_cerca_casella(M,size_table)
                 if d(i,j) == 1 && M(i,j) == 0
                     count = count + 1;
                 end
+
+                if d(i,j) == 0 && M(i,j) == 0
+                    count = count + 1;
+                end
+
             end
         end
 
-        if count ~= 8
+        if count ~= 9
             count = 0;
             
             % extract a number between 1 and 2
