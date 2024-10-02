@@ -58,7 +58,7 @@ function [x , y] = auxiliary_cerca_casella(M,size_table)
 
             end
         end
-
+        
         if count ~= 9
             count = 0;
             
