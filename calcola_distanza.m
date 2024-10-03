@@ -1,4 +1,4 @@
-function d = calcola_distanza(M,size_table,x_bar,y_bar)
+function d = calcola_distanza(size_table,x_bar,y_bar)
 
 %% calcola_distanza(M,size_table,x_bar,y_bar)
 % This function calculates the euclidean distance between the barycenter and

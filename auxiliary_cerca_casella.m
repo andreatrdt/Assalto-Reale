@@ -17,7 +17,7 @@ function [x , y] = auxiliary_cerca_casella(M,size_table)
 
 
     % Calcola la massa totale
-    M_totale = sum(M(:));
+    M_totale = sum(abs(M(:)));
 
     % Inizializza le somme pesate per le coordinate del baricentro
     x_bar_sum = 0;
@@ -26,8 +26,8 @@ function [x , y] = auxiliary_cerca_casella(M,size_table)
     % Cicla attraverso tutti gli elementi della matrice per calcolare il numeratore delle coordinate
     for i = 1:size_table
         for j = 1:size_table
-            x_bar_sum = x_bar_sum + i * M(i,j);  % Somma pesata delle righe
-            y_bar_sum = y_bar_sum + j * M(i,j);  % Somma pesata delle colonne
+            x_bar_sum = x_bar_sum + i * abs(M(i,j));  % Somma pesata delle righe
+            y_bar_sum = y_bar_sum + j * abs(M(i,j));  % Somma pesata delle colonne
         end
     end
 
@@ -43,7 +43,7 @@ function [x , y] = auxiliary_cerca_casella(M,size_table)
     while flag == 0
 
         % Calcola la distanza euclidea tra la casella speciale e ogni cella della matrice
-        d = calcola_distanza(M,size_table,x,y);
+        d = calcola_distanza(size_table,x,y);
         
         for i = 1:size_table
             for j = 1:size_table

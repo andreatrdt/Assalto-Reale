@@ -16,7 +16,7 @@ function [M] = generate_table(size_table)
 
     % pedoni
 
-    for i = 1:number_of_pieces
+    for i = 1:number_of_pieces/2
         x = randi(size_table);
         y = randi(size_table);
         while M(x,y) ~= 0
@@ -24,6 +24,16 @@ function [M] = generate_table(size_table)
             y = randi(size_table);
         end
         M(x,y) = 1;
+    end
+
+    for i = 1:number_of_pieces/2
+        x = randi(size_table);
+        y = randi(size_table);
+        while M(x,y) ~= 0
+            x = randi(size_table);
+            y = randi(size_table);
+        end
+        M(x,y) = -1;
     end
 
     % estraiamo due caselle in cui ci sono gli zeri e definiamo le posizioni dei Re
