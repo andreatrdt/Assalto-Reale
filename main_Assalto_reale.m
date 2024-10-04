@@ -4,7 +4,11 @@ clear all
 close all
 
 % Variabili globali per tenere traccia della selezione
-global selectedRow selectedCol selectedColor flag;
+global selectedRow selectedCol selectedColor flag punti;
+
+
+punti = [0 ,0];
+
 
 % Set the seed for the random number generator
 rng(42)
