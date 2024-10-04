@@ -4,14 +4,15 @@ clear all
 close all
 
 % Variabili globali per tenere traccia della selezione
-global selectedRow selectedCol selectedColor flag punti turn;
+global selectedRow selectedCol selectedColor flag punti turn kills valid_moves;
 
 
 punti = [0 ,0];
-turn = 0;
+turn = 1;
+kills = [0, 0];
 
 % Set the seed for the random number generator
-rng(42)
+rng(50)
 tic
 
 % Definisci la dimensione della matrice

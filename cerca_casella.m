@@ -7,7 +7,6 @@ for i = 1 : N_special
     N(x_bar,y_bar) = 1;
 
     M(x_bar,y_bar) = 10;
-
 end
 
 

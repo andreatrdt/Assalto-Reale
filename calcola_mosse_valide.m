@@ -1,4 +1,4 @@
-function valid_moves = calcola_mosse_valide(row, col, size_table, M)
+function valid_moves = calcola_mosse_valide(row, col, size_table, M,N)
     % Calcola le mosse valide per un pezzo nella posizione (row, col)
     valid_moves = [];
 
