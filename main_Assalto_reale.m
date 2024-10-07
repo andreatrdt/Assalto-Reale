@@ -1,7 +1,9 @@
 % clear workspace and command window
 clc
 clear all
-close all
+close all   
+close all hidden 
+
 
 % Variabili globali per tenere traccia della selezione
 global selectedRow selectedCol selectedColor flag punti turn kills valid_moves;
@@ -33,7 +35,7 @@ M = generate_table(size_table);
 [N,M] = cerca_casella(size_table,N,M,N_special);
 
 % genera scacchiera
-createChessBoard(size_table,N,M)
-
+disp_punteggio(punti);
+createChessBoard(size_table,N,M);
 
 toc

@@ -1,1 +1,0 @@
-function disp_punteggio( )

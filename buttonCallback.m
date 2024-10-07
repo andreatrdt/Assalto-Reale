@@ -8,6 +8,7 @@ function buttonCallback(btn, row, col, size_table, fig, N, M)
     % Se è stato selezionato un pezzo e sono state calcolate le mosse valide
     if ~isempty(selectedRow) && ~isempty(valid_moves)
         % Verifica se la casella cliccata è una delle mosse valide
+
         if any(ismember([row, col], valid_moves, 'rows'))
             % Movimento in diagonale per la "mangiata"
             if abs(row - selectedRow) == 1 && abs(col - selectedCol) == 1
@@ -57,12 +58,14 @@ function buttonCallback(btn, row, col, size_table, fig, N, M)
                 if turn == 0
                     % Se il turno è del bianco, il pezzo deve rimanere bianco
                     punti(1) = punti(1) + 1;  % Aumenta il punteggio del bianco
+                    disp_punteggio(punti);
                     M(size_table - row + 1, col) = -1;  % Assicurati che rimanga bianco
                     [N, M] = move_special_case(M, N, size_table - row + 1, col, size_table, 0);  % Modifica per mantenere il colore corretto
                     disp(punti)
                 elseif turn == 1
                     % Se il turno è del nero, il pezzo deve rimanere nero
                     punti(2) = punti(2) + 1;  % Aumenta il punteggio del nero
+                    disp_punteggio(punti);
                     M(size_table - row + 1, col) = 1;  % Assicurati che rimanga nero
                     [N, M] = move_special_case(M, N, size_table - row + 1, col, size_table, 1);  % Modifica per mantenere il colore corretto
                     disp(punti)
@@ -75,9 +78,11 @@ function buttonCallback(btn, row, col, size_table, fig, N, M)
             selectedCol = [];
             valid_moves = [];
 
-            % Ricrea la scacchiera aggiornata
             delete(fig);
             createChessBoard(size_table, N, M);
+
+            %update_chessboard(M, N, size_table, fig);  % Aggiorna la scacchiera
+
             return;
         end
     end
