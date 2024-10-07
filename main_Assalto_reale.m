@@ -35,7 +35,8 @@ M = generate_table(size_table);
 [N,M] = cerca_casella(size_table,N,M,N_special);
 
 % genera scacchiera
-disp_punteggio(punti);
+disp_punteggio();
+disp_kills();
 createChessBoard(size_table,N,M);
 
 toc
