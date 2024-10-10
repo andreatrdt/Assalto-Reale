@@ -1,6 +1,6 @@
 function createChessBoard(size_table, N, M)
     % Inizializza variabili globali
-    global selectedRow selectedCol selectedColor flag;
+    global selectedRow selectedCol selectedColor flag start;
     selectedRow = [];
     selectedCol = [];
     selectedColor = [];
@@ -23,16 +23,14 @@ function createChessBoard(size_table, N, M)
             end
             
             % Matrice M: controlla se c'è un pezzo bianco o nero
-            if M(size_table - row + 1, col) == 1
-                color = [0, 0, 0];  % Nero
-            elseif M(size_table - row + 1, col) == -1
-                color = [1, 1, 1];  % Bianco
-            end
+            % if M(size_table - row + 1, col) == 1
+            %     color = [0, 0, 0];  % Nero
+            % elseif M(size_table - row + 1, col) == -1
+            %     color = [1, 1, 1];  % Bianco
+            % end
 
             
-            if M(size_table - row + 1, col) == 5
-                color = [1, 0, 0]; 
-            elseif  M(size_table - row + 1, col) == 10
+            if  M(size_table - row + 1, col) == 10
                 color = [0, 1, 0];  
             end
 

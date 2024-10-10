@@ -6,7 +6,7 @@ close all hidden
 
 
 % Variabili globali per tenere traccia della selezione
-global punti turn kills;
+global punti turn kills start Q;
 
 
 punti = [0 ,0];
@@ -14,11 +14,12 @@ turn = 1;
 kills = [0, 0];
 
 % Set the seed for the random number generator
-rng(50)
+rng(42)
 tic
 
 % Definisci la dimensione della matrice
 size_table = 14; 
+start = 1;
 
 
 % Definisci il numero di caselle speciali
@@ -29,10 +30,10 @@ N = zeros(size_table,size_table);
 %% MAIN
 
 % Genera la matrice
-M = generate_table(size_table);
+[M,N,Q] = generate_table(size_table);
 
-% genera caselle speciali
-[N,M] = cerca_casella(size_table,N,M,N_special);
+%% genera caselle speciali
+% [N,M] = cerca_casella(size_table,N,M,N_special);
 
 % genera scacchiera
 disp_punteggio();
