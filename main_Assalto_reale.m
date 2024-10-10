@@ -6,7 +6,7 @@ close all hidden
 
 
 % Variabili globali per tenere traccia della selezione
-global selectedRow selectedCol selectedColor flag punti turn kills valid_moves;
+global punti turn kills;
 
 
 punti = [0 ,0];
