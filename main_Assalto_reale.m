@@ -2,7 +2,7 @@
 clc
 clear all
 close all   
-close all hidden 
+close all force
 
 
 % Variabili globali per tenere traccia della selezione
