@@ -93,14 +93,12 @@ function buttonCallback(btn, row, col, size_table, fig, N, M)
                         disp_punteggio();
                         M(size_table - row + 1, col) = -1;  % Assicurati che rimanga bianco
                         [N, M] = move_special_case(M, N, size_table - row + 1, col, size_table, 0);  % Modifica per mantenere il colore corretto
-                        disp(punti)
                     elseif turn == 1
                         % Se il turno è del nero, il pezzo deve rimanere nero
                         punti(2) = punti(2) + 1;  % Aumenta il punteggio del nero
                         disp_punteggio();
                         M(size_table - row + 1, col) = 1;  % Assicurati che rimanga nero
                         [N, M] = move_special_case(M, N, size_table - row + 1, col, size_table, 1);  % Modifica per mantenere il colore corretto
-                        disp(punti)
                     end
 
                 end

@@ -19,7 +19,7 @@ tic
 
 % Definisci la dimensione della matrice
 size_table = 14; 
-start = 1;
+
 
 
 % Definisci il numero di caselle speciali
@@ -28,12 +28,11 @@ N_special = 3;
 N = zeros(size_table,size_table);
 
 %% MAIN
-
+start = 1;
 % Genera la matrice
 [M,N,Q] = generate_table(size_table);
 
-%% genera caselle speciali
-% [N,M] = cerca_casella(size_table,N,M,N_special);
+
 
 % genera scacchiera
 disp_punteggio();
