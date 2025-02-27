@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakeProjectFlavorService">
+    <option name="flavorId" value="CMakePlainProjectFlavor" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="bbda7690-fe4d-4708-abc4-b1b7f1b1fb24" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../auxiliary_cerca_casella.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../buttonCallback.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../calcola_distanza.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../calcola_mosse_valide.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../cerca_casella.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../createChessBoard.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../disp_kills.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../disp_punteggio.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../generate_table.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../main_Assalto_reale.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../move_special_case.m" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../update_chessboard.m" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "andreatrdt"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/andreatrdt/Assalto-Reale.git",
+    "accountId": "c41c71bd-e457-4bbf-acb0-73768f94d5f0"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 0
+}]]></component>
+  <component name="ProjectId" id="2tK20cP8MMrDZgdVP2mDiG3dPIT" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "C:/Users/andre/git_repos/Assalto reale/PY_Assalto_reale",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="bbda7690-fe4d-4708-abc4-b1b7f1b1fb24" name="Changes" comment="" />
+      <created>1740086223354</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1740086223354</updated>
+      <workItem from="1740086224664" duration="81000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
