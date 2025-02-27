@@ -509,7 +509,8 @@ def handle_click(pos):
     global selected_piece, current_player, moves_this_turn, game_over
 
     mx, my = pos
-    # 1. Handle undo/redo window clicks.
+
+    # --- 1. UI Buttons: Undo/Redo, PASS ---
     if (UNDO_WINDOW_X <= mx <= UNDO_WINDOW_X + UNDO_WINDOW_W and 
         UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
         if mx < UNDO_WINDOW_X + UNDO_WINDOW_W / 2:
@@ -518,103 +519,131 @@ def handle_click(pos):
             redo_move()
         return
 
-    col = pos[0] // SQ_SIZE
-    row = pos[1] // SQ_SIZE
-
-    # 2. Check for PASS button.
-    if BUTTON_X <= pos[0] <= BUTTON_X + BUTTON_W and BUTTON_Y <= pos[1] <= BUTTON_Y + BUTTON_H:
+    if (BUTTON_X <= mx <= BUTTON_X + BUTTON_W and 
+        BUTTON_Y <= my <= BUTTON_Y + BUTTON_H):
         end_turn()
         return
 
-    # 3. If in placement phase, call place_piece.
+    # --- 2. Placement Phase ---
     if placing_pieces:
         place_piece(pos)
         return
 
-    # 4. If game is over, don't allow further moves.
+    # --- 3. Game Over Check ---
     if game_over:
         print("Game is over. Please undo the last move to continue.")
         return
 
-    # 5. If a piece is already selected, try to move/capture.
-    if selected_piece:
+    # --- 4. Convert Click to Board Coordinates ---
+    col = pos[0] // SQ_SIZE
+    row = pos[1] // SQ_SIZE
+    if not (0 <= row < ROWS and 0 <= col < COLS):
+        return
+
+    # --- 5. If a Piece is Selected, Try to Move/Capture ---
+    if selected_piece is not None:
         start_pos = selected_piece
         piece = board[start_pos[0]][start_pos[1]]
+
         if piece and piece["player"] == players[current_player]:
-            # If a ConquestPawn is leaving a special square, remove its control.
+            # For ConquestPawn leaving a special square, remove its control.
             if piece["type"] == "ConquestPawn" and start_pos in special_squares:
                 if start_pos in controlled_squares[piece["player"]]:
                     controlled_squares[piece["player"]].remove(start_pos)
+
+            # Check if the attempted move is valid.
             if is_valid_move(piece, start_pos, (row, col)):
                 target_piece = board[row][col]
                 delta_row = abs(row - start_pos[0])
                 delta_col = abs(col - start_pos[1])
-                # SPECIAL: AttackPawn attempting a two-square jump capture of the King.
-                if (piece["type"] == "AttackPawn" and target_piece and 
-                    target_piece["type"] == "King" and (delta_row, delta_col) in [(2, 0), (0, 2)]):
-                    
+
+                # --- Special Case: AttackPawn vs. King (from 1 or 2 squares away) ---
+                if (piece["type"] == "AttackPawn" and target_piece and target_piece["type"] == "King" 
+                    and (delta_row, delta_col) in [(1, 0), (0, 1), (2, 0), (0, 2)]):
+
+                    # Check if a DefensePawn is adjacent to the King
                     defense_pos = get_defense_pawn_adjacent_to_king(row, col, target_piece["player"])
+
                     if defense_pos is not None:
-                        # Repulsion branch: repulse the AttackPawn and remove the defending pawn.
-                        new_pos = repulse_attack_pawn(start_pos, (row, col))
-                        board[start_pos[0]][start_pos[1]] = None
-                        board[new_pos[0]][new_pos[1]] = piece
+                        # Repulsion branch: animate repulsion one square at a time.
+                        path = repulse_attack_pawn_path(start_pos, (row, col))
+                        for pos_step in path[1:]:
+                            board[start_pos[0]][start_pos[1]] = None
+                            board[pos_step[0]][pos_step[1]] = piece
+
+                            draw_board()
+                            draw_turn()
+                            draw_button()
+                            draw_scoreboard()
+                            draw_capture_counter()
+                            draw_placement_icon()
+                            draw_undo_window()
+                            draw_reset_button()
+                            draw_quit_button()
+                            pygame.display.flip()
+
+                            pygame.time.delay(200)  # Delay between steps
+                            start_pos = pos_step  # Update for next step
+
+                        new_pos = path[-1]
+                        # Remove the defending pawn.
                         def_r, def_c = defense_pos
-                        # Record the defending pawn's data and original position.
                         captured = {"defense": (board[def_r][def_c].copy(), (def_r, def_c))}
                         board[def_r][def_c] = None
                         print(f"{piece['player']}'s AttackPawn repulsed; defending pawn sacrificed!")
-                        record_move(start_pos, new_pos, piece, captured)
-                        moves_this_turn = 2  # Uses both moves.
-                        end_turn()
+
+                        # Record the move (this should cost 2 moves, ending the turn).
+                        record_move(selected_piece, new_pos, piece, captured)
+                        selected_piece = None
                         return
+
                     else:
-                        # Sacrifice branch: no DefensePawn present.
+                        # Sacrifice branch: no DefensePawn available.
                         captured = {"king": target_piece}
                         prev_snapshot = copy.deepcopy(board)
-                        board[start_pos[0]][start_pos[1]] = None  # Remove attacking pawn.
-                        board[row][col] = None                     # Remove the King.
+                        board[start_pos[0]][start_pos[1]] = None
+                        board[row][col] = None
                         new_snapshot = copy.deepcopy(board)
                         record_move_sacrifice(start_pos, (row, col), piece, captured, prev_snapshot, new_snapshot)
                         print(f"{piece['player']}'s AttackPawn sacrificed itself capturing the King!")
-                        moves_this_turn = 2
-                        game_over = True
+                        selected_piece = None
+                        game_over = True  # Optionally end the game here.
                         return
+
+                # --- Normal Move / Capture Branch ---
                 else:
-                    # Normal move or normal capture.
                     if target_piece and target_piece["player"] != piece["player"]:
                         captured = target_piece.copy()
-                        capture_sound.play()
-                        # --- Added check: if the captured piece is a ConquestPawn, remove its controlled square.
                         if target_piece["type"] == "ConquestPawn":
                             if (row, col) in controlled_squares[target_piece["player"]]:
                                 controlled_squares[target_piece["player"]].remove((row, col))
                         captured_pieces[players[current_player]][target_piece["type"]] += 1
                         board[row][col] = None
-                        record_move(start_pos, (row, col), piece, captured)
+                        record_move(selected_piece, (row, col), piece, captured)
                     else:
-                        record_move(start_pos, (row, col), piece, None)
+                        record_move(selected_piece, (row, col), piece, None)
+
                     board[row][col] = piece
                     board[start_pos[0]][start_pos[1]] = None
-                    move_sound.play()
-                    # If a ConquestPawn lands on a special square, mark control.
                     if piece["type"] == "ConquestPawn" and (row, col) in special_squares:
                         controlled_squares[piece["player"]].add((row, col))
                         check_special_squares()
                         flash_effects[(row, col)] = time.time()
-                selected_piece = None
+                    
+                    selected_piece = None
+                    return
             else:
+                # Invalid move: deselect piece.
                 selected_piece = None
         else:
             selected_piece = None
+
+    # --- 6. No Piece Selected: Select a Friendly Piece ---
     else:
-        # 6. If no piece is selected, select one if the cell contains a piece belonging to the current player.
-        if (0 <= row < ROWS and 0 <= col < COLS and board[row][col] and 
-            board[row][col]["player"] == players[current_player]):
-            if selected_piece == (row, col):
-                selected_piece = None
-            else:
-                selected_piece = (row, col)
+        if board[row][col] and board[row][col]["player"] == players[current_player]:
+            selected_piece = (row, col)
+        else:
+            selected_piece = None
 
 ###############################################################################
 #                              RESET GAME                                     #
@@ -805,79 +834,93 @@ def rotate_direction_counterclockwise(dr, dc):
     # Counterclockwise rotation: (dr, dc) -> (dc, -dr)
     return (dc, -dr)
 
-def repulse_attack_pawn(start_pos, king_pos, steps=4):
+def repulse_attack_pawn_path(start_pos, king_pos, steps=5):
     """
-    Bounce the AttackPawn back 4 squares away from the King.
-    The pawn moves step-by-step along the direction from the King to start_pos.
-    If an encountered cell is occupied, it jumps over it.
-    If a wall is encountered, the function checks both clockwise and counterclockwise rotations,
-    and selects the candidate that moves the pawn furthest from any edge.
-    Returns the new (row, col) position.
+    Returns a list of board positions representing the repulsion path.
+    Normally the pawn moves one square in the repulsion direction.
+    However, if the next square is occupied, it counts how many consecutive 
+    squares are occupied and jumps over the entire block (landing in the first empty cell).
+    Each time a jump is needed, it checks if the landing cell is within boundaries 
+    and empty; if not, it attempts to rotate the direction.
     """
-    rA, cA = start_pos
+    path = [start_pos]
+    curr_r, curr_c = start_pos
     rK, cK = king_pos
 
-    # Compute initial unit direction from King to pawn.
-    dr = rA - rK
-    dc = cA - cK
+    # Compute unit vector from king to pawn.
+    dr = curr_r - rK
+    dc = curr_c - cK
     if dr != 0:
         dr //= abs(dr)
     if dc != 0:
         dc //= abs(dc)
     
-    curr_r, curr_c = rA, cA
     for _ in range(steps):
-        new_r = curr_r + dr
-        new_c = curr_c + dc
-
-        # If new cell is off-board, choose the best rotation alternative.
-        if not in_bounds((new_r, new_c)):
-            candidates = []
-            # Candidate from clockwise rotation.
-            cw_dr, cw_dc = rotate_direction_clockwise(dr, dc)
-            cw_pos = (curr_r + cw_dr, curr_c + cw_dc)
-            if in_bounds(cw_pos):
-                candidates.append((cw_dr, cw_dc, cw_pos))
-            # Candidate from counterclockwise rotation.
-            ccw_dr, ccw_dc = rotate_direction_counterclockwise(dr, dc)
-            ccw_pos = (curr_r + ccw_dr, curr_c + ccw_dc)
-            if in_bounds(ccw_pos):
-                candidates.append((ccw_dr, ccw_dc, ccw_pos))
-            if candidates:
-                best = max(candidates, key=lambda item: score(item[2]))
-                dr, dc = best[0], best[1]
-                new_r, new_c = best[2]
-            else:
-                new_r, new_c = curr_r, curr_c  # No valid alternative found.
+        # Compute the next cell in the repulsion direction.
+        next_r = curr_r + dr
+        next_c = curr_c + dc
         
-        # If the new cell is occupied, attempt to jump over it.
-        if board[new_r][new_c]:
-            jump_r = curr_r + 2 * dr
-            jump_c = curr_c + 2 * dc
-            if not in_bounds((jump_r, jump_c)):
+        # If next cell is off-board, try alternatives (rotate).
+        if not in_bounds((next_r, next_c)):
+            candidates = []
+            cw_dr, cw_dc = rotate_direction_clockwise(dr, dc)
+            if in_bounds((curr_r + cw_dr, curr_c + cw_dc)):
+                candidates.append((cw_dr, cw_dc))
+            ccw_dr, ccw_dc = rotate_direction_counterclockwise(dr, dc)
+            if in_bounds((curr_r + ccw_dr, curr_c + ccw_dc)):
+                candidates.append((ccw_dr, ccw_dc))
+            if candidates:
+                best = max(candidates, key=lambda d: score((curr_r + d[0], curr_c + d[1])))
+                dr, dc = best[0], best[1]
+                next_r = curr_r + dr
+                next_c = curr_c + dc
+            else:
+                break  # No valid alternative.
+        
+        # If the next cell is empty, simply move one square.
+        if board[next_r][next_c] is None:
+            curr_r, curr_c = next_r, next_c
+            path.append((curr_r, curr_c))
+        else:
+            # Otherwise, count how many consecutive cells are occupied.
+            count = 0
+            temp_r, temp_c = next_r, next_c
+            while in_bounds((temp_r, temp_c)) and board[temp_r][temp_c] is not None:
+                count += 1
+                temp_r += dr
+                temp_c += dc
+            # Landing cell is one square after the contiguous block.
+            landing_r = curr_r + (count + 1) * dr
+            landing_c = curr_c + (count + 1) * dc
+
+            # Check if landing cell is in bounds and empty.
+            if (not in_bounds((landing_r, landing_c))) or board[landing_r][landing_c] is not None:
+                # Try alternative directions for the jump.
                 candidates = []
                 cw_dr, cw_dc = rotate_direction_clockwise(dr, dc)
-                cw_pos = (curr_r + 2 * cw_dr, curr_c + 2 * cw_dc)
-                if in_bounds(cw_pos):
-                    candidates.append((cw_dr, cw_dc, cw_pos))
+                alt_r = curr_r + (count + 1) * cw_dr
+                alt_c = curr_c + (count + 1) * cw_dc
+                if in_bounds((alt_r, alt_c)) and board[alt_r][alt_c] is None:
+                    candidates.append((cw_dr, cw_dc, (alt_r, alt_c)))
                 ccw_dr, ccw_dc = rotate_direction_counterclockwise(dr, dc)
-                ccw_pos = (curr_r + 2 * ccw_dr, curr_c + 2 * ccw_dc)
-                if in_bounds(ccw_pos):
-                    candidates.append((ccw_dr, ccw_dc, ccw_pos))
+                alt_r2 = curr_r + (count + 1) * ccw_dr
+                alt_c2 = curr_c + (count + 1) * ccw_dc
+                if in_bounds((alt_r2, alt_c2)) and board[alt_r2][alt_c2] is None:
+                    candidates.append((ccw_dr, ccw_dc, (alt_r2, alt_c2)))
                 if candidates:
                     best = max(candidates, key=lambda item: score(item[2]))
                     dr, dc = best[0], best[1]
-                    jump_r, jump_c = best[2]
+                    landing_r, landing_c = best[2]
                 else:
-                    jump_r, jump_c = curr_r, curr_c
-            new_r, new_c = jump_r, jump_c
-
-        curr_r, curr_c = new_r, new_c
-
-    return (curr_r, curr_c)
+                    break  # Cannot find an alternative landing cell.
+            # Update current position to landing cell.
+            curr_r, curr_c = landing_r, landing_c
+            path.append((curr_r, curr_c))
+        # End of this step.
+    return path
 
 ###############################################################################
-#                              UNDO/REDO                                #
+#                              UNDO/REDO                                      #
 ###############################################################################
 def record_move(start_pos, end_pos, moved_piece, captured_piece):
     global current_player, moves_this_turn
@@ -891,16 +934,17 @@ def record_move(start_pos, end_pos, moved_piece, captured_piece):
     }
     delta = max(abs(end_pos[0] - start_pos[0]), abs(end_pos[1] - start_pos[1]))
     
-    # Riproduci il suono in base al tipo di mossa
+    # Play sound based on move type.
     if captured_piece is not None:
-        capture_sound.play()  # Suono per la cattura
+        capture_sound.play()  # Sound for capture
         move_cost = 2
     else:
-        move_sound.play()  # Suono per il movimento normale
+        move_sound.play()     # Sound for normal move
         move_cost = 1
     
     new_moves = moves_this_turn + move_cost
     if new_moves >= 2:
+        # If the move cost meets or exceeds 2, the turn is complete.
         new_state = {'current_player': 1 - current_player, 'moves_this_turn': 0}
     else:
         new_state = {'current_player': current_player, 'moves_this_turn': new_moves}
@@ -919,6 +963,7 @@ def record_move(start_pos, end_pos, moved_piece, captured_piece):
          }
     })
     redo_history.clear()
+    # Update global state based on the move.
     current_player = new_state['current_player']
     moves_this_turn = new_state['moves_this_turn']
 
@@ -946,8 +991,8 @@ def record_move_sacrifice(start_pos, end_pos, moved_piece, captured_info, prev_s
          'from': start_pos,
          'to': end_pos,
          'piece': moved_piece.copy(),
-         'captured': captured_info,  # e.g. {"king": king_piece}
-         'sacrifice': True,          # Flag to indicate a sacrifice move
+         'captured': captured_info,
+         'sacrifice': True,
          'prev_state': prev_state,
          'new_state': new_state
     })
