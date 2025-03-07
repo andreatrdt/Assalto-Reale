@@ -387,15 +387,12 @@ def place_piece(pos):
             for (r_s, c_s) in special_squares:
                 distance = max(abs(row - r_s), abs(col - c_s))
                 if distance < 3:
-                    print("Cannot place a ConquestPawn within 3 squares of a special square!")
                     return
 
         if piece_type == "AttackPawn":
             if players[current_player] == "Black" and col >= 2:
-                print("Black AttackPawns can only be placed in the first 3 columns (col < 3).")
                 return
             if players[current_player] == "White" and col < (COLS - 2):
-                print("White AttackPawns can only be placed in the last 3 columns (col >= COLS-3).")
                 return
 
         board[row][col] = {"type": piece_type, "player": players[current_player]}
@@ -412,7 +409,6 @@ def place_piece(pos):
         if sum(pieces_placed.values()) == 26:
             placing_pieces = False
 
-both_at_four = False
 candidate_winner = None
 
 def check_special_squares():
@@ -431,21 +427,16 @@ def check_special_squares():
     if candidate_winner is None:
         if black_count >= 3 and white_count >= 3:
             both_at_four = True
-            print("Both players control 3 or more special squares. Entering both_at_four mode.")
         elif black_count >= 3:
             candidate_winner = "Black"
             candidate_turn_index = turn_counter  # Record the turn when candidate is set.
-            print("Black is now the pending winner.")
         elif white_count >= 3:
             candidate_winner = "White"
             candidate_turn_index = turn_counter
-            print("White is now the pending winner.")
     else:
         # If both players eventually reach 3, enter both_at_four mode.
         if black_count >= 3 and white_count >= 3:
             both_at_four = True
-            print("Both players now control 3 or more special squares. Entering both_at_four mode.")
-
 
 def check_candidate_win():
     """
@@ -456,23 +447,15 @@ def check_candidate_win():
     """
     global candidate_winner, candidate_turn_index, turn_counter
     # We wait until two turn increments have occurred:
-    if candidate_winner is not None and (turn_counter - candidate_turn_index >= 1):  ################### DA VERIFICARE !!!!!!!! ###########
+    if candidate_winner is not None and (turn_counter - candidate_turn_index >= 2):  
         if len(controlled_squares[candidate_winner]) >= 3:
-            print(f"{candidate_winner} wins!")
-            exit()  # Replace exit() with your own game-end handling if needed.
+            flash_winner_king(candidate_winner)
         else:
-            print(f"Pending win for {candidate_winner} canceled.")
             candidate_winner = None
 
-
 def end_turn():
-    """
-    Ends the current turn by switching the current player, resetting moves and selection,
-    and incrementing the turn counter. At the end of the turn, check for a candidate win.
-    With this logic, once a candidate is declared, the opponent gets one full turn
-    (i.e. two increments relative to when the candidate was set) before the win is checked.
-    """
     global current_player, moves_this_turn, selected_piece, turn_counter
+    
     current_player = 1 - current_player
     moves_this_turn = 0
     selected_piece = None
@@ -481,16 +464,40 @@ def end_turn():
     # Check for candidate win only if the opponent's full turn has been completed.
     check_candidate_win()
     
-    # Optional: If in both_at_four mode, add any additional win logic.
-    if both_at_four:
-        black_count = len(controlled_squares["Black"])
-        white_count = len(controlled_squares["White"])
-        if black_count < 3 and white_count >= 3:
-            print("White wins!")
-            exit()
-        elif white_count < 3 and black_count >= 3:
-            print("Black wins!")
-            exit()
+
+def flash_winner_king(winner):
+    """
+    Finds the king belonging to 'winner' on the board and flashes it
+    for a few seconds before closing the game.
+    """
+    king_pos = None
+    # Search for the winner's king.
+    for r in range(ROWS):
+        for c in range(COLS):
+            piece = board[r][c]
+            if piece and piece.get("type") == "King" and piece.get("player") == winner:
+                king_pos = (r, c)
+                break
+        if king_pos:
+            break
+    if king_pos is None:
+        return
+    flash_duration = 3000  # duration in milliseconds (3 seconds)
+    start_time = pygame.time.get_ticks()
+    
+    while pygame.time.get_ticks() - start_time < flash_duration:
+        draw_everything()  # redraw board and UI elements
+        r, c = king_pos
+        # Create a flash overlay (yellow with pulsating alpha)
+        flash_overlay = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+        # Alpha will alternate every 100ms.
+        alpha = 128 if ((pygame.time.get_ticks() - start_time) // 100) % 2 == 0 else 0
+        flash_overlay.fill((0, 255, 0, alpha))
+        screen.blit(flash_overlay, (c * SQ_SIZE, r * SQ_SIZE))
+        pygame.display.flip()
+        pygame.time.delay(50)
+    
+
 
 ##########################################################
 #                    stalemate                          #
@@ -524,12 +531,13 @@ def handle_click(pos):
         UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
         if mx < UNDO_WINDOW_X + UNDO_WINDOW_W / 2:
             undo_move()
-        #else:
-            #redo_move()
-        #return
+        # (If you later implement redo, uncomment below)
+        # else:
+        #     redo_move()
+        return
 
-    if (BUTTON_X <= mx <= BUTTON_X + BUTTON_W and 
-        BUTTON_Y <= my <= BUTTON_Y + BUTTON_H):
+    if (BUTTON_X <= pos[0] <= BUTTON_X + BUTTON_W and 
+        BUTTON_Y <= pos[1] <= BUTTON_Y + BUTTON_H):
         end_turn()
         return
 
@@ -540,7 +548,6 @@ def handle_click(pos):
 
     # --- 3. Game Over Check ---
     if game_over:
-        print("Game is over. Please undo the last move to continue.")
         return
 
     # --- 4. Convert Click to Board Coordinates ---
@@ -553,74 +560,53 @@ def handle_click(pos):
     if selected_piece is not None:
         start_pos = selected_piece
         piece = board[start_pos[0]][start_pos[1]]
-
         if piece and piece["player"] == players[current_player]:
-            # For ConquestPawn leaving a special square, remove its control.
+            # If a ConquestPawn is leaving a special square, remove its control.
             if piece["type"] == "ConquestPawn" and start_pos in special_squares:
                 if start_pos in controlled_squares[piece["player"]]:
                     controlled_squares[piece["player"]].remove(start_pos)
 
-            # Check if the attempted move is valid.
             if is_valid_move(piece, start_pos, (row, col)):
                 target_piece = board[row][col]
                 delta_row = abs(row - start_pos[0])
                 delta_col = abs(col - start_pos[1])
 
-                # --- Special Case: AttackPawn vs. King (from 1 or 2 squares away) ---
-                if (piece["type"] == "AttackPawn" and target_piece and target_piece["type"] == "King" 
-                    and (delta_row, delta_col) in [(1, 0), (0, 1), (2, 0), (0, 2)]):
-
-                    # Check if a DefensePawn is adjacent to the King
+                # --- Special Case: AttackPawn vs. King ---
+                if (piece["type"] == "AttackPawn" and target_piece and 
+                    target_piece["type"] == "King" and (delta_row, delta_col) in [(1, 0), (0, 1), (2, 0), (0, 2)]):
+                    
                     defense_pos = get_defense_pawn_adjacent_to_king(row, col, target_piece["player"])
-
                     if defense_pos is not None:
-                        # Repulsion branch: animate repulsion one square at a time.
+                        # Repulsion branch: animate repulsion (using path) and remove the defending pawn.
                         path = repulse_attack_pawn_path(start_pos, (row, col))
                         for pos_step in path[1:]:
                             board[start_pos[0]][start_pos[1]] = None
                             board[pos_step[0]][pos_step[1]] = piece
-
-                            draw_board()
-                            draw_turn()
-                            draw_button()
-                            draw_scoreboard()
-                            draw_capture_counter()
-                            draw_placement_icon()
-                            draw_undo_window()
-                            draw_reset_button()
-                            draw_quit_button()
+                            draw_everything()
                             pygame.display.flip()
-
                             pygame.time.delay(200)  # Delay between steps
                             start_pos = pos_step  # Update for next step
-
                         new_pos = path[-1]
-                        # Remove the defending pawn.
                         def_r, def_c = defense_pos
                         captured = {"defense": (board[def_r][def_c].copy(), (def_r, def_c))}
                         board[def_r][def_c] = None
-                        print(f"{piece['player']}'s AttackPawn repulsed; defending pawn sacrificed!")
-
-                        # Record the move (this should cost 2 moves, ending the turn).
                         record_move(selected_piece, new_pos, piece, captured)
-                        selected_piece = None
+                        moves_this_turn = 2  # Consumes both moves.
+                        end_turn()  # In this branch we already call end_turn().
                         return
-
                     else:
-                        # Sacrifice branch: no DefensePawn available.
+                        # Sacrifice branch: no defender available.
                         captured = {"king": target_piece}
                         prev_snapshot = copy.deepcopy(board)
                         board[start_pos[0]][start_pos[1]] = None
                         board[row][col] = None
                         new_snapshot = copy.deepcopy(board)
-                        record_move_sacrifice(start_pos, (row, col), piece, captured, prev_snapshot, new_snapshot)
-                        print(f"{piece['player']}'s AttackPawn sacrificed itself capturing the King!")
-                        selected_piece = None
-                        game_over = True  # Optionally end the game here.
+                        record_move_sacrifice(selected_piece, (row, col), piece, captured, prev_snapshot, new_snapshot)
+                        moves_this_turn = 2
+                        game_over = True
                         return
-
-                # --- Normal Move / Capture Branch ---
                 else:
+                    # --- Normal Move / Capture Branch ---
                     if target_piece and target_piece["player"] != piece["player"]:
                         captured = target_piece.copy()
                         if target_piece["type"] == "ConquestPawn":
@@ -639,20 +625,30 @@ def handle_click(pos):
                         check_special_squares()
                         flash_effects[(row, col)] = time.time()
                     
+                    # After a normal move, if the move consumed all moves (moves_this_turn == 0), complete the turn.
+                    if moves_this_turn == 0:
+                        complete_turn()
+                    
                     selected_piece = None
                     return
             else:
-                # Invalid move: deselect piece.
                 selected_piece = None
         else:
             selected_piece = None
-
-    # --- 6. No Piece Selected: Select a Friendly Piece ---
     else:
+        # --- 6. No Piece Selected: Attempt to Select a Friendly Piece ---
         if board[row][col] and board[row][col]["player"] == players[current_player]:
             selected_piece = (row, col)
         else:
             selected_piece = None
+
+def complete_turn():
+    global turn_counter, selected_piece
+    # Do any additional tasks that should happen when a turn is completed.
+    selected_piece = None
+    turn_counter += 1
+    check_candidate_win()
+    # (Optional) If using both_at_four mode, you can add additional win-checking logic here.
 
 ###############################################################################
 #                              RESET GAME                                     #
@@ -690,12 +686,22 @@ def reset_game():
     # Clear selected piece.
     selected_piece = None
 
-    print("Game has been reset to placement phase.")
 
 ###############################################################################
 #                              DISEGNO INTERFACCIA                            #
 ###############################################################################
 
+def draw_everything():
+    draw_board()
+    draw_turn()
+    draw_button()
+    draw_scoreboard()
+    draw_capture_counter()
+    draw_placement_icon()
+    draw_undo_window()
+    draw_reset_button()
+    draw_quit_button()
+    pygame.display.flip()
 
 def draw_reset_button():
     pygame.draw.rect(screen, BUTTON_COLOR, (RESET_BUTTON_X, RESET_BUTTON_Y, RESET_BUTTON_W, RESET_BUTTON_H))
@@ -928,125 +934,6 @@ def repulse_attack_pawn_path(start_pos, king_pos, steps=5):
 ###############################################################################
 #                              UNDO/REDO                                      #
 ###############################################################################
-# def get_game_state():
-#     """
-#     Returns every variable your game logic changes and needs for drawing.
-#     Adjust to your own variable names.
-#     """
-#     return {
-#         'board': copy.deepcopy(board),
-#         'controlled_squares': {
-#             'Black': controlled_squares["Black"].copy(),
-#             'White': controlled_squares["White"].copy()
-#         },
-#         'captured_pieces': copy.deepcopy(captured_pieces),
-#         'current_player': current_player,
-#         'moves_this_turn': moves_this_turn,
-#         'turn_index': turn_index,
-#         'turn_counter': turn_counter,
-#         'turn_pieces_count': turn_pieces_count,
-#         'candidate_winner': candidate_winner,
-#         'both_at_four': both_at_four,
-#         'game_over': game_over,
-#         # etc. any other relevant fields
-#     }
-
-# def refresh_display():
-#     draw_board()
-#     draw_turn()         # If you have a function to draw whose turn it is.
-#     draw_scoreboard()   # Any other UI elements you update.
-#     pygame.display.flip()
-
-
-# def record_move(start_pos, end_pos, moved_piece, captured_piece):
-#     global moves_this_turn, current_player, board, move_history, redo_history
-
-#     # 1) Capture the entire state before the move
-#     prev_state = get_game_state()
-
-#     # 2) Apply the move
-#     delta = max(abs(end_pos[0] - start_pos[0]), abs(end_pos[1] - start_pos[1]))
-
-#     # Possibly play sound, set move_cost
-#     if captured_piece:
-#         move_sound.play()
-#         if moved_piece["type"] == "ConquestPawn":
-#             move_cost = 1
-#         else:
-#             move_cost = 1 if delta == 1 else 2
-#     else:
-#         move_sound.play()
-#         move_cost = 1
-
-#     new_moves = moves_this_turn + move_cost
-
-#     board[start_pos[0]][start_pos[1]] = None
-#     board[end_pos[0]][end_pos[1]] = moved_piece
-
-#     # 2b) If needed, remove captured pieces, update control, etc.
-
-#     # 3) If the turn ends now, do it
-#     if new_moves >= 2:
-#         moves_this_turn = new_moves  # or set it first
-#         end_turn()  # end_turn updates current_player, resets moves_this_turn, etc.
-#     else:
-#         moves_this_turn = new_moves
-
-#     # 4) The final state after the move + possible turn end
-#     new_state = get_game_state()
-
-#     # 5) Store in move_history
-#     move_history.append({
-#         'from': start_pos,
-#         'to': end_pos,
-#         'piece': moved_piece.copy(),
-#         'captured': captured_piece.copy() if captured_piece else None,
-#         'prev_state': prev_state,
-#         'new_state': new_state,
-#     })
-
-#     # Clear the redo stack
-#     redo_history.clear()
-
-# def restore_game_state(state):
-#     global board, controlled_squares, captured_pieces
-#     global current_player, moves_this_turn
-#     global turn_index, turn_counter, turn_pieces_count
-#     global candidate_winner, both_at_four, game_over
-
-#     board = copy.deepcopy(state['board'])
-#     controlled_squares["Black"] = state['controlled_squares']['Black'].copy()
-#     controlled_squares["White"] = state['controlled_squares']['White'].copy()
-#     captured_pieces = copy.deepcopy(state['captured_pieces'])
-
-#     current_player = state['current_player']
-#     moves_this_turn = state['moves_this_turn']
-#     turn_index = state['turn_index']
-#     turn_counter = state['turn_counter']
-#     turn_pieces_count = state['turn_pieces_count']
-#     candidate_winner = state['candidate_winner']
-#     both_at_four = state['both_at_four']
-#     game_over = state['game_over']
-
-# def undo_move():
-#     if not move_history:
-#         return
-#     last_move = move_history.pop()
-#     redo_history.append(last_move)
-#     restore_game_state(last_move['prev_state'])
-#     # Force a redraw
-#     draw_board()
-#     pygame.display.flip()
-
-# def redo_move():
-#     if not redo_history:
-#         return
-#     move = redo_history.pop()
-#     move_history.append(move)
-#     restore_game_state(move['new_state'])
-#     # Force a redraw
-#     draw_board()
-#     pygame.display.flip()
 
 def record_move(start_pos, end_pos, moved_piece, captured_piece):
     global current_player, moves_this_turn
@@ -1132,7 +1019,6 @@ def record_move_sacrifice(start_pos, end_pos, moved_piece, captured_info, prev_s
 def undo_move():
     global moves_this_turn, current_player, board, controlled_squares, game_over
     if not move_history:
-        print("Nothing to undo.")
         return
     last_move = move_history.pop()
     redo_history.append(last_move)
@@ -1161,204 +1047,45 @@ def undo_move():
     moves_this_turn = prev_state['moves_this_turn']
     game_over = False
 
-#def redo_move():
-    # global moves_this_turn, current_player, board, controlled_squares, game_over
-    # if not redo_history:
-    #     print("Nothing to redo.")
-    #     return
-    # move = redo_history.pop()
-    # if move.get('sacrifice'):
-    #     board = copy.deepcopy(move['new_state']['board_snapshot'])
-    #     controlled_squares["Black"] = move['new_state']['controlled']["Black"].copy()
-    #     controlled_squares["White"] = move['new_state']['controlled']["White"].copy()
-    # else:
-    #     from_pos = move['from']
-    #     to_pos = move['to']
-    #     moved_piece = move['piece']
-    #     board[from_pos[0]][from_pos[1]] = None
-    #     board[to_pos[0]][to_pos[1]] = moved_piece
-    #     if move['captured']:
-    #         # Restore captured piece if needed.
-    #         pass
-    # new_state = move['new_state']
-    # current_player = new_state['current_player']
-    # moves_this_turn = new_state['moves_this_turn']
-    # move_history.append(move)
-    # game_over = move.get('sacrifice', False)
-
-# def record_move(start_pos, end_pos, moved_piece, captured_piece):
+# def recalc_conquest_control():
 #     """
-#     Records the move in move_history, storing both 'prev_state' and 'new_state'.
-#     This ensures you can always undo/redo without KeyError.
+#     Recalculate controlled special squares from the current board.
+#     For each special square, if it is occupied by a ConquestPawn,
+#     add that square to that player's control.
 #     """
-
-#     global moves_this_turn, current_player, board, controlled_squares, game_over
-#     global move_history, redo_history
-#     # If you have end_turn logic, make sure it’s available here:
-#     # from somewhere import end_turn  # (If needed, or define end_turn above)
-
-#     # 1) Capture the "before" (previous) game state
-#     prev_state = {
-#         'current_player': current_player,
-#         'moves_this_turn': moves_this_turn,
-#         'board_snapshot': copy.deepcopy(board),
-#         'controlled': {
-#             'Black': controlled_squares["Black"].copy(),
-#             'White': controlled_squares["White"].copy()
-#         },
-#         'game_over': game_over
-#     }
-
-#     # 2) Apply the move logic: choose move_cost, play sounds, move piece on the board, etc.
-#     delta = max(abs(end_pos[0] - start_pos[0]), abs(end_pos[1] - start_pos[1]))
-
-#     # Example: play audio and determine how many "moves" this costs
-#     if captured_piece is not None:
-#         move_sound.play()
-#         # For ConquestPawn captures, cost = 1 move; else 1 or 2, depending on distance
-#         if moved_piece["type"] == "ConquestPawn":
-#             move_cost = 1
-#         else:
-#             move_cost = 1 if delta == 1 else 2
-#     else:
-#         move_sound.play()
-#         move_cost = 1
-
-#     new_moves = moves_this_turn + move_cost
-
-#     # Actually move the piece (if not already done in handle_click)
-#     board[start_pos[0]][start_pos[1]] = None
-#     board[end_pos[0]][end_pos[1]] = moved_piece
-
-#     # If the move captured a ConquestPawn or changed special squares, handle that here
-#     # e.g. removing conquest pawn's control from squares, etc.
-
-#     # 3) Capture the "after" (new) game state
-#     new_state = {
-#         'current_player': current_player,  # might or might not change if you end the turn below
-#         'moves_this_turn': new_moves,
-#         'board_snapshot': copy.deepcopy(board),
-#         'controlled': {
-#             'Black': controlled_squares["Black"].copy(),
-#             'White': controlled_squares["White"].copy()
-#         },
-#         'game_over': game_over
-#     }
-
-#     # 4) Append this move to move_history
-#     move_history.append({
-#         'from': start_pos,
-#         'to': end_pos,
-#         'piece': moved_piece.copy(),
-#         'captured': captured_piece.copy() if captured_piece else None,
-#         'prev_state': prev_state,
-#         'new_state': new_state,
-#     })
-
-#     # Clear redo history (because we made a new move)
-#     redo_history.clear()
-
-#     # 5) Check if we should end the turn or not
-#     if new_moves >= 2:
-#         end_turn()  # Possibly updates current_player, resets moves_this_turn, etc.
-#     else:
-#         moves_this_turn = new_moves
-
-# def record_move_sacrifice(start_pos, end_pos, moved_piece, captured_info, prev_snapshot, new_snapshot):
-#     global current_player, moves_this_turn
-#     prev_state = {
-#          'current_player': current_player,
-#          'moves_this_turn': moves_this_turn,
-#          'board_snapshot': prev_snapshot,
-#          'controlled': {
-#              'Black': controlled_squares["Black"].copy(),
-#              'White': controlled_squares["White"].copy()
-#          }
-#     }
-#     new_state = {
-#          'current_player': 1 - current_player,
-#          'moves_this_turn': 0,
-#          'board_snapshot': new_snapshot,
-#          'controlled': {
-#              'Black': controlled_squares["Black"].copy(),
-#              'White': controlled_squares["White"].copy()
-#          }
-#     }
-#     move_history.append({
-#          'from': start_pos,
-#          'to': end_pos,
-#          'piece': moved_piece.copy(),
-#          'captured': captured_info,
-#          'sacrifice': True,
-#          'prev_state': prev_state,
-#          'new_state': new_state
-#     })
-#     redo_history.clear()
-#     current_player = new_state['current_player']
-#     moves_this_turn = new_state['moves_this_turn']
-
-# def undo_move():
-#     global moves_this_turn, current_player, board, controlled_squares, game_over
-#     if not move_history:
-#         print("Nothing to undo.")
-#         return
-#     last_move = move_history.pop()
-#     redo_history.append(last_move)
-#     if last_move.get('sacrifice'):
-#         board = copy.deepcopy(last_move['prev_state']['board_snapshot'])
-#         controlled_squares["Black"] = last_move['prev_state']['controlled']["Black"].copy()
-#         controlled_squares["White"] = last_move['prev_state']['controlled']["White"].copy()
-#     else:
-#         from_pos = last_move['from']
-#         to_pos = last_move['to']
-#         moved_piece = last_move['piece']
-#         captured_piece = last_move['captured']
-#         board[to_pos[0]][to_pos[1]] = None
-#         board[from_pos[0]][from_pos[1]] = moved_piece
-#         if captured_piece:
-#             # If captured_piece is a dict with key "defense", restore it to its original position.
-#             if isinstance(captured_piece, dict) and "defense" in captured_piece:
-#                 def_data, def_pos = captured_piece["defense"]
-#                 board[def_pos[0]][def_pos[1]] = def_data
-#             else:
-#                 board[to_pos[0]][to_pos[1]] = captured_piece
-#         controlled_squares["Black"] = last_move['prev_state']['controlled']["Black"].copy()
-#         controlled_squares["White"] = last_move['prev_state']['controlled']["White"].copy()
-#     prev_state = last_move['prev_state']
-#     current_player = prev_state['current_player']
-#     moves_this_turn = prev_state['moves_this_turn']
-#     game_over = False
-
-#     # Restore special square control for conquest pawns after undo.
+#     # Clear old data
+#     controlled_squares["Black"].clear()
+#     controlled_squares["White"].clear()
+    
 #     for (r, c) in special_squares:
 #         piece = board[r][c]
 #         if piece and piece["type"] == "ConquestPawn":
 #             controlled_squares[piece["player"]].add((r, c))
 
-# def redo_move():
-#     global moves_this_turn, current_player, board, controlled_squares, game_over
-#     if not redo_history:
-#         print("Nothing to redo.")
-#         return
-#     move = redo_history.pop()
-#     if move.get('sacrifice'):
-#         board = copy.deepcopy(move['new_state']['board_snapshot'])
-#         controlled_squares["Black"] = move['new_state']['controlled']["Black"].copy()
-#         controlled_squares["White"] = move['new_state']['controlled']["White"].copy()
-#     else:
-#         from_pos = move['from']
-#         to_pos = move['to']
-#         moved_piece = move['piece']
-#         board[from_pos[0]][from_pos[1]] = None
-#         board[to_pos[0]][to_pos[1]] = moved_piece
-#         if move['captured']:
-#             # Restore captured piece if needed.
-#             pass
-#     new_state = move['new_state']
-#     current_player = new_state['current_player']
-#     moves_this_turn = new_state['moves_this_turn']
-#     move_history.append(move)
-#     game_over = move.get('sacrifice', False)
+# def recount_all_captures():
+#     """
+#     Recalculate the captured pieces counts by comparing the board
+#     with the original totals. (This requires you to know how many pieces
+#     each player started with.) For example, if Black started with 4 AttackPawns
+#     and now there are 2 on the board, then 2 have been captured.
+#     """
+#     # For simplicity, assume pieces_left holds the original totals.
+#     remaining_black = {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0}
+#     remaining_white = {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0}
+    
+#     for r in range(ROWS):
+#         for c in range(COLS):
+#             piece = board[r][c]
+#             if piece:
+#                 if piece["player"] == "Black":
+#                     remaining_black[piece["type"]] += 1
+#                 else:
+#                     remaining_white[piece["type"]] += 1
+                    
+#     for ptype in ["AttackPawn", "DefensePawn", "ConquestPawn", "King"]:
+#         # The difference between the original total and the remaining pieces is the number captured.
+#         captured_pieces["Black"][ptype] = pieces_left["Black"][ptype] - remaining_black[ptype]
+#         captured_pieces["White"][ptype] = pieces_left["White"][ptype] - remaining_white[ptype]
 
 ###############################################################################
 #                              LOOP PRINCIPALE                                #
@@ -1386,17 +1113,5 @@ while running:
             else:
                 handle_click(event.pos)
     
-    draw_board()
-    draw_turn()
-    draw_button()
-    draw_scoreboard()
-    draw_capture_counter()
-    draw_placement_icon()
-    draw_undo_window()
-    draw_reset_button()
-    draw_quit_button()
-    pygame.display.flip()
+    draw_everything()
     clock.tick(30)
-
-pygame.quit()
-
