@@ -596,7 +596,7 @@ def handle_click(pos):
                         captured = {"defense": (board[def_r][def_c].copy(), (def_r, def_c))}
                         board[def_r][def_c] = None
                         record_move(selected_piece, new_pos, piece, captured)
-                        moves_this_turn = 2  # Consumes both moves.
+                        moves_this_turn = 0  # Consumes both moves.
                         end_turn()  # This now switches the turn.
                         return
                     else:
@@ -607,7 +607,7 @@ def handle_click(pos):
                         board[row][col] = None
                         new_snapshot = copy.deepcopy(board)
                         record_move_sacrifice(selected_piece, (row, col), piece, captured, prev_snapshot, new_snapshot)
-                        moves_this_turn = 2
+                        moves_this_turn = 0
                         game_over = True
                         flash_winner_king(piece["player"], 1)
                         end_turn()  # End the turn even in the sacrifice branch.
