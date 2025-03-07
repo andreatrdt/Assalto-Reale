@@ -449,23 +449,20 @@ def check_candidate_win():
     # We wait until two turn increments have occurred:
     if candidate_winner is not None and (turn_counter - candidate_turn_index >= 2):  
         if len(controlled_squares[candidate_winner]) >= 3:
-            flash_winner_king(candidate_winner)
+            flash_winner_king(candidate_winner,1)
         else:
             candidate_winner = None
 
 def end_turn():
     global current_player, moves_this_turn, selected_piece, turn_counter
-    
     current_player = 1 - current_player
     moves_this_turn = 0
     selected_piece = None
-    turn_counter += 1  # Increment the turn counter.
-    
-    # Check for candidate win only if the opponent's full turn has been completed.
-    check_candidate_win()
-    
+    turn_counter += 1
+    # You can also call check_candidate_win() here if needed.
+    check_candidate_win()  # If you have candidate win logic.
 
-def flash_winner_king(winner):
+def flash_winner_king(winner,flag):
     """
     Finds the king belonging to 'winner' on the board and flashes it
     for a few seconds before closing the game.
@@ -482,7 +479,11 @@ def flash_winner_king(winner):
             break
     if king_pos is None:
         return
-    flash_duration = 3000  # duration in milliseconds (3 seconds)
+    if flag == 1:
+        flash_duration = 3000
+    else:
+        flash_duration = 300  # duration in milliseconds (0.3 seconds)
+
     start_time = pygame.time.get_ticks()
     
     while pygame.time.get_ticks() - start_time < flash_duration:
@@ -492,7 +493,10 @@ def flash_winner_king(winner):
         flash_overlay = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
         # Alpha will alternate every 100ms.
         alpha = 128 if ((pygame.time.get_ticks() - start_time) // 100) % 2 == 0 else 0
-        flash_overlay.fill((0, 255, 0, alpha))
+        if flag == 1:
+            flash_overlay.fill((0, 255, 0, alpha))
+        else: 
+            flash_overlay.fill((255, 0, 0, alpha))
         screen.blit(flash_overlay, (c * SQ_SIZE, r * SQ_SIZE))
         pygame.display.flip()
         pygame.time.delay(50)
@@ -572,12 +576,13 @@ def handle_click(pos):
                 delta_col = abs(col - start_pos[1])
 
                 # --- Special Case: AttackPawn vs. King ---
+                                # --- Special Case: AttackPawn vs. King ---
                 if (piece["type"] == "AttackPawn" and target_piece and 
                     target_piece["type"] == "King" and (delta_row, delta_col) in [(1, 0), (0, 1), (2, 0), (0, 2)]):
-                    
                     defense_pos = get_defense_pawn_adjacent_to_king(row, col, target_piece["player"])
                     if defense_pos is not None:
-                        # Repulsion branch: animate repulsion (using path) and remove the defending pawn.
+                        # Repulsion branch: animate repulsion and remove the defending pawn.
+                        # (Removed flash_winner_king call from this branch.)
                         path = repulse_attack_pawn_path(start_pos, (row, col))
                         for pos_step in path[1:]:
                             board[start_pos[0]][start_pos[1]] = None
@@ -592,7 +597,7 @@ def handle_click(pos):
                         board[def_r][def_c] = None
                         record_move(selected_piece, new_pos, piece, captured)
                         moves_this_turn = 2  # Consumes both moves.
-                        end_turn()  # In this branch we already call end_turn().
+                        end_turn()  # This now switches the turn.
                         return
                     else:
                         # Sacrifice branch: no defender available.
@@ -604,6 +609,8 @@ def handle_click(pos):
                         record_move_sacrifice(selected_piece, (row, col), piece, captured, prev_snapshot, new_snapshot)
                         moves_this_turn = 2
                         game_over = True
+                        flash_winner_king(piece["player"], 1)
+                        end_turn()  # End the turn even in the sacrifice branch.
                         return
                 else:
                     # --- Normal Move / Capture Branch ---
