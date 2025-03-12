@@ -17,30 +17,31 @@ BLINK_INTERVAL = 0.3  # how fast it blinks on/off
 # -----------------------------------------------------------------------------
 # Updated Constants for a 12x12 board
 # -----------------------------------------------------------------------------
-WIDTH, HEIGHT = 800, 650  # Overall window size for visibility
+WIDTH, HEIGHT = 1000, 812  # Overall window size for visibility
 ROWS, COLS = 12, 12       # Board dimensions: 12 rows x 12 columns
 SQ_SIZE = WIDTH // (COLS + 4)  # Square size (with some extra margin for UI)
-BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H = WIDTH - 110, HEIGHT // 2 - 20, 100, 40
-SCOREBOARD_X, SCOREBOARD_Y = BUTTON_X, BUTTON_Y - 70  # Scoreboard position
-CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y = WIDTH - 160, HEIGHT - 200  # Capture counter position 
-TURN_X, TURN_Y, TURN_WIDTH, TURN_HIGHT = BUTTON_X+100, HEIGHT-400, 100, 40
-PLACEMENT_ICON_X, PLACEMENT_ICON_Y = SCOREBOARD_X-90, SCOREBOARD_Y + 65
-PLACEMENT_ICON_W, PLACEMENT_ICON_H = 100, 50
+BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H = WIDTH - 140, HEIGHT // 2 - 25, 125, 50
+SCOREBOARD_X, SCOREBOARD_Y = BUTTON_X, BUTTON_Y - 88  # Scoreboard position
+CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y = WIDTH - 200, HEIGHT - 312  # Capture counter position 
+TURN_X, TURN_Y, TURN_WIDTH, TURN_HIGHT = BUTTON_X+125, HEIGHT-500, 125, 50
+
+PLACEMENT_ICON_X, PLACEMENT_ICON_Y = SCOREBOARD_X-113, SCOREBOARD_Y + 82
+PLACEMENT_ICON_W, PLACEMENT_ICON_H = 125, 63
 
 # For example, position the undo/redo window below the turn indicator in your right panel
 UNDO_WINDOW_X = SCOREBOARD_X 
-UNDO_WINDOW_Y = TURN_Y + TURN_HIGHT + 60
-UNDO_WINDOW_W, UNDO_WINDOW_H = 100, 40
+UNDO_WINDOW_Y = TURN_Y + TURN_HIGHT + 75
+UNDO_WINDOW_W, UNDO_WINDOW_H = 125, 50
 
 # Reset Button (to clear the board and return to placement phase)
 RESET_BUTTON_X = SCOREBOARD_X
-RESET_BUTTON_Y = UNDO_WINDOW_Y + UNDO_WINDOW_H - 200
-RESET_BUTTON_W, RESET_BUTTON_H = 100, 40
+RESET_BUTTON_Y = UNDO_WINDOW_Y + UNDO_WINDOW_H - 250
+RESET_BUTTON_W, RESET_BUTTON_H = 125, 50
 
 # Quit Button (to exit the game)
 QUIT_BUTTON_X = RESET_BUTTON_X
-QUIT_BUTTON_Y = RESET_BUTTON_Y + RESET_BUTTON_H - 100
-QUIT_BUTTON_W, QUIT_BUTTON_H = 100, 40
+QUIT_BUTTON_Y = RESET_BUTTON_Y + RESET_BUTTON_H - 125
+QUIT_BUTTON_W, QUIT_BUTTON_H = 125, 50
 
 # -----------------------------------------------------------------------------
 # Colors and Piece Definitions
@@ -54,6 +55,51 @@ HIGHLIGHT = (255, 165, 0)  # Selected piece highlight
 RED_HIGHLIGHT = (255, 0, 0, 150)  # Possible capture highlight
 GRAY = (99, 102, 106, 100)  # Valid move highlight (semi-transparent)
 BUTTON_COLOR = (125, 125, 125)  # Button color
+
+
+# After pygame.init() but before your game loop:
+# Load images for BLACK
+black_attack_image   = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "black_attack_pawn.png"))
+black_defense_image  = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "black_defense_pawn.png"))
+black_conquest_image = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "black_conquest_pawn.png"))
+black_king_image     = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "black_king.png"))
+
+# Load images for WHITE
+white_attack_image   = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "white_attack_pawn.png"))
+white_defense_image  = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "white_defense_pawn.png"))
+white_conquest_image = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "white_conquest_pawn.png"))
+white_king_image     = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "white_king.png"))
+
+# If necessary, resize them to fit your square size SQ_SIZE
+# For example, to make them half the square size:
+black_attack_image   = pygame.transform.scale(black_attack_image,   (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+black_defense_image  = pygame.transform.scale(black_defense_image,  (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+black_conquest_image = pygame.transform.scale(black_conquest_image, (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+black_king_image     = pygame.transform.scale(black_king_image,     (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+
+white_attack_image   = pygame.transform.scale(white_attack_image,   (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+white_defense_image  = pygame.transform.scale(white_defense_image,  (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+white_conquest_image = pygame.transform.scale(white_conquest_image, (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+white_king_image     = pygame.transform.scale(white_king_image,     (2*SQ_SIZE//3, 2*SQ_SIZE//3))
+
+# Create a dictionary for easy lookup
+PIECE_IMAGES = {
+    "Black": {
+        "AttackPawn": black_attack_image,
+        "DefensePawn": black_defense_image,
+        "ConquestPawn": black_conquest_image,
+        "King": black_king_image
+    },
+    "White": {
+        "AttackPawn": white_attack_image,
+        "DefensePawn": white_defense_image,
+        "ConquestPawn": white_conquest_image,
+        "King": white_king_image
+    }
+}
+
+
+
 
 # Pieces available for each player
 PIECE_ORDER = ["King"] + ["AttackPawn"] * 4 + ["DefensePawn"] * 4 + ["ConquestPawn"] * 4
@@ -122,6 +168,7 @@ generate_special_squares()
 ###############################################################################
 #                        FUNZIONI PER REGOLARE LE CATTURE                     #
 ###############################################################################
+
 def can_capture_shape(piece_moving, start, end):
     """
     Verifica la forma di cattura consentita dal tipo di pedone:
@@ -150,7 +197,10 @@ def can_capture_shape(piece_moving, start, end):
         # Movimento a L del Cavallo (2+1 o 1+2)
         return (delta_row == 2 and delta_col == 1) or (delta_row == 1 and delta_col == 2)
 
-    # Se è il Re o altro, ritorna False di default (se seguiamo le regole standard)
+    elif mover_type == "King":
+        # Movimento normale del Re (1 casella in qualsiasi direzione)
+        return max(delta_row, delta_col) == 1
+
     return False
 
 def is_allowed_capture_type(piece_moving, piece_target):
@@ -169,12 +219,16 @@ def is_allowed_capture_type(piece_moving, piece_target):
         return (target_type == "ConquestPawn")
     elif mover_type == "ConquestPawn":
         return (target_type == "AttackPawn")
+    elif mover_type == "King":
+        # Il Re può catturare qualsiasi pezzo, ma solo se non è un attacco speciale
+        return target_type == ["AttackPawn", "DefensePawn", "ConquestPawn"]
     
     return False
 
 ###############################################################################
 #                   FUNZIONE PRINCIPALE DI VALIDAZIONE MOSSA                  #
 ###############################################################################
+
 def is_valid_move(piece, start, end):
     row_start, col_start = start
     row_end, col_end = end
@@ -229,6 +283,13 @@ def is_valid_move(piece, start, end):
                 return is_allowed_capture_type(piece, target_piece)
             else:
                 return False
+        elif piece["type"] == "King":
+            # King captures in any direction (1 square) or L-shape (2+1 or 1+2).
+            if max(delta_row, delta_col) == 1:
+                return is_allowed_capture_type(piece, target_piece)
+
+            else:
+                return False
         else:
             return False
     else:
@@ -238,7 +299,6 @@ def is_valid_move(piece, start, end):
         if max(delta_row, delta_col) <= 1:
             return True
         return False
-
 
 ###############################################################################
 #                             DISEGNO DELLA SCACCHIERA                        #
@@ -257,31 +317,37 @@ def draw_board():
     # First, sanitize the board.
     sanitize_board()
     
+    # Fill the background.
     screen.fill(GRAY)
+    
+    # Draw board squares.
     for row in range(ROWS):
         for col in range(COLS):
             base_color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
             pygame.draw.rect(screen, base_color, (col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE))
     
+    # Draw special squares (if any).
     for (r, c) in special_squares:
-        pygame.draw.circle(screen, GREEN, (c * SQ_SIZE + SQ_SIZE//2, r * SQ_SIZE + SQ_SIZE//2), SQ_SIZE//3 + 5)
+        pygame.draw.circle(screen, GREEN, (c * SQ_SIZE + SQ_SIZE // 2, r * SQ_SIZE + SQ_SIZE // 2), SQ_SIZE // 3 + 5)
     
+    # Draw pieces using custom icons.
+    # Assumes PIECE_IMAGES is a dict structured as:
+    # PIECE_IMAGES = { "Black": { "AttackPawn": surface, "DefensePawn": surface, ... },
+    #                  "White": { "AttackPawn": surface, "DefensePawn": surface, ... } }
     for row_idx in range(ROWS):
         for col_idx in range(COLS):
             cell = board[row_idx][col_idx]
             if cell:
-                # At this point cell is expected to be a valid dict.
                 piece = cell
-                piece_color = BLACK if piece["player"] == "Black" else WHITE
-                center_x = col_idx * SQ_SIZE + SQ_SIZE // 2
-                center_y = row_idx * SQ_SIZE + SQ_SIZE // 2
-                pygame.draw.circle(screen, piece_color, (center_x, center_y), SQ_SIZE // 3)
-                label = PIECE_LABELS.get(piece["type"], "?")
-                text_color = WHITE if piece["player"] == "Black" else BLACK
-                text = font.render(label, True, text_color)
-                text_rect = text.get_rect(center=(center_x, center_y))
-                screen.blit(text, text_rect)
-
+                # Retrieve the corresponding image.
+                piece_image = PIECE_IMAGES[piece["player"]][piece["type"]]
+                piece_rect = piece_image.get_rect()
+                # Center the image in the square.
+                piece_rect.center = (col_idx * SQ_SIZE + SQ_SIZE // 2,
+                                       row_idx * SQ_SIZE + SQ_SIZE // 2)
+                screen.blit(piece_image, piece_rect)
+    
+    # Handle flash effects (for moves, win indication, etc.).
     now = time.time()
     for (r, c) in list(flash_effects.keys()):
         elapsed = now - flash_effects[(r, c)]
@@ -293,7 +359,8 @@ def draw_board():
             screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
         else:
             del flash_effects[(r, c)]
-
+    
+    # During placement phase, overlay forbidden squares.
     if placing_pieces:
         piece_type = get_next_piece_type_for_player(players[current_player])
         if piece_type:
@@ -304,7 +371,8 @@ def draw_board():
                         overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
                         overlay_surf.fill(overlay_color)
                         screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
-
+    
+    # If a piece is selected, show its valid moves.
     if selected_piece:
         sr, sc = selected_piece
         piece = board[sr][sc]
@@ -318,22 +386,21 @@ def draw_board():
                     pygame.draw.circle(screen, (255, 0, 0, 80), (cx, cy), SQ_SIZE // 6)
                 else:
                     pygame.draw.circle(screen, (128, 128, 128, 80), (cx, cy), SQ_SIZE // 6)
-
-    # Draw row numbers on the right.
+    
+    # Draw row numbers on the right side.
     for row in range(ROWS):
         label = font.render(str(ROWS - row), True, BLACK)
-        x = 610  # Adjust as needed.
-        y = row * SQ_SIZE + SQ_SIZE/2 - label.get_height()/2
+        x = 760  # Adjust as needed.
+        y = row * SQ_SIZE + SQ_SIZE / 2 - label.get_height() / 2
         screen.blit(label, (x, y))
     
     # Draw column letters below the board.
     for col in range(COLS):
         letter = chr(ord('A') + col)
         label = font.render(letter, True, BLACK)
-        x = col * SQ_SIZE + SQ_SIZE/2 - label.get_width()/2
+        x = col * SQ_SIZE + SQ_SIZE / 2 - label.get_width() / 2
         y = ROWS * SQ_SIZE + 5
         screen.blit(label, (x, y))
-
 
 def get_valid_moves(piece, position):
     row, col = position
@@ -360,6 +427,7 @@ def is_square_disallowed_for_placement(row, col, player, piece_type):
         if player == "White" and col < (COLS - 2):
             return True
     return False
+
 ###############################################################################
 #                           FASI DI PIAZZAMENTO INIZIALE                      #
 ###############################################################################
@@ -533,11 +601,7 @@ def handle_click(pos):
     # --- 1. UI Buttons: Undo/Redo, PASS ---
     if (UNDO_WINDOW_X <= mx <= UNDO_WINDOW_X + UNDO_WINDOW_W and 
         UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
-        if mx < UNDO_WINDOW_X + UNDO_WINDOW_W / 2:
-            undo_move()
-        # (If you later implement redo, uncomment below)
-        # else:
-        #     redo_move()
+        undo_move()
         return
 
     if (BUTTON_X <= pos[0] <= BUTTON_X + BUTTON_W and 
@@ -576,28 +640,26 @@ def handle_click(pos):
                 delta_col = abs(col - start_pos[1])
 
                 # --- Special Case: AttackPawn vs. King ---
-                                # --- Special Case: AttackPawn vs. King ---
                 if (piece["type"] == "AttackPawn" and target_piece and 
                     target_piece["type"] == "King" and (delta_row, delta_col) in [(1, 0), (0, 1), (2, 0), (0, 2)]):
                     defense_pos = get_defense_pawn_adjacent_to_king(row, col, target_piece["player"])
                     if defense_pos is not None:
                         # Repulsion branch: animate repulsion and remove the defending pawn.
-                        # (Removed flash_winner_king call from this branch.)
                         path = repulse_attack_pawn_path(start_pos, (row, col))
                         for pos_step in path[1:]:
                             board[start_pos[0]][start_pos[1]] = None
                             board[pos_step[0]][pos_step[1]] = piece
                             draw_everything()
                             pygame.display.flip()
-                            pygame.time.delay(200)  # Delay between steps
-                            start_pos = pos_step  # Update for next step
+                            pygame.time.delay(200)
+                            start_pos = pos_step
                         new_pos = path[-1]
                         def_r, def_c = defense_pos
                         captured = {"defense": (board[def_r][def_c].copy(), (def_r, def_c))}
                         board[def_r][def_c] = None
                         record_move(selected_piece, new_pos, piece, captured)
-                        moves_this_turn = 0  # Consumes both moves.
-                        end_turn()  # This now switches the turn.
+                        # Update the captured counter for the defense pawn.
+                        captured_pieces[players[current_player]]["DefensePawn"] += 1
                         return
                     else:
                         # Sacrifice branch: no defender available.
@@ -610,18 +672,21 @@ def handle_click(pos):
                         moves_this_turn = 0
                         game_over = True
                         flash_winner_king(piece["player"], 1)
-                        end_turn()  # End the turn even in the sacrifice branch.
+                        end_turn()
                         return
                 else:
                     # --- Normal Move / Capture Branch ---
                     if target_piece and target_piece["player"] != piece["player"]:
                         captured = target_piece.copy()
+                        # Record the move before modifying the control and captured counters.
+                        record_move(selected_piece, (row, col), piece, captured)
+                        # If the target is a ConquestPawn on a special square, remove its control.
                         if target_piece["type"] == "ConquestPawn":
                             if (row, col) in controlled_squares[target_piece["player"]]:
                                 controlled_squares[target_piece["player"]].remove((row, col))
+                        # Then update the captured counter for the target piece.
                         captured_pieces[players[current_player]][target_piece["type"]] += 1
                         board[row][col] = None
-                        record_move(selected_piece, (row, col), piece, captured)
                     else:
                         record_move(selected_piece, (row, col), piece, None)
 
@@ -632,7 +697,6 @@ def handle_click(pos):
                         check_special_squares()
                         flash_effects[(row, col)] = time.time()
                     
-                    # After a normal move, if the move consumed all moves (moves_this_turn == 0), complete the turn.
                     if moves_this_turn == 0:
                         complete_turn()
                     
@@ -713,7 +777,7 @@ def draw_everything():
 def draw_reset_button():
     pygame.draw.rect(screen, BUTTON_COLOR, (RESET_BUTTON_X, RESET_BUTTON_Y, RESET_BUTTON_W, RESET_BUTTON_H))
     pygame.draw.rect(screen, BLACK, (RESET_BUTTON_X, RESET_BUTTON_Y, RESET_BUTTON_W, RESET_BUTTON_H), 2)
-    text = font.render("Reset", True, WHITE)
+    text = font.render("RESET", True, WHITE)
     text_x = RESET_BUTTON_X + (RESET_BUTTON_W - text.get_width()) // 2
     text_y = RESET_BUTTON_Y + (RESET_BUTTON_H - text.get_height()) // 2
     screen.blit(text, (text_x, text_y))
@@ -721,81 +785,107 @@ def draw_reset_button():
 def draw_quit_button():
     pygame.draw.rect(screen, BUTTON_COLOR, (QUIT_BUTTON_X, QUIT_BUTTON_Y, QUIT_BUTTON_W, QUIT_BUTTON_H))
     pygame.draw.rect(screen, BLACK, (QUIT_BUTTON_X, QUIT_BUTTON_Y, QUIT_BUTTON_W, QUIT_BUTTON_H), 2)
-    text = font.render("Quit", True, WHITE)
+    text = font.render("QUIT", True, WHITE)
     text_x = QUIT_BUTTON_X + (QUIT_BUTTON_W - text.get_width()) // 2
     text_y = QUIT_BUTTON_Y + (QUIT_BUTTON_H - text.get_height()) // 2
     screen.blit(text, (text_x, text_y))
 
 def draw_turn():
     if current_player == 0:
-        pygame.draw.circle(screen, BLACK, (SCOREBOARD_X-40, SCOREBOARD_Y+30), 20)
+        pygame.draw.circle(screen, BLACK, (SCOREBOARD_X-50, SCOREBOARD_Y+38), 25)
     else:
-        pygame.draw.circle(screen, WHITE, (SCOREBOARD_X-40, SCOREBOARD_Y+30), 20)
+        pygame.draw.circle(screen, WHITE, (SCOREBOARD_X-50, SCOREBOARD_Y+38), 25)
 
 def draw_button():
     pygame.draw.rect(screen, BUTTON_COLOR, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H))
     pygame.draw.rect(screen, BLACK, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H), 2)
     text = font.render("PASS", True, WHITE)
-    screen.blit(text, (BUTTON_X + 20, BUTTON_Y + 10))
+    screen.blit(text, (BUTTON_X + 25, BUTTON_Y + 13))
 
 def draw_scoreboard():
-    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 60), 2)
-    pygame.draw.rect(screen, WHITE, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 30))
-    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 30))
+    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 75), 2)
+    pygame.draw.rect(screen, WHITE, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
+    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
     text_black = font.render(f"Black: {len(controlled_squares['Black'])}", True, WHITE)
     text_white = font.render(f"White: {len(controlled_squares['White'])}", True, BLACK)
-    screen.blit(text_black, (SCOREBOARD_X + 10, SCOREBOARD_Y + 5))
-    screen.blit(text_white, (SCOREBOARD_X + 10, SCOREBOARD_Y + 30))
+    screen.blit(text_black, (SCOREBOARD_X + 13, SCOREBOARD_Y + 7))
+    screen.blit(text_white, (SCOREBOARD_X + 13, SCOREBOARD_Y + 38))
 
 def draw_capture_counter():
-    pygame.draw.rect(screen, GRAY, (CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y, 200, 100))
-    y_offset = 5
-    for player, data in captured_pieces.items():
-        for piece_type, count in data.items():
-            for i in range(count):
-                piece_color = BLACK if player == "White" else WHITE
-                pygame.draw.circle(screen, piece_color,
-                                   (CAPTURE_COUNTER_X + 20 + i * 25, CAPTURE_COUNTER_Y + y_offset + 10), 10)
-                text = font.render(PIECE_LABELS[piece_type], True, WHITE if player == "White" else BLACK)
-                text_rect = text.get_rect(center=(CAPTURE_COUNTER_X + 20 + i * 25, CAPTURE_COUNTER_Y + y_offset + 10))
-                screen.blit(text, text_rect)
-            y_offset += 25
+    # Check if any captured pieces exist.
+    any_captured = any(
+        captured_pieces[player][ptype] > 0 
+        for player in ["Black", "White"] 
+        for ptype in captured_pieces[player]
+    )
+    if not any_captured:
+        return  # Do not draw the capture counter if no pieces have been captured.
+    
+    # Set the capture counter dimensions.
+    counter_width = 250
+    counter_height = 256  # Enough space to display 4 rows in each half.
+    
+    # Clear the area by drawing a background rectangle.
+    pygame.draw.rect(screen, GRAY, (CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y, counter_width, counter_height))
+    
+    # Draw a horizontal divider to separate the two groups.
+    divider_y = CAPTURE_COUNTER_Y + counter_height // 2
+    
+    # Use a fixed order for piece types.
+    piece_order = ["King", "AttackPawn", "DefensePawn", "ConquestPawn"]
+    
+    # Layout parameters.
+    row_height = (counter_height // 2) // 4  # Each half divided into 4 rows.
+    icon_size = 25     # Each icon will be scaled to 20x20.
+    icon_spacing = 7   # Horizontal spacing between icons.
+    
+    # --- Top Half: Captured Black pieces (i.e. Black pieces captured by White) ---
+    y_top = CAPTURE_COUNTER_Y + 7
+    for i, p_type in enumerate(piece_order):
+        x = CAPTURE_COUNTER_X + 7
+        count = captured_pieces["Black"][p_type]
+        for _ in range(count):
+            icon = PIECE_IMAGES["Black"][p_type]
+            small_icon = pygame.transform.scale(icon, (icon_size, icon_size))
+            screen.blit(small_icon, (x, y_top + i * row_height))
+            x += icon_size + icon_spacing
+
+    # --- Bottom Half: Captured White pieces (i.e. White pieces captured by Black) ---
+    y_bottom = divider_y # +5
+    for i, p_type in enumerate(piece_order):
+        x = CAPTURE_COUNTER_X + 7
+        count = captured_pieces["White"][p_type]
+        for _ in range(count):
+            icon = PIECE_IMAGES["White"][p_type]
+            small_icon = pygame.transform.scale(icon, (icon_size, icon_size))
+            screen.blit(small_icon, (x, y_bottom + i * row_height))
+            x += icon_size + icon_spacing
 
 def draw_placement_icon():
     if placing_pieces:
         next_piece_type = get_next_piece_type_for_player(players[current_player])
         if next_piece_type is not None:
-            # Determine center and radius for the icon
-            center_x = PLACEMENT_ICON_X + PLACEMENT_ICON_W // 2
-            center_y = PLACEMENT_ICON_Y + PLACEMENT_ICON_H // 2
-            radius = min(PLACEMENT_ICON_W, PLACEMENT_ICON_H) // 2 - 5
-
-            # Set the piece color and contrasting text color based on the current player
-            if players[current_player] == "Black":
-                piece_color = BLACK
-                label_color = WHITE
-            else:
-                piece_color = WHITE
-                label_color = BLACK
-
-            # Draw the circle (icon)
-            pygame.draw.circle(screen, piece_color, (center_x, center_y), radius)
-
-            # Draw the letter (icon label) in the center of the circle
-            label = font.render(PIECE_LABELS[next_piece_type], True, label_color)
-            label_rect = label.get_rect(center=(center_x, center_y))
-            screen.blit(label, label_rect)
+            # Retrieve the PNG icon for the next piece from the current player's images.
+            piece_icon = PIECE_IMAGES[players[current_player]][next_piece_type]
+            # Scale the icon to fit within the placement icon area (with a small margin).
+            icon_width = PLACEMENT_ICON_W - 75
+            icon_height = PLACEMENT_ICON_H - 13
+            scaled_icon = pygame.transform.scale(piece_icon, (icon_width, icon_height))
+            # Center the icon in the designated placement area.
+            icon_x = PLACEMENT_ICON_X + (PLACEMENT_ICON_W - icon_width) // 2
+            icon_y = PLACEMENT_ICON_Y + (PLACEMENT_ICON_H - icon_height) // 2
+            screen.blit(scaled_icon, (icon_x, icon_y))
 
 def draw_undo_window():
     # Draw a background rectangle for the undo window
-    pygame.draw.rect(screen, GRAY, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-5, UNDO_WINDOW_H))
-    pygame.draw.rect(screen, BLACK, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-5, UNDO_WINDOW_H), 2)
+    pygame.draw.rect(screen, GRAY, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H))
+    pygame.draw.rect(screen, BLACK, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H), 2)
     
     # Draw left arrow (for undo)
     left_arrow = [
-        (UNDO_WINDOW_X + 10, UNDO_WINDOW_Y + UNDO_WINDOW_H // 2),
-        (UNDO_WINDOW_X + 30, UNDO_WINDOW_Y + 10),
-        (UNDO_WINDOW_X + 30, UNDO_WINDOW_Y + UNDO_WINDOW_H - 10)
+        (UNDO_WINDOW_X + 13, UNDO_WINDOW_Y + UNDO_WINDOW_H // 2),
+        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + 13),
+        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + UNDO_WINDOW_H - 13)
     ]
     pygame.draw.polygon(screen, BLACK, left_arrow)
     
@@ -950,22 +1040,26 @@ def record_move(start_pos, end_pos, moved_piece, captured_piece):
         'controlled': {
             'Black': controlled_squares["Black"].copy(),
             'White': controlled_squares["White"].copy()
-        }
+        },
+        'captured': {
+            'Black': captured_pieces["Black"].copy(),
+            'White': captured_pieces["White"].copy()
+        },
+        # Save the special square win state as well.
+        'candidate_winner': candidate_winner,
+        'both_at_four': both_at_four
     }
     delta = max(abs(end_pos[0] - start_pos[0]), abs(end_pos[1] - start_pos[1]))
+    move_sound.play()  # Play move sound.
     
-    # Riproduci il suono in base al tipo di mossa
-    # Play sound based on move type.
+    # For capture moves: cost 1 if adjacent (delta==1) and 2 if jump (delta==2)
     if captured_piece is not None:
-        move_sound.play()  # Sound for capture
-        move_cost = 2
+        move_cost = 1 if delta == 1 else 2
     else:
-        move_sound.play()     # Sound for normal move
         move_cost = 1
-    
+
     new_moves = moves_this_turn + move_cost
     if new_moves >= 2:
-        # If the move cost meets or exceeds 2, the turn is complete.
         new_state = {'current_player': 1 - current_player, 'moves_this_turn': 0}
     else:
         new_state = {'current_player': current_player, 'moves_this_turn': new_moves}
@@ -984,7 +1078,6 @@ def record_move(start_pos, end_pos, moved_piece, captured_piece):
          }
     })
     redo_history.clear()
-    # Update global state based on the move.
     current_player = new_state['current_player']
     moves_this_turn = new_state['moves_this_turn']
 
@@ -1024,7 +1117,7 @@ def record_move_sacrifice(start_pos, end_pos, moved_piece, captured_info, prev_s
     moves_this_turn = new_state['moves_this_turn']
 
 def undo_move():
-    global moves_this_turn, current_player, board, controlled_squares, game_over
+    global moves_this_turn, current_player, board, controlled_squares, captured_pieces, candidate_winner, both_at_four, game_over
     if not move_history:
         return
     last_move = move_history.pop()
@@ -1049,6 +1142,13 @@ def undo_move():
                 board[to_pos[0]][to_pos[1]] = captured_piece
         controlled_squares["Black"] = last_move['prev_state']['controlled']["Black"].copy()
         controlled_squares["White"] = last_move['prev_state']['controlled']["White"].copy()
+    # Restore captured pieces from the previous state.
+    captured_pieces["Black"] = last_move['prev_state']['captured']["Black"].copy()
+    captured_pieces["White"] = last_move['prev_state']['captured']["White"].copy()
+    # Restore special square win state.
+    candidate_winner = last_move['prev_state'].get('candidate_winner', None)
+    both_at_four = last_move['prev_state'].get('both_at_four', False)
+    
     prev_state = last_move['prev_state']
     current_player = prev_state['current_player']
     moves_this_turn = prev_state['moves_this_turn']
