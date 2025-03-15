@@ -47,6 +47,8 @@ QUIT_BUTTON_W, QUIT_BUTTON_H = 125, 50
 # Colors and Piece Definitions
 # -----------------------------------------------------------------------------
 WHITE = (255, 255, 255)
+RED = (255, 0, 0);
+BLUE = (0, 0, 255);
 BLACK = (0, 0, 0)
 LIGHT_BROWN = (222, 184, 135)
 DARK_BROWN = (139, 69, 19)
@@ -156,7 +158,7 @@ font = pygame.font.SysFont("bookmanoldstyle", 20)
 # -----------------------------------------------------------------------------
 board = [[None for _ in range(COLS)] for _ in range(ROWS)]
 special_squares = set()
-controlled_squares = {"Black": set(), "White": set()}  # Tracks controlled special squares
+
 selected_piece = None  # Currently selected piece
 
 both_at_four = False
@@ -199,7 +201,7 @@ pieces_placed = {"Black": 0, "White": 0, "Red": 0, "Blue": 0}  # Number of piece
 
 
 # Turn sequence: first turn 1 piece, then 24 turns of 2 pieces, then final turn 1 piece
-turn_sequence = [2]*26 
+turn_sequence = [1]*52
 turn_index = 0
 turn_pieces_count = 0  # Number of pieces placed in the current turn
 moves_this_turn = 0  # Number of moves made this turn
@@ -467,30 +469,70 @@ def get_valid_moves(piece, position):
     return valid_moves
 
 def is_square_disallowed_for_placement(row, col, player, piece_type):
+    # Always disallow if out of bounds or on a special square.
     if not (0 <= row < ROWS and 0 <= col < COLS):
         return True
     if (row, col) in special_squares:
         return True
+
+    # For ConquestPawn, enforce the minimum distance rule from special squares.
     if piece_type == "ConquestPawn":
         for (r_s, c_s) in special_squares:
             if max(abs(row - r_s), abs(col - c_s)) < 3:
                 return True
+
+    # For AttackPawn, restrict placement to the designated quadrant and a rotated L shape.
     if piece_type == "AttackPawn":
-        # Define zones for each player:
         if player == "Black":
-            if not (col < COLS // 2 and row < ROWS // 2):
+            # Must be in the top-left quadrant.
+            if not (row < ROWS // 2 and col < COLS // 2):
+                return True
+            # Allowed only if in the first 3 rows or in the first 3 columns.
+            if not (row < 3 or col < 3):
                 return True
         elif player == "White":
-            if not (col >= COLS // 2 and row < ROWS // 2):
+            # Must be in the top-right quadrant.
+            if not (row < ROWS // 2 and col >= COLS // 2):
+                return True
+            # Allowed only if in the first 3 rows or in the last 3 columns.
+            if not (row < 3 or col >= COLS - 3):
                 return True
         elif player == "Red":
-            if not (col < COLS // 2 and row >= ROWS // 2):
+            # Must be in the bottom-left quadrant.
+            if not (row >= ROWS // 2 and col < COLS // 2):
+                return True
+            # Allowed only if in the last 3 rows or in the first 3 columns.
+            if not (row >= ROWS - 3 or col < 3):
                 return True
         elif player == "Blue":
-            if not (col >= COLS // 2 and row >= ROWS // 2):
+            # Must be in the bottom-right quadrant.
+            if not (row >= ROWS // 2 and col >= COLS // 2):
                 return True
-    return False
+            if not (row >= ROWS - 3 or col >= COLS - 3):
+                return True
+    if piece_type == "King":
 
+
+        if player == "Black":
+            # Must be in the top-left quadrant.
+            if not (row < ROWS // 2 and col < COLS // 2):
+                return True
+
+        elif player == "White":
+            # Must be in the top-right quadrant.
+            if not (row < ROWS // 2 and col >= COLS // 2):
+                return True
+
+        elif player == "Red":
+            # Must be in the bottom-left quadrant.
+            if not (row >= ROWS // 2 and col < COLS // 2):
+                return True
+        elif player == "Blue":
+            # Must be in the bottom-right quadrant.
+            if not (row >= ROWS // 2 and col >= COLS // 2):
+                return True
+
+        
 ###############################################################################
 #                           FASI DI PIAZZAMENTO INIZIALE                      #
 ###############################################################################
@@ -502,26 +544,22 @@ def get_next_piece_type_for_player(player):
     return None
 
 def place_piece(pos):
-    global current_player, turn_index, turn_pieces_count, placing_pieces
+    global current_player, placing_pieces
+
     col, row = pos[0] // SQ_SIZE, pos[1] // SQ_SIZE
 
-    # Check board boundaries, occupancy, and special squares.
+    # Check if the click is within bounds, the square is empty, and it's not a special square.
     if not (0 <= row < ROWS and 0 <= col < COLS):
-        return  # Out of board
+        return
     if board[row][col] is not None:
-        return  # Occupied cell
+        return
     if (row, col) in special_squares:
-        return  # Cannot place on a special square
+        return
 
     # Determine which piece to place next for the current player.
     piece_type = next((p for p in PIECE_ORDER if pieces_left[players[current_player]][p] > 0), None)
     if piece_type is None:
         return
-
-    # Check placement restrictions (zone, special distances, etc.).
-    # This function should enforce rules such as:
-    # - ConquestPawn must not be too close to any special square.
-    # - AttackPawn (and possibly others) must be placed within the designated quadrant.
     if is_square_disallowed_for_placement(row, col, players[current_player], piece_type):
         return
 
@@ -529,21 +567,13 @@ def place_piece(pos):
     board[row][col] = {"type": piece_type, "player": players[current_player]}
     pieces_left[players[current_player]][piece_type] -= 1
     pieces_placed[players[current_player]] += 1
-    turn_pieces_count += 1
 
-    # If the current turn's placement count is reached, update the turn.
-    if turn_pieces_count >= turn_sequence[turn_index]:
-        current_player = (current_player + 1) % len(players)
-        if turn_index < len(turn_sequence) - 1:
-            turn_index += 1
-        turn_pieces_count = 0
+    # Alternate current player after each placement.
+    current_player = (current_player + 1) % len(players)
 
-    # For a four-player game, total pieces equals 4 * (number of pieces per player).
-    total_pieces_to_place = len(players) * len(PIECE_ORDER)  # e.g., 4 * 13 = 52
-    if sum(pieces_placed.values()) == total_pieces_to_place:
+    # End placement phase only when all players have placed all pieces.
+    if all(pieces_placed[player] == len(PIECE_ORDER) for player in players):
         placing_pieces = False
-
-candidate_winner = None
 
 def check_special_squares():
     """
@@ -671,9 +701,10 @@ def handle_click(pos):
         return
 
     if (BUTTON_X <= pos[0] <= BUTTON_X + BUTTON_W and 
-        BUTTON_Y <= pos[1] <= BUTTON_Y + BUTTON_H):
+        (BUTTON_Y+122) <= pos[1] <= (BUTTON_Y+122) + BUTTON_H):
         end_turn()
         return
+
 
     # --- 2. Placement Phase ---
     if placing_pieces:
@@ -795,12 +826,18 @@ def reset_game():
     global board, pieces_left, pieces_placed, placing_pieces, move_history, redo_history, turn_index, turn_pieces_count, moves_this_turn, current_player, controlled_squares, captured_pieces, selected_piece
     # Clear the board.
     board = [[None for _ in range(COLS)] for _ in range(ROWS)]
+    
     # Reset piece counts for each player.
     pieces_left = {
         "Black": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
-        "White": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1}
+        "White": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+        "Red":   {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+        "Blue":  {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1}
     }
-    pieces_placed = {"Black": 0, "White": 0}
+    
+    # Reset placed pieces for all players.
+    pieces_placed = {"Black": 0, "White": 0, "Red": 0, "Blue": 0}
+    
     placing_pieces = True
 
     # Reset turn data.
@@ -813,11 +850,15 @@ def reset_game():
     move_history.clear()
     redo_history.clear()
 
-    # Clear controlled special squares and captured pieces.
-    controlled_squares = {"Black": set(), "White": set()}
+    # Clear controlled special squares and captured pieces for all players.
+    controlled_squares = {
+        "Black": set(), "White": set(), "Red": set(), "Blue": set()
+    }
     captured_pieces = {
         "Black": {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
-        "White": {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0}
+        "White": {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+        "Red":   {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+        "Blue":  {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0}
     }
 
     # Clear selected piece.
@@ -873,19 +914,33 @@ def draw_turn():
     pygame.draw.circle(screen, pygame.Color(players[current_player]), pos, 25)
 
 def draw_button():
-    pygame.draw.rect(screen, BUTTON_COLOR, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H))
-    pygame.draw.rect(screen, BLACK, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H), 2)
+    pygame.draw.rect(screen, BUTTON_COLOR, (BUTTON_X, BUTTON_Y+122, BUTTON_W, BUTTON_H))
+    pygame.draw.rect(screen, BLACK, (BUTTON_X, BUTTON_Y+122, BUTTON_W, BUTTON_H), 2)
     text = font.render("PASS", True, WHITE)
-    screen.blit(text, (BUTTON_X + 25, BUTTON_Y + 13))
+    screen.blit(text, (BUTTON_X + 25, BUTTON_Y + 135))
 
 def draw_scoreboard():
-    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 75), 2)
-    pygame.draw.rect(screen, WHITE, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
-    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
-    text_black = font.render(f"Black: {len(controlled_squares['Black'])}", True, WHITE)
-    text_white = font.render(f"White: {len(controlled_squares['White'])}", True, BLACK)
-    screen.blit(text_black, (SCOREBOARD_X + 13, SCOREBOARD_Y + 7))
-    screen.blit(text_white, (SCOREBOARD_X + 13, SCOREBOARD_Y + 38))
+    scoreboard_height = 150
+    segment_height = scoreboard_height / 4
+    border_thickness = 8  # Increase border thickness here
+
+    # Draw a thick black border around the entire scoreboard area
+    pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, scoreboard_height), border_thickness)
+    
+    players_info = [
+        ("Black", WHITE, BLACK),
+        ("White", BLACK, WHITE),
+        ("Red", WHITE, RED),
+        ("Blue", WHITE, BLUE)
+    ]
+    
+    for i, (player, text_color, fill_color) in enumerate(players_info):
+        seg_y = SCOREBOARD_Y + int(i * segment_height)
+        seg_h = int(segment_height)
+        pygame.draw.rect(screen, fill_color, (SCOREBOARD_X, seg_y, BUTTON_W, seg_h))
+        text = font.render(f"{player}: {len(controlled_squares[player])}", True, text_color)
+        text_y = seg_y + (seg_h - text.get_height()) // 2
+        screen.blit(text, (SCOREBOARD_X + 13, text_y))
 
 def draw_capture_counter():
     # Check if any captured pieces exist.
@@ -954,14 +1009,14 @@ def draw_placement_icon():
 
 def draw_undo_window():
     # Draw a background rectangle for the undo window
-    pygame.draw.rect(screen, GRAY, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H))
-    pygame.draw.rect(screen, BLACK, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H), 2)
+    pygame.draw.rect(screen, GRAY, (UNDO_WINDOW_X, UNDO_WINDOW_Y + 10, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H))
+    pygame.draw.rect(screen, BLACK, (UNDO_WINDOW_X, UNDO_WINDOW_Y + 10, UNDO_WINDOW_W/2-7, UNDO_WINDOW_H), 2)
     
     # Draw left arrow (for undo)
     left_arrow = [
-        (UNDO_WINDOW_X + 13, UNDO_WINDOW_Y + UNDO_WINDOW_H // 2),
-        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + 13),
-        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + UNDO_WINDOW_H - 13)
+        (UNDO_WINDOW_X + 13, UNDO_WINDOW_Y + 10 + UNDO_WINDOW_H // 2),
+        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + 23),
+        (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + UNDO_WINDOW_H - 3)
     ]
     pygame.draw.polygon(screen, BLACK, left_arrow)
     

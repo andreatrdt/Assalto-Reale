@@ -426,6 +426,11 @@ def is_square_disallowed_for_placement(row, col, player, piece_type):
             return True
         if player == "White" and col < (COLS - 2):
             return True
+    if piece_type == "King":
+        if player == "Black" and col >= COLS / 2:
+            return True
+        if player == "White" and col < COLS / 2:
+            return True
     return False
 
 ###############################################################################
@@ -462,6 +467,12 @@ def place_piece(pos):
                 return
             if players[current_player] == "White" and col < (COLS - 2):
                 return
+            
+        if piece_type == "King":
+            if players[current_player] == "Black" and col >= COLS / 2:
+                return
+            if players[current_player] == "White" and col < COLS / 2:
+                return
 
         board[row][col] = {"type": piece_type, "player": players[current_player]}
         pieces_left[players[current_player]][piece_type] -= 1
@@ -476,8 +487,6 @@ def place_piece(pos):
 
         if sum(pieces_placed.values()) == 26:
             placing_pieces = False
-
-candidate_winner = None
 
 def check_special_squares():
     """
