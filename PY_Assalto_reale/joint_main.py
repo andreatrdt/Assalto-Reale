@@ -33,8 +33,8 @@ HIGHLIGHT = (255, 165, 0)  # Selected piece highlight
 RED_HIGHLIGHT = (255, 0, 0, 150)  # Possible capture highlight
 GRAY = (99, 102, 106, 100)  # Valid move highlight (semi-transparent)
 BUTTON_COLOR = (125, 125, 125)  # Button color
-RED = (255, 0, 0)  # Red color for invalid moves
-BLUE = (0, 0, 255)  # Blue color for valid moves
+RED = (203, 32, 39)  # Red color for invalid moves
+BLUE = (32, 39, 203)  # Blue color for valid moves
 
 # Load images for BLACK
 black_attack_image   = pygame.image.load(os.path.join(CURRENT_DIR, "assets", "black_attack_pawn.png"))
@@ -149,6 +149,54 @@ turn_index = 0
 turn_pieces_count = 0  # Number of pieces placed in the current turn
 moves_this_turn = 0  # Number of moves made this turn
 
+
+def auto_place_pieces_2P():
+    global board, pieces_left, pieces_placed, placing_pieces
+    # Loop over the two players: "Black" and "White"
+    for player in players:  # players = ["Black", "White"]
+        for piece_type in PIECE_ORDER:
+            # While there are still pieces of this type for the player:
+            while pieces_left[player][piece_type] > 0:
+                valid_positions = []
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        # Only consider empty cells that are not special squares.
+                        if board[r][c] is None and (r, c) not in special_squares:
+                            # Use your existing placement validation.
+                            if not is_square_disallowed_for_placement(r, c, player, piece_type):
+                                valid_positions.append((r, c))
+                if valid_positions:
+                    pos = random.choice(valid_positions)
+                    board[pos[0]][pos[1]] = {"type": piece_type, "player": player}
+                    pieces_left[player][piece_type] -= 1
+                    pieces_placed[player] += 1
+                else:
+                    # Should not happen if board design is correct.
+                    break
+    # End the placement phase.
+    placing_pieces = False
+
+def auto_place_pieces_4P():
+    global board, pieces_left, pieces_placed, placing_pieces
+    # Loop over the four players: "Black", "White", "Red", "Blue"
+    for player in players:  # players = ["Black", "White", "Red", "Blue"]
+        for piece_type in PIECE_ORDER:
+            while pieces_left[player][piece_type] > 0:
+                valid_positions = []
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        if board[r][c] is None and (r, c) not in special_squares:
+                            if not is_square_disallowed_for_placement(r, c, player, piece_type):
+                                valid_positions.append((r, c))
+                if valid_positions:
+                    pos = random.choice(valid_positions)
+                    board[pos[0]][pos[1]] = {"type": piece_type, "player": player}
+                    pieces_left[player][piece_type] -= 1
+                    pieces_placed[player] += 1
+                else:
+                    break
+    placing_pieces = False
+
 def main_menu():
     # Ensure pygame is initialized and screen, font, and constants (WIDTH, HEIGHT, BUTTON_COLOR, WHITE) are defined.
     menu_running = True
@@ -157,6 +205,7 @@ def main_menu():
     # Define button rectangles for mode selection.
     twoP_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 - 60, 200, 50)
     fourP_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 10, 200, 50)
+    two_vs_two_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 80, 200, 50)
 
     while menu_running:
         for event in pygame.event.get():
@@ -169,6 +218,8 @@ def main_menu():
                     return "2P"
                 elif fourP_button.collidepoint(mouse_pos):
                     return "4P"
+                elif two_vs_two_button.collidepoint(mouse_pos):
+                    return "2v2"
 
         # Draw menu background
         screen.fill((30, 30, 30))  # Dark gray background
@@ -181,6 +232,7 @@ def main_menu():
         # Draw buttons
         pygame.draw.rect(screen, BUTTON_COLOR, twoP_button)
         pygame.draw.rect(screen, BUTTON_COLOR, fourP_button)
+        pygame.draw.rect(screen, BUTTON_COLOR, two_vs_two_button)
 
         # Draw button labels
         twoP_label = font.render("2 Player", True, WHITE)
@@ -191,12 +243,17 @@ def main_menu():
         fourP_label_rect = fourP_label.get_rect(center=fourP_button.center)
         screen.blit(fourP_label, fourP_label_rect)
 
+        two_vs_two_label = font.render("2 vs 2", True, WHITE)
+        two_vs_two_label_rect = two_vs_two_label.get_rect(center=two_vs_two_button.center)
+        screen.blit(two_vs_two_label, two_vs_two_label_rect)
+
         pygame.display.flip()
         clock.tick(60)
 
 
 mode = main_menu()  # Get the game mode from the main menu
 
+AUTO_PLACEMENT = True
 
 if mode == "2P":
     WIDTH, HEIGHT = 1000, 812  # Overall window size for visibility
@@ -247,6 +304,10 @@ if mode == "2P":
     controlled_squares = {"Black": set(), "White": set()}  # Tracks controlled special squares
     turn_sequence = [1] + [2] * 12 + [1]  
 
+    # if AUTO_PLACEMENT:
+    #     auto_place_pieces_2P()
+
+
     def generate_special_squares():
         attempts = 0
         # For a 12x12 board, choose rows and cols in a central range (e.g. from 2 to ROWS-3)
@@ -257,7 +318,6 @@ if mode == "2P":
             if all(max(abs(row - r), abs(col - c)) >= 3 for r, c in special_squares):
                 special_squares.add((row, col))
             attempts += 1
-
 
     def is_square_disallowed_for_placement(row, col, player, piece_type):
         if not (0 <= row < ROWS and 0 <= col < COLS):
@@ -325,6 +385,7 @@ if mode == "2P":
 
             if sum(pieces_placed.values()) == 26:
                 placing_pieces = False
+    
     def end_turn():
         global current_player, moves_this_turn, selected_piece, turn_counter
         current_player = 1 - current_player
@@ -357,6 +418,15 @@ if mode == "2P":
 
         # --- 3. Game Over Check ---
         if game_over:
+            if (UNDO_WINDOW_X <= mx <= UNDO_WINDOW_X + UNDO_WINDOW_W and 
+                UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
+                undo_move()
+            # Also check if click is on the QUIT button.
+            elif (QUIT_BUTTON_X <= mx <= QUIT_BUTTON_X + QUIT_BUTTON_W and 
+                QUIT_BUTTON_Y <= my <= QUIT_BUTTON_Y + QUIT_BUTTON_H):
+                pygame.quit()
+                exit()
+            # Ignore all other clicks.
             return
 
         # --- 4. Convert Click to Board Coordinates ---
@@ -461,6 +531,95 @@ if mode == "2P":
         turn_counter += 1
         check_candidate_win()
         # (Optional) If using both_at_four mode, you can add additional win-checking logic here.
+
+    def draw_board():
+        # First, sanitize the board.
+        sanitize_board()
+        
+        # Fill the background.
+        screen.fill(GRAY)
+        
+        # Draw board squares.
+        for row in range(ROWS):
+            for col in range(COLS):
+                base_color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
+                pygame.draw.rect(screen, base_color, (col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE))
+        
+        # Draw special squares (if any).
+        for (r, c) in special_squares:
+            pygame.draw.circle(screen, GREEN, (c * SQ_SIZE + SQ_SIZE // 2, r * SQ_SIZE + SQ_SIZE // 2), SQ_SIZE // 3 + 5)
+        
+        # Draw pieces using custom icons.
+        # Assumes PIECE_IMAGES is a dict structured as:
+        # PIECE_IMAGES = { "Black": { "AttackPawn": surface, "DefensePawn": surface, ... },
+        #                  "White": { "AttackPawn": surface, "DefensePawn": surface, ... } }
+        for row_idx in range(ROWS):
+            for col_idx in range(COLS):
+                cell = board[row_idx][col_idx]
+                if cell:
+                    piece = cell
+                    # Retrieve the corresponding image.
+                    piece_image = PIECE_IMAGES[piece["player"]][piece["type"]]
+                    piece_rect = piece_image.get_rect()
+                    # Center the image in the square.
+                    piece_rect.center = (col_idx * SQ_SIZE + SQ_SIZE // 2,
+                                        row_idx * SQ_SIZE + SQ_SIZE // 2)
+                    screen.blit(piece_image, piece_rect)
+        
+        # Handle flash effects (for moves, win indication, etc.).
+        now = time.time()
+        for (r, c) in list(flash_effects.keys()):
+            elapsed = now - flash_effects[(r, c)]
+            if elapsed < FLASH_DURATION:
+                blink_count = int(elapsed // BLINK_INTERVAL)
+                overlay_color = (0, 255, 0, 120) if blink_count % 2 == 0 else (0, 255, 0, 0)
+                overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                overlay_surf.fill(overlay_color)
+                screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
+            else:
+                del flash_effects[(r, c)]
+        
+        # During placement phase, overlay forbidden squares.
+        if placing_pieces:
+            piece_type = get_next_piece_type_for_player(players[current_player])
+            if piece_type:
+                overlay_color = (128, 128, 128, 100)
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        if is_square_disallowed_for_placement(r, c, players[current_player], piece_type):
+                            overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                            overlay_surf.fill(overlay_color)
+                            screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
+        
+        # If a piece is selected, show its valid moves.
+        if selected_piece:
+            sr, sc = selected_piece
+            piece = board[sr][sc]
+            if piece:
+                valid_moves = get_valid_moves(piece, selected_piece)
+                for (r, c) in valid_moves:
+                    cx = c * SQ_SIZE + SQ_SIZE // 2
+                    cy = r * SQ_SIZE + SQ_SIZE // 2
+                    target_piece = board[r][c]
+                    if target_piece and target_piece["player"] != piece["player"]:
+                        pygame.draw.circle(screen, (255, 0, 0, 80), (cx, cy), SQ_SIZE // 6)
+                    else:
+                        pygame.draw.circle(screen, (128, 128, 128, 80), (cx, cy), SQ_SIZE // 6)
+        
+        # Draw row numbers on the right side.
+        for row in range(ROWS):
+            label = font.render(str(ROWS - row), True, BLACK)
+            x = 750  # Adjust as needed.
+            y = row * SQ_SIZE + SQ_SIZE / 2 - label.get_height() / 2
+            screen.blit(label, (x, y))
+        
+        # Draw column letters below the board.
+        for col in range(COLS):
+            letter = chr(ord('A') + col)
+            label = font.render(letter, True, BLACK)
+            x = col * SQ_SIZE + SQ_SIZE / 2 - label.get_width() / 2
+            y = ROWS * SQ_SIZE + 5
+            screen.blit(label, (x, y))
 
     def draw_everything():
         draw_board()
@@ -913,6 +1072,16 @@ elif mode == "4P":
 
         # --- 3. Game Over Check ---
         if game_over:
+            # Check if click is on the UNDO button.
+            if (UNDO_WINDOW_X <= mx <= UNDO_WINDOW_X + UNDO_WINDOW_W and 
+                UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
+                undo_move()
+            # Also check if click is on the QUIT button.
+            elif (QUIT_BUTTON_X <= mx <= QUIT_BUTTON_X + QUIT_BUTTON_W and 
+                QUIT_BUTTON_Y <= my <= QUIT_BUTTON_Y + QUIT_BUTTON_H):
+                pygame.quit()
+                exit()
+        # Ignore all other clicks.
             return
 
         # --- 4. Convert Click to Board Coordinates ---
@@ -1026,6 +1195,95 @@ elif mode == "4P":
         selected_piece = None
         turn_counter += 1
         check_candidate_win()  # (May need additional reworking for 4 players.)
+
+    def draw_board():
+        # First, sanitize the board.
+        sanitize_board()
+        
+        # Fill the background.
+        screen.fill(GRAY)
+        
+        # Draw board squares.
+        for row in range(ROWS):
+            for col in range(COLS):
+                base_color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
+                pygame.draw.rect(screen, base_color, (col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE))
+        
+        # Draw special squares (if any).
+        for (r, c) in special_squares:
+            pygame.draw.circle(screen, GREEN, (c * SQ_SIZE + SQ_SIZE // 2, r * SQ_SIZE + SQ_SIZE // 2), SQ_SIZE // 3 + 5)
+        
+        # Draw pieces using custom icons.
+        # Assumes PIECE_IMAGES is a dict structured as:
+        # PIECE_IMAGES = { "Black": { "AttackPawn": surface, "DefensePawn": surface, ... },
+        #                  "White": { "AttackPawn": surface, "DefensePawn": surface, ... } }
+        for row_idx in range(ROWS):
+            for col_idx in range(COLS):
+                cell = board[row_idx][col_idx]
+                if cell:
+                    piece = cell
+                    # Retrieve the corresponding image.
+                    piece_image = PIECE_IMAGES[piece["player"]][piece["type"]]
+                    piece_rect = piece_image.get_rect()
+                    # Center the image in the square.
+                    piece_rect.center = (col_idx * SQ_SIZE + SQ_SIZE // 2,
+                                        row_idx * SQ_SIZE + SQ_SIZE // 2)
+                    screen.blit(piece_image, piece_rect)
+        
+        # Handle flash effects (for moves, win indication, etc.).
+        now = time.time()
+        for (r, c) in list(flash_effects.keys()):
+            elapsed = now - flash_effects[(r, c)]
+            if elapsed < FLASH_DURATION:
+                blink_count = int(elapsed // BLINK_INTERVAL)
+                overlay_color = (0, 255, 0, 120) if blink_count % 2 == 0 else (0, 255, 0, 0)
+                overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                overlay_surf.fill(overlay_color)
+                screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
+            else:
+                del flash_effects[(r, c)]
+        
+        # During placement phase, overlay forbidden squares.
+        if placing_pieces:
+            piece_type = get_next_piece_type_for_player(players[current_player])
+            if piece_type:
+                overlay_color = (128, 128, 128, 100)
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        if is_square_disallowed_for_placement(r, c, players[current_player], piece_type):
+                            overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                            overlay_surf.fill(overlay_color)
+                            screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
+        
+        # If a piece is selected, show its valid moves.
+        if selected_piece:
+            sr, sc = selected_piece
+            piece = board[sr][sc]
+            if piece:
+                valid_moves = get_valid_moves(piece, selected_piece)
+                for (r, c) in valid_moves:
+                    cx = c * SQ_SIZE + SQ_SIZE // 2
+                    cy = r * SQ_SIZE + SQ_SIZE // 2
+                    target_piece = board[r][c]
+                    if target_piece and target_piece["player"] != piece["player"]:
+                        pygame.draw.circle(screen, (255, 0, 0, 80), (cx, cy), SQ_SIZE // 6)
+                    else:
+                        pygame.draw.circle(screen, (128, 128, 128, 80), (cx, cy), SQ_SIZE // 6)
+        
+        # Draw row numbers on the right side.
+        for row in range(ROWS):
+            label = font.render(str(ROWS - row), True, BLACK)
+            x = 820  # Adjust as needed.
+            y = row * SQ_SIZE + SQ_SIZE / 2 - label.get_height() / 2
+            screen.blit(label, (x, y))
+        
+        # Draw column letters below the board.
+        for col in range(COLS):
+            letter = chr(ord('A') + col)
+            label = font.render(letter, True, BLACK)
+            x = col * SQ_SIZE + SQ_SIZE / 2 - label.get_width() / 2
+            y = ROWS * SQ_SIZE + 5
+            screen.blit(label, (x, y))
 
     def draw_everything():
         draw_board()
@@ -1162,7 +1420,7 @@ elif mode == "4P":
                 scaled_icon = pygame.transform.scale(piece_icon, (icon_width, icon_height))
                 # Center the icon in the designated placement area.
                 icon_x = PLACEMENT_ICON_X + (PLACEMENT_ICON_W - icon_width) // 2
-                icon_y = PLACEMENT_ICON_Y + (PLACEMENT_ICON_H - icon_height) // 2
+                icon_y = PLACEMENT_ICON_Y + (PLACEMENT_ICON_H - icon_height) // 2 +30
                 screen.blit(scaled_icon, (icon_x, icon_y))
 
     def draw_undo_window():
@@ -1316,9 +1574,814 @@ elif mode == "4P":
         current_player = prev_state['current_player']
         moves_this_turn = prev_state['moves_this_turn']
         game_over = False
+elif mode == "2v2":
+    WIDTH, HEIGHT = 1000, 812  # Dimensione finestra
+    ROWS, COLS = 12, 12        # Board 18x18 (puoi modificare se preferisci)
+    SQ_SIZE = WIDTH // (COLS + 4)  # Calcolo dimensioni casella
+    BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H = WIDTH - 140, HEIGHT // 2 - 25, 125, 50
+    SCOREBOARD_X, SCOREBOARD_Y = BUTTON_X, BUTTON_Y - 88
+    CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y = WIDTH - 200, HEIGHT - 312
+    TURN_X, TURN_Y, TURN_WIDTH, TURN_HIGHT = BUTTON_X + 125, HEIGHT - 500, 125, 50
+
+    PLACEMENT_ICON_X, PLACEMENT_ICON_Y = SCOREBOARD_X - 113, SCOREBOARD_Y + 82
+    PLACEMENT_ICON_W, PLACEMENT_ICON_H = 125, 63
+
+    UNDO_WINDOW_X = SCOREBOARD_X
+    UNDO_WINDOW_Y = TURN_Y + TURN_HIGHT + 75
+    UNDO_WINDOW_W, UNDO_WINDOW_H = 125, 50
+
+    RESET_BUTTON_X = SCOREBOARD_X
+    RESET_BUTTON_Y = UNDO_WINDOW_Y + UNDO_WINDOW_H - 250
+    RESET_BUTTON_W, RESET_BUTTON_H = 125, 50
+
+    QUIT_BUTTON_X = RESET_BUTTON_X
+    QUIT_BUTTON_Y = RESET_BUTTON_Y + RESET_BUTTON_H - 125
+    QUIT_BUTTON_W, QUIT_BUTTON_H = 125, 50
+
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Assalto Reale - Modalità 2 vs 2")
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont("bookmanoldstyle", 20)
+
+    # --------------------------------------------------------------------------------
+    # Organizzazione RUOLI:
+    # Black_general  -> Re + 6 AttackPawn
+    # Black_guardian -> 6 DefensePawn + 6 ConquestPawn
+    # White_general  -> Re + 6 AttackPawn
+    # White_guardian -> 6 DefensePawn + 6 ConquestPawn
+    # --------------------------------------------------------------------------------
+
+    # Questi 4 ruoli si alternano. L'indice current_role_index cicla su 0..3
+    turn_roles = ["Black_general", "White_general", "Black_guardian", "White_guardian"]
+    current_role_index = 0  # Parte con Black_general
+
+    def get_current_role():
+        """Restituisce una stringa fra 'Black_general', 'White_general', 'Black_guardian', 'White_guardian'."""
+        return turn_roles[current_role_index]
+
+    def parse_color_and_controller(role_name):
+        """
+        Ritorna (colore, controller) = ('Black'/'White', 'general'/'guardian').
+        Esempio: 'Black_general' -> ('Black','general')
+        """
+        if role_name == "Black_general":
+            return ("Black", "general")
+        elif role_name == "Black_guardian":
+            return ("Black", "guardian")
+        elif role_name == "White_general":
+            return ("White", "general")
+        else:
+            return ("White", "guardian")
+
+    # --------------------------------------------------------------------------------
+    # Pezzi rimanenti da piazzare per ciascun RUOLO
+    # --------------------------------------------------------------------------------
+    pieces_left = {
+        "Black_general":   {"King": 1, "AttackPawn": 6, "DefensePawn": 0, "ConquestPawn": 0},
+        "Black_guardian":  {"King": 0, "AttackPawn": 0, "DefensePawn": 6, "ConquestPawn": 6},
+        "White_general":   {"King": 1, "AttackPawn": 6, "DefensePawn": 0, "ConquestPawn": 0},
+        "White_guardian":  {"King": 0, "AttackPawn": 0, "DefensePawn": 6, "ConquestPawn": 6}
+    }
+
+    # --------------------------------------------------------------------------------
+    # Pedine catturate. Es.: "Black_general" ha catturato X pedine
+    # Puoi anche differenziare chi cattura cosa, ma qui semplifichiamo il conteggio
+    # --------------------------------------------------------------------------------
+    captured_pieces = {
+        "Black_general":   {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+        "Black_guardian":  {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+        "White_general":   {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+        "White_guardian":  {"AttackPawn": 0, "DefensePawn": 0, "ConquestPawn": 0, "King": 0},
+    }
+
+    # --------------------------------------------------------------------------------
+    # Caselle speciali: solo i "ConquestPawn" controllano una casella
+    # controlled_squares: "Black" -> set di posizioni, "White" -> set di posizioni
+    # --------------------------------------------------------------------------------
+    controlled_squares = {
+        "Black": set(),
+        "White": set()
+    }
+
+    # --------------------------------------------------------------------------------
+    # Per la fase di posizionamento manuale:
+    # Quante pedine ha già piazzato ogni RUOLO
+    # --------------------------------------------------------------------------------
+    pieces_placed = {
+        "Black_general":  0,
+        "Black_guardian": 0,
+        "White_general":  0,
+        "White_guardian": 0
+    }
+
+    # Board 18x18 (inizialmente vuoto)
+    board = [[None for _ in range(COLS)] for _ in range(ROWS)]
+
+    special_squares = set()
+    move_history = []
+    redo_history = []
+    game_over = False
+    selected_piece = None
+    moves_this_turn = 0  # Quante mosse ha fatto il ruolo corrente nel suo turno
+    turn_counter = 0
+
+    # Logica “candidate winner”
+    candidate_winner = None
+    candidate_turn_index = None
+    both_at_four = False
+
+    placing_pieces = True  # Fase di piazzamento
+    FLASH_DURATION = 2.0
+    BLINK_INTERVAL = 0.3
+
+    # In 2 vs 2, potresti definire un turn_sequence diverso
+    # Ma qui definiamo che ogni RUOLO piazza 19 pezzi (1 King + 18 Pawn).
+    # Di solito si fa un "giro" in cui ciascuno piazza 1 o 2 pedine a turno.
+    # Esempio semplificato:
+    turn_sequence = 2*[1] + 13*[2]  # primi 2 turni = piazza 1 pezzo, poi 13 turni da 2 pezzi...
+    turn_index = 0
+    turn_pieces_count = 0
+
+    # ------------------------------------------------------------------------------
+    # Funzione generazione Caselle Speciali
+    # ------------------------------------------------------------------------------
+
+    def generate_special_squares():
+        attempts = 0
+        desired_count = 5  # Quante caselle speciali vuoi?
+        while len(special_squares) < desired_count and attempts < 500000:
+            row = random.randint(1, ROWS - 2)
+            col = random.randint(1, COLS - 2)
+            # distanza minima 3 fra le special squares
+            if all(max(abs(row - r), abs(col - c)) >= 3 for (r, c) in special_squares):
+                special_squares.add((row, col))
+            attempts += 1
+
+    generate_special_squares()
+
+    # --------------------------------------------------------------------------------
+    # Funzioni per la fase di piazzamento
+    # --------------------------------------------------------------------------------
+    def is_square_disallowed_for_placement(row, col, role_name, piece_type):
+        """
+        Decidi le restrizioni di piazzamento iniziale per i vari tipi di pedine,
+        in base a come preferisci posizionarle sul board 18x18.
+        Di seguito un esempio semplificato:
+        """
+        if not (0 <= row < ROWS and 0 <= col < COLS):
+            return True
+        if (row, col) in special_squares:
+            return True
+
+        color, controller = parse_color_and_controller(role_name)
+
+        # Esempio: impedisci che un ConquestPawn si piazzi a meno di 3 caselle da uno special square
+        if piece_type == "ConquestPawn":
+            for (rs, cs) in special_squares:
+                if max(abs(row - rs), abs(col - cs)) < 3:
+                    return True
+
+        # A scelta si possono definire zone specifiche. Es.:
+        # - i neri (Black) piazzano i pezzi nella parte alta/sinistra
+        # - i bianchi (White) piazzano nella parte bassa/destra
+        # Oppure vincoli più stretti. Qui un esempio semplice:
+        if color == "Black" and row > 7:
+            return True
+        if color == "White" and row < 10:
+            return True
+
+        # Se preferisci altre regole di “lock” per King o AttackPawn, aggiungile:
+        # ...
+        return False
+
+    def place_piece(pos):
+        print("[DEBUG] Ho chiamato place_piece, pos =", pos)
+        col = pos[0] // SQ_SIZE
+        row = pos[1] // SQ_SIZE
+        print(f"[DEBUG] row={row}, col={col}")
+
+        if not (0 <= row < ROWS and 0 <= col < COLS):
+            print("[DEBUG] Fuori dalla scacchiera, return")
+            return
+
+        if board[row][col] is not None:
+            print("[DEBUG] La cella non è vuota, return")
+            return
+
+        # Esempio di vincolo: se (row, col) in special_squares non si può piazzare
+        if (row, col) in special_squares:
+            print("[DEBUG] E' una special square, return")
+            return
+
+        role_now = get_current_role()  # es: "Black_general"
+        print("[DEBUG] Ruolo corrente =", role_now)
+
+        # Verifico i pezzi disponibili
+        for p_type in ["King","AttackPawn","DefensePawn","ConquestPawn"]:
+            if pieces_left[role_now][p_type] > 0:
+                # Esempio, controlla se la cella è vietata
+                if is_square_disallowed_for_placement(row, col, role_now, p_type):
+                    print("[DEBUG] Cella vietata per", p_type)
+                    return
+
+                # Se arrivi qui, piazzi il pezzo
+                board[row][col] = {
+                    "type": p_type,
+                    "player": "Black" if "Black" in role_now else "White",  
+                    "controller": role_now 
+                }
+                pieces_left[role_now][p_type] -= 1
+                print(f"[DEBUG] Piazzato {p_type} su r={row},c={col}")
+                break
+
+    def advance_placement_turn():
+        """
+        Passa il turno di piazzamento al ruolo successivo
+        tenendo conto della turn_sequence per gestire quanti pezzi piazzare per turno.
+        """
+        global turn_index, turn_pieces_count, current_role_index
+        turn_pieces_count = 0
+        if turn_index < len(turn_sequence) - 1:
+            turn_index += 1
+
+        # Avanza di 1 nel giro dei 4 ruoli
+        current_role_index = (current_role_index + 1) % 4
+
+    # --------------------------------------------------------------------------------
+    # FASE DI GIOCO (dopo piazzamento)
+    # --------------------------------------------------------------------------------
+
+    def end_turn():
+        """
+        Quando un ruolo ha terminato il suo turno di mosse (o usa "PASS"),
+        passiamo la mano al ruolo successivo: (Black_general-> White_general-> Black_guardian-> White_guardian -> repeat)
+        """
+        global current_role_index, moves_this_turn, selected_piece, turn_counter, game_over
+
+        if game_over:
+            return
+
+        moves_this_turn = 0
+        selected_piece = None
+        current_role_index = (current_role_index + 1) % 4
+        turn_counter += 1
+        check_candidate_win()
+
+    def complete_turn():
+        """
+        Quando la primissima mossa in un turno è completata, puoi chiamare qui
+        eventuale logica aggiuntiva.
+        """
+        global turn_counter, selected_piece
+        selected_piece = None
+        turn_counter += 1
+        check_candidate_win()
+
+    def handle_click(pos):
+        """
+        Gestisce il click sulla board di gioco, quando NON siamo più in piazzamento.
+        """
+        global selected_piece, game_over
+
+        mx, my = pos
+
+        # Se la partita è finita, controlliamo se ha cliccato su UNDO o QUIT
+        if game_over:
+            if (UNDO_WINDOW_X <= mx <= UNDO_WINDOW_X + UNDO_WINDOW_W and
+                UNDO_WINDOW_Y <= my <= UNDO_WINDOW_Y + UNDO_WINDOW_H):
+                undo_move()
+            elif (QUIT_BUTTON_X <= mx <= QUIT_BUTTON_X + QUIT_BUTTON_W and
+                  QUIT_BUTTON_Y <= my <= QUIT_BUTTON_Y + QUIT_BUTTON_H):
+                pygame.quit()
+                exit()
+            return
+
+        # Converte la posizione in coordinate di board
+        col = mx // SQ_SIZE
+        row = my // SQ_SIZE
+        if not (0 <= row < ROWS and 0 <= col < COLS):
+            return
+
+        role_now = get_current_role()
+        color_now, controller_now = parse_color_and_controller(role_now)
+
+        # Se c’è un pezzo già selezionato e vogliamo spostarlo
+        if selected_piece is not None:
+            start_r, start_c = selected_piece
+            piece = board[start_r][start_c]
+            if piece and piece["controller"] == role_now:
+                # Se il pezzo lascia una special square come ConquestPawn, rimuovo controllo
+                if piece["type"] == "ConquestPawn" and (start_r, start_c) in special_squares:
+                    if (start_r, start_c) in controlled_squares[piece["player"]]:
+                        controlled_squares[piece["player"]].remove((start_r, start_c))
+
+                # Verifica se la mossa è valida
+                if is_valid_move(piece, (start_r, start_c), (row, col)):
+                    target_piece = board[row][col]
+                    delta_r = abs(row - start_r)
+                    delta_c = abs(col - start_c)
+
+                    # Cattura speciale: AttackPawn vs King
+                    # -> Logica di repulsione o sacrificio
+                    if (piece["type"] == "AttackPawn" and target_piece and
+                        target_piece["type"] == "King" and (delta_r, delta_c) in [(1,0),(0,1),(2,0),(0,2)]):
+
+                        defense_pos = get_defense_pawn_adjacent_to_king(row, col, target_piece["player"])
+                        if defense_pos is not None:
+                            # Repulsione
+                            path = repulse_attack_pawn_path((start_r, start_c), (row, col))
+                            animate_repulsion(piece, path)
+                            # Rimuovo il DefensePawn
+                            def_r, def_c = defense_pos
+                            captured = {"defense": (board[def_r][def_c].copy(), (def_r, def_c))}
+                            board[def_r][def_c] = None
+                            record_move((start_r, start_c), path[-1], piece, captured)
+                            return
+                        else:
+                            # Sacrificio (no difesa)
+                            captured = {"king": target_piece}
+                            prev_snapshot = copy.deepcopy(board)
+                            board[start_r][start_c] = None
+                            board[row][col] = None
+                            new_snapshot = copy.deepcopy(board)
+                            record_move_sacrifice((start_r, start_c), (row, col), piece, captured, prev_snapshot, new_snapshot)
+                            game_over = True
+                            flash_winner_king(piece["player"], 1)
+                            end_turn()
+                            return
+
+                    else:
+                        # Mossa/cattura normale
+                        if target_piece and target_piece["player"] != piece["player"]:
+                            # cattura
+                            captured = target_piece.copy()
+                            record_move((start_r, start_c), (row, col), piece, captured)
+                            # Se catturo un ConquestPawn su special square, rimuovo controllo
+                            if (target_piece["type"] == "ConquestPawn") and ((row, col) in controlled_squares[target_piece["player"]]):
+                                controlled_squares[target_piece["player"]].remove((row, col))
+                            # Aggiorno contatore pedine catturate
+                            captured_pieces[role_now][target_piece["type"]] += 1
+                            board[row][col] = None
+                        else:
+                            # mossa semplice
+                            record_move((start_r, start_c), (row, col), piece, None)
+
+                        # Eseguo lo spostamento
+                        board[row][col] = piece
+                        board[start_r][start_c] = None
+
+                        # Se arrivo su una special square con un ConquestPawn, conquisto
+                        if piece["type"] == "ConquestPawn" and (row, col) in special_squares:
+                            controlled_squares[piece["player"]].add((row, col))
+                            check_special_squares()
+                            flash_effects[(row, col)] = time.time()
+
+                        # Se è la prima mossa del turno, lo “completo” e ripulisco selected
+                        if moves_this_turn == 0:
+                            complete_turn()
+                        selected_piece = None
+                        return
+                else:
+                    # Mossa non valida o click a vuoto
+                    selected_piece = None
+            else:
+                # Hai selezionato un pezzo che non ti appartiene?
+                selected_piece = None
+        else:
+            # Nessun pezzo selezionato, proviamo a selezionare un pezzo appartenente al RUOLO corrente
+            piece = board[row][col]
+            if piece and piece["controller"] == role_now:
+                selected_piece = (row, col)
+            else:
+                selected_piece = None
+
+    # --------------------------------------------------------------------------------
+    # Funzioni di disegno (GUI)
+    # --------------------------------------------------------------------------------
+
+    def draw_everything():
+        draw_board()
+        draw_turn()
+        draw_button()
+        draw_scoreboard()
+        draw_capture_counter()
+        draw_placement_icon()
+        draw_undo_window()
+        draw_reset_button()
+        draw_quit_button()
+        pygame.display.flip()
+
+    def draw_board():
+        screen.fill(GRAY)
+        # Scacchiera
+        for r in range(ROWS):
+            for c in range(COLS):
+                base_color = LIGHT_BROWN if ((r + c) % 2 == 0) else DARK_BROWN
+                pygame.draw.rect(screen, base_color, (c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE))
+
+        # Caselle speciali
+        for (rr, cc) in special_squares:
+            pygame.draw.circle(screen, GREEN, (cc * SQ_SIZE + SQ_SIZE//2, rr * SQ_SIZE + SQ_SIZE//2), SQ_SIZE//3 + 5)
+
+        # Disegno i pezzi
+        for rr in range(ROWS):
+            for cc in range(COLS):
+                cell = board[rr][cc]
+                if cell:
+                    piece_image = PIECE_IMAGES[cell["player"]][cell["type"]]
+                    rect_img = piece_image.get_rect()
+                    rect_img.center = (cc * SQ_SIZE + SQ_SIZE//2, rr * SQ_SIZE + SQ_SIZE//2)
+                    screen.blit(piece_image, rect_img)
+
+        # Effetto flash
+        now = time.time()
+        for (r, c) in list(flash_effects.keys()):
+            elapsed = now - flash_effects[(r, c)]
+            if elapsed < FLASH_DURATION:
+                blink_count = int(elapsed // BLINK_INTERVAL)
+                overlay_color = (0, 255, 0, 120) if (blink_count % 2 == 0) else (0, 255, 0, 0)
+                surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
+                surf.fill(overlay_color)
+                screen.blit(surf, (c * SQ_SIZE, r * SQ_SIZE))
+            else:
+                del flash_effects[(r, c)]
+
+        # Evidenzio le mosse possibili del pezzo selezionato
+        if selected_piece:
+            sr, sc = selected_piece
+            piece = board[sr][sc]
+            if piece:
+                val_moves = get_valid_moves(piece, (sr, sc))
+                for (rr, cc) in val_moves:
+                    cx = cc * SQ_SIZE + SQ_SIZE//2
+                    cy = rr * SQ_SIZE + SQ_SIZE//2
+                    targ = board[rr][cc]
+                    if targ and targ["player"] != piece["player"]:
+                        pygame.draw.circle(screen, (255, 0, 0, 80), (cx, cy), SQ_SIZE//6)
+                    else:
+                        pygame.draw.circle(screen, (128, 128, 128, 80), (cx, cy), SQ_SIZE//6)
+
+        # Coordinate esterne (numeri e lettere)
+        for row in range(ROWS):
+            label = font.render(str(ROWS - row), True, BLACK)
+            xlbl = COLS * SQ_SIZE + 5
+            ylbl = row * SQ_SIZE + SQ_SIZE//2 - label.get_height()//2
+            screen.blit(label, (xlbl, ylbl))
+
+        for col in range(COLS):
+            letter = chr(ord('A') + col)
+            label = font.render(letter, True, BLACK)
+            xl = col * SQ_SIZE + SQ_SIZE//2 - label.get_width()//2
+            yl = ROWS * SQ_SIZE + 5
+            screen.blit(label, (xl, yl))
+
+    def draw_turn():
+        """
+        Disegna un indicatore del ruolo corrente.
+        """
+        current_role = get_current_role()
+        txt = font.render(f"Turno: {current_role}", True, WHITE)
+        screen.blit(txt, (SCOREBOARD_X - 50, SCOREBOARD_Y - 20))
+
+    def draw_button():
+        # Bottone "PASS"
+        pygame.draw.rect(screen, BUTTON_COLOR, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H))
+        pygame.draw.rect(screen, BLACK, (BUTTON_X, BUTTON_Y, BUTTON_W, BUTTON_H), 2)
+        text = font.render("PASS", True, WHITE)
+        screen.blit(text, (BUTTON_X + 25, BUTTON_Y + 13))
+
+    def draw_scoreboard():
+        # Semplice scoreboard: quante special squares controllate da Black e White
+        pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 75), 2)
+        pygame.draw.rect(screen, WHITE, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
+        pygame.draw.rect(screen, BLACK, (SCOREBOARD_X, SCOREBOARD_Y, BUTTON_W, 38))
+
+        black_count = len(controlled_squares["Black"])
+        white_count = len(controlled_squares["White"])
+        text_black = font.render(f"Black: {black_count}", True, WHITE)
+        text_white = font.render(f"White: {white_count}", True, BLACK)
+        screen.blit(text_black, (SCOREBOARD_X + 13, SCOREBOARD_Y + 7))
+        screen.blit(text_white, (SCOREBOARD_X + 13, SCOREBOARD_Y + 38))
+
+    def draw_capture_counter():
+        """
+        Se vuoi mostrare le pedine catturate da Black_general, Black_guardian, ecc., 
+        puoi creare 4 mini-righe. Qui mostriamo solo un esempio.
+        """
+        any_captured = any(
+            captured_pieces[r][pt] > 0
+            for r in turn_roles
+            for pt in captured_pieces[r]
+        )
+        if not any_captured:
+            return
+
+        counter_width = 200
+        counter_height = 180
+        pygame.draw.rect(screen, GRAY, (CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y, counter_width, counter_height))
+        pygame.draw.rect(screen, BLACK, (CAPTURE_COUNTER_X, CAPTURE_COUNTER_Y, counter_width, counter_height), 2)
+
+        # Esempio: stampo solo le catture di "Black_general" e "White_general"
+        # Adatta come preferisci.
+        row_y = CAPTURE_COUNTER_Y + 10
+        for role_label in ["Black_general", "White_general"]:
+            text_role = font.render(role_label + ":", True, WHITE)
+            screen.blit(text_role, (CAPTURE_COUNTER_X + 5, row_y))
+            row_y += 20
+            # per ogni tipo di pezzo
+            for ptype in ["King", "AttackPawn", "DefensePawn", "ConquestPawn"]:
+                count = captured_pieces[role_label][ptype]
+                if count > 0:
+                    # Piccola icona + numero
+                    piece_icon = PIECE_IMAGES["Black"][ptype] if "Black" in role_label else PIECE_IMAGES["White"][ptype]
+                    small_icon = pygame.transform.scale(piece_icon, (20, 20))
+                    screen.blit(small_icon, (CAPTURE_COUNTER_X + 10, row_y))
+                    txt = font.render(f"x{count}", True, WHITE)
+                    screen.blit(txt, (CAPTURE_COUNTER_X + 35, row_y))
+                    row_y += 22
+            row_y += 10
+
+    def draw_placement_icon():
+        """
+        Mostra sullo schermo quale pezzo verrà piazzato per primo dal ruolo corrente (opzionale).
+        """
+        if placing_pieces:
+            role_now = get_current_role()
+            for p_type in ["King", "AttackPawn", "DefensePawn", "ConquestPawn"]:
+                if pieces_left[role_now][p_type] > 0:
+                    piece_icon = PIECE_IMAGES["Black"][p_type] if "Black" in role_now else PIECE_IMAGES["White"][p_type]
+                    icon_w = PLACEMENT_ICON_W - 60
+                    icon_h = PLACEMENT_ICON_H - 10
+                    scaled = pygame.transform.scale(piece_icon, (icon_w, icon_h))
+                    screen.blit(scaled, (PLACEMENT_ICON_X, PLACEMENT_ICON_Y))
+                    break
+
+    def draw_undo_window():
+        pygame.draw.rect(screen, GRAY, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W//2 - 7, UNDO_WINDOW_H))
+        pygame.draw.rect(screen, BLACK, (UNDO_WINDOW_X, UNDO_WINDOW_Y, UNDO_WINDOW_W//2 - 7, UNDO_WINDOW_H), 2)
+        # freccia sinistra
+        left_arrow = [
+            (UNDO_WINDOW_X + 13, UNDO_WINDOW_Y + UNDO_WINDOW_H // 2),
+            (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + 13),
+            (UNDO_WINDOW_X + 38, UNDO_WINDOW_Y + UNDO_WINDOW_H - 13)
+        ]
+        pygame.draw.polygon(screen, BLACK, left_arrow)
+
+    def draw_reset_button():
+        pygame.draw.rect(screen, BUTTON_COLOR, (RESET_BUTTON_X, RESET_BUTTON_Y, RESET_BUTTON_W, RESET_BUTTON_H))
+        pygame.draw.rect(screen, BLACK, (RESET_BUTTON_X, RESET_BUTTON_Y, RESET_BUTTON_W, RESET_BUTTON_H), 2)
+        text = font.render("RESET", True, WHITE)
+        screen.blit(text, (RESET_BUTTON_X + 18, RESET_BUTTON_Y + 13))
+
+    def draw_quit_button():
+        pygame.draw.rect(screen, BUTTON_COLOR, (QUIT_BUTTON_X, QUIT_BUTTON_Y, QUIT_BUTTON_W, QUIT_BUTTON_H))
+        pygame.draw.rect(screen, BLACK, (QUIT_BUTTON_X, QUIT_BUTTON_Y, QUIT_BUTTON_W, QUIT_BUTTON_H), 2)
+        text = font.render("QUIT", True, WHITE)
+        screen.blit(text, (QUIT_BUTTON_X + 25, QUIT_BUTTON_Y + 13))
+
+    # --------------------------------------------------------------------------------
+    # Funzioni di movimenti e catture (riciclate da 2P / 4P con adattamenti)
+    # --------------------------------------------------------------------------------
+
+    def is_valid_move(piece, start, end):
+        """
+        Qui adatti la logica di movimento e cattura ai tuoi Pawn di Attacco, Difesa, Conquista e Re.
+        Se la destinazione contiene un pezzo avversario, verifichi se la cattura è consentita
+        (ATTENZIONE alla regola: solo un AttackPawn può catturare il Re).
+        """
+        row_s, col_s = start
+        row_e, col_e = end
+        if not (0 <= row_e < ROWS and 0 <= col_e < COLS):
+            return False
+        if (row_s, col_s) == (row_e, col_e):
+            return False
+
+        delta_r = abs(row_e - row_s)
+        delta_c = abs(col_e - col_s)
+        target = board[row_e][col_e]
+
+        # Se c'è un pezzo avversario, è cattura
+        if target and target["player"] != piece["player"]:
+            # Stabilisci pattern di cattura per AttackPawn, DefensePawn, ConquestPawn, King
+            # (simile a come hai fatto nelle altre modalità)
+            if piece["type"] == "AttackPawn":
+                # Esempio: 1 casella orth (delta=1) o jump di 2 caselle se moves_this_turn == 0, ecc.
+                pass
+            elif piece["type"] == "DefensePawn":
+                pass
+            elif piece["type"] == "ConquestPawn":
+                pass
+            elif piece["type"] == "King":
+                # Ricorda che il Re NON può catturare il Re avversario (in base alle tue regole),
+                # oppure se lo consenti, attenzione al conflitto "solo AttackPawn cattura Re".
+                pass
+
+            # A fine di esempio, ritorna True/False come nelle altre partite
+            return True
+
+        else:
+            # Mossa senza cattura (celle libere)
+            # Definisci i pattern di movimento lecito per ogni tipo
+            # ...
+            return True
+
+    # Puoi riusare le funzioni:
+    #   get_valid_moves, is_allowed_capture_type,
+    #   get_defense_pawn_adjacent_to_king,
+    #   repulse_attack_pawn_path,
+    #   animate_repulsion,
+    #   check_special_squares,
+    #   check_candidate_win,
+    #   check_stalemate,
+    #   flash_winner_king,
+    #   etc.
+    # come nelle versioni "2P" o "4P", adattandole al fatto che il 'controller' è 'general' o 'guardian'.
+
+    def record_move(start_pos, end_pos, moved_piece, captured_piece):
+        """
+        Registra una mossa nel move_history, aggiornando moves_this_turn e current_role_index se necessario.
+        """
+        global moves_this_turn, current_role_index
+        prev_state = {
+            'role_index': current_role_index,
+            'moves_this_turn': moves_this_turn,
+            'controlled': {
+                'Black': controlled_squares["Black"].copy(),
+                'White': controlled_squares["White"].copy()
+            },
+            'captured': copy.deepcopy(captured_pieces),
+            'candidate_winner': candidate_winner,
+            'both_at_four': both_at_four
+        }
+        move_sound.play()
+
+        # Logica di costo mossa (1 o 2 se "jump" ecc.)
+        # Qui semplifichiamo: ogni spostamento conta 1
+        new_moves = moves_this_turn + 1
+        if new_moves >= 2:
+            # Finito il turno di questo ruolo
+            new_state = {
+                'role_index': (current_role_index + 1) % 4,
+                'moves_this_turn': 0
+            }
+        else:
+            new_state = {
+                'role_index': current_role_index,
+                'moves_this_turn': new_moves
+            }
+
+        move_history.append({
+            'from': start_pos,
+            'to': end_pos,
+            'piece': moved_piece.copy(),
+            'captured': captured_piece.copy() if captured_piece else None,
+            'prev_state': prev_state,
+            'new_state': new_state,
+        })
+        redo_history.clear()
+
+        current_role_index = new_state['role_index']
+        moves_this_turn    = new_state['moves_this_turn']
+
+    def record_move_sacrifice(start_pos, end_pos, moved_piece, captured_info, prev_snapshot, new_snapshot):
+        """
+        Come nelle altre modalità, ma adattato alla logica a 4 ruoli.
+        """
+        global current_role_index, moves_this_turn
+        prev_state = {
+            'role_index': current_role_index,
+            'moves_this_turn': moves_this_turn,
+            'board_snapshot': prev_snapshot,
+            'controlled': {
+                'Black': controlled_squares["Black"].copy(),
+                'White': controlled_squares["White"].copy()
+            },
+            'captured': copy.deepcopy(captured_pieces)
+        }
+        new_state = {
+            'role_index': (current_role_index + 1) % 4,
+            'moves_this_turn': 0,
+            'board_snapshot': new_snapshot,
+            'controlled': {
+                'Black': controlled_squares["Black"].copy(),
+                'White': controlled_squares["White"].copy()
+            },
+            'captured': copy.deepcopy(captured_pieces)
+        }
+
+        move_history.append({
+            'from': start_pos,
+            'to': end_pos,
+            'piece': moved_piece.copy(),
+            'captured': captured_info,
+            'sacrifice': True,
+            'prev_state': prev_state,
+            'new_state': new_state
+        })
+        redo_history.clear()
+        current_role_index = new_state['role_index']
+        moves_this_turn = 0
+
+    def undo_move():
+        """
+        Simile a 2P/4P, ma ripristina i dati di current_role_index e moves_this_turn dal move_history.
+        """
+        global moves_this_turn, current_role_index, board, controlled_squares, captured_pieces, candidate_winner, both_at_four, game_over
+
+        if not move_history:
+            return
+        last_move = move_history.pop()
+        redo_history.append(last_move)
+
+        if last_move.get('sacrifice'):
+            board = copy.deepcopy(last_move['prev_state']['board_snapshot'])
+            controlled_squares["Black"] = last_move['prev_state']['controlled']["Black"].copy()
+            controlled_squares["White"] = last_move['prev_state']['controlled']["White"].copy()
+            captured_pieces = copy.deepcopy(last_move['prev_state']['captured'])
+        else:
+            start_pos = last_move['from']
+            end_pos   = last_move['to']
+            moved_piece = last_move['piece']
+            captured_piece = last_move['captured']
+
+            board[end_pos[0]][end_pos[1]] = None
+            board[start_pos[0]][start_pos[1]] = moved_piece
+            if captured_piece:
+                # Se era cattura "defense" con chiave "defense": ...
+                # Altrimenti ripristina semplicemente
+                board[end_pos[0]][end_pos[1]] = captured_piece
+
+            # Ripristino control squares
+            controlled_squares["Black"] = last_move['prev_state']['controlled']["Black"].copy()
+            controlled_squares["White"] = last_move['prev_state']['controlled']["White"].copy()
+            captured_pieces = copy.deepcopy(last_move['prev_state']['captured'])
+
+        # Ripristina special winner state
+        candidate_winner = last_move['prev_state'].get('candidate_winner', None)
+        both_at_four     = last_move['prev_state'].get('both_at_four', False)
+        current_role_index = last_move['prev_state']['role_index']
+        moves_this_turn     = last_move['prev_state']['moves_this_turn']
+        game_over = False
 
 
 
+# Set this flag to True to use auto placement or False for manual placement.
+AUTO_PLACEMENT = False
+
+if (AUTO_PLACEMENT) & (mode == "2P"):
+    auto_place_pieces_2P()
+elif (AUTO_PLACEMENT) & (mode == "4P"):
+    auto_place_pieces_4P()
+else:
+    pass
+
+def auto_place_pieces_2P():
+    global board, pieces_left, pieces_placed, placing_pieces
+    # Loop over the two players: "Black" and "White"
+    for player in players:  # players = ["Black", "White"]
+        for piece_type in PIECE_ORDER:
+            # While there are still pieces of this type for the player:
+            while pieces_left[player][piece_type] > 0:
+                valid_positions = []
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        # Only consider empty cells that are not special squares.
+                        if board[r][c] is None and (r, c) not in special_squares:
+                            # Use your existing placement validation.
+                            if not is_square_disallowed_for_placement(r, c, player, piece_type):
+                                valid_positions.append((r, c))
+                if valid_positions:
+                    pos = random.choice(valid_positions)
+                    board[pos[0]][pos[1]] = {"type": piece_type, "player": player}
+                    pieces_left[player][piece_type] -= 1
+                    pieces_placed[player] += 1
+                else:
+                    # Should not happen if board design is correct.
+                    break
+    # End the placement phase.
+    placing_pieces = False
+
+
+def auto_place_pieces_4P():
+    global board, pieces_left, pieces_placed, placing_pieces
+    # Loop over the four players: "Black", "White", "Red", "Blue"
+    for player in players:  # players = ["Black", "White", "Red", "Blue"]
+        for piece_type in PIECE_ORDER:
+            while pieces_left[player][piece_type] > 0:
+                valid_positions = []
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        if board[r][c] is None and (r, c) not in special_squares:
+                            if not is_square_disallowed_for_placement(r, c, player, piece_type):
+                                valid_positions.append((r, c))
+                if valid_positions:
+                    pos = random.choice(valid_positions)
+                    board[pos[0]][pos[1]] = {"type": piece_type, "player": player}
+                    pieces_left[player][piece_type] -= 1
+                    pieces_placed[player] += 1
+                else:
+                    break
+    placing_pieces = False
 
 generate_special_squares()
 
@@ -1460,95 +2523,6 @@ def sanitize_board():
                 if not (isinstance(cell, dict) and "player" in cell and "type" in cell):
                     board[i][j] = None
 
-def draw_board():
-    # First, sanitize the board.
-    sanitize_board()
-    
-    # Fill the background.
-    screen.fill(GRAY)
-    
-    # Draw board squares.
-    for row in range(ROWS):
-        for col in range(COLS):
-            base_color = LIGHT_BROWN if (row + col) % 2 == 0 else DARK_BROWN
-            pygame.draw.rect(screen, base_color, (col * SQ_SIZE, row * SQ_SIZE, SQ_SIZE, SQ_SIZE))
-    
-    # Draw special squares (if any).
-    for (r, c) in special_squares:
-        pygame.draw.circle(screen, GREEN, (c * SQ_SIZE + SQ_SIZE // 2, r * SQ_SIZE + SQ_SIZE // 2), SQ_SIZE // 3 + 5)
-    
-    # Draw pieces using custom icons.
-    # Assumes PIECE_IMAGES is a dict structured as:
-    # PIECE_IMAGES = { "Black": { "AttackPawn": surface, "DefensePawn": surface, ... },
-    #                  "White": { "AttackPawn": surface, "DefensePawn": surface, ... } }
-    for row_idx in range(ROWS):
-        for col_idx in range(COLS):
-            cell = board[row_idx][col_idx]
-            if cell:
-                piece = cell
-                # Retrieve the corresponding image.
-                piece_image = PIECE_IMAGES[piece["player"]][piece["type"]]
-                piece_rect = piece_image.get_rect()
-                # Center the image in the square.
-                piece_rect.center = (col_idx * SQ_SIZE + SQ_SIZE // 2,
-                                       row_idx * SQ_SIZE + SQ_SIZE // 2)
-                screen.blit(piece_image, piece_rect)
-    
-    # Handle flash effects (for moves, win indication, etc.).
-    now = time.time()
-    for (r, c) in list(flash_effects.keys()):
-        elapsed = now - flash_effects[(r, c)]
-        if elapsed < FLASH_DURATION:
-            blink_count = int(elapsed // BLINK_INTERVAL)
-            overlay_color = (0, 255, 0, 120) if blink_count % 2 == 0 else (0, 255, 0, 0)
-            overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
-            overlay_surf.fill(overlay_color)
-            screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
-        else:
-            del flash_effects[(r, c)]
-    
-    # During placement phase, overlay forbidden squares.
-    if placing_pieces:
-        piece_type = get_next_piece_type_for_player(players[current_player])
-        if piece_type:
-            overlay_color = (128, 128, 128, 100)
-            for r in range(ROWS):
-                for c in range(COLS):
-                    if is_square_disallowed_for_placement(r, c, players[current_player], piece_type):
-                        overlay_surf = pygame.Surface((SQ_SIZE, SQ_SIZE), pygame.SRCALPHA)
-                        overlay_surf.fill(overlay_color)
-                        screen.blit(overlay_surf, (c * SQ_SIZE, r * SQ_SIZE))
-    
-    # If a piece is selected, show its valid moves.
-    if selected_piece:
-        sr, sc = selected_piece
-        piece = board[sr][sc]
-        if piece:
-            valid_moves = get_valid_moves(piece, selected_piece)
-            for (r, c) in valid_moves:
-                cx = c * SQ_SIZE + SQ_SIZE // 2
-                cy = r * SQ_SIZE + SQ_SIZE // 2
-                target_piece = board[r][c]
-                if target_piece and target_piece["player"] != piece["player"]:
-                    pygame.draw.circle(screen, (255, 0, 0, 80), (cx, cy), SQ_SIZE // 6)
-                else:
-                    pygame.draw.circle(screen, (128, 128, 128, 80), (cx, cy), SQ_SIZE // 6)
-    
-    # Draw row numbers on the right side.
-    for row in range(ROWS):
-        label = font.render(str(ROWS - row), True, BLACK)
-        x = 820  # Adjust as needed.
-        y = row * SQ_SIZE + SQ_SIZE / 2 - label.get_height() / 2
-        screen.blit(label, (x, y))
-    
-    # Draw column letters below the board.
-    for col in range(COLS):
-        letter = chr(ord('A') + col)
-        label = font.render(letter, True, BLACK)
-        x = col * SQ_SIZE + SQ_SIZE / 2 - label.get_width() / 2
-        y = ROWS * SQ_SIZE + 5
-        screen.blit(label, (x, y))
-
 def get_valid_moves(piece, position):
     row, col = position
     valid_moves = []
@@ -1603,6 +2577,7 @@ def check_candidate_win():
     if candidate_winner is not None and (turn_counter - candidate_turn_index >= 2):  
         if len(controlled_squares[candidate_winner]) >= 3:
             flash_winner_king(candidate_winner,1)
+            game_over = True
         else:
             candidate_winner = None
 
