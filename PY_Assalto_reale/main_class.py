@@ -71,6 +71,12 @@ class AssetLoader:
 
         # --- audio ----------------------------------------------------------
         self.move_sound = self._load_sound("move_chess.wav")
+        self.capture_sound = self._load_sound("attack_chess.wav")
+        self.shield_sound = self._load_sound("shield_chess.ogg")
+        raw = pygame.image.load(os.path.join(self.cfg.ASSETS_DIR, "transform_square.png"))
+        # scala a mezzo SQ_SIZE se vuoi un’icona piccola, o a SQ_SIZE per una dimensione piena
+        size = cfg.SQ_SIZE // 2
+        self.transform_icon = pygame.transform.scale(raw, (size, size))
 
     # ------------------------------------------------------------------ #
     def _load_sound(self, filename: str) -> pygame.mixer.Sound:
@@ -202,6 +208,9 @@ class Board:
         # special squares ---------------------------------------------------
         self.special_squares: Set[Vec2] = set()
         self._generate_special_squares()
+        # casella di trasformazione (1 sola)
+        self.transform_squares: Set[Vec2] = set()
+        # self._generate_transform_square()
 
         # bookkeeping -------------------------------------------------------
         self.controlled_squares: Dict[str, Set[Vec2]] = {"Black": set(), "White": set()}
@@ -224,6 +233,20 @@ class Board:
                 self.special_squares.add((r, c))
             attempts += 1
 
+    def _generate_transform_square(self) -> None:
+        while not self.transform_squares:
+            r = random.randint(1, self.cfg.ROWS - 2)
+            c = random.randint(3, self.cfg.COLS - 4)
+            if (r, c) not in self.special_squares:
+                self.transform_squares.add((r, c))
+
+    
+    def move_transform_square(self) -> None:
+        """Rimuove l’attuale casella di trasformazione e ne genera subito una nuova."""
+        # svuota il set (eravamo in genere in singleton)
+        self.transform_squares.clear()
+        # genera una nuova posizione casuale che non sovrapponga special_squares
+        self._generate_transform_square()
     # ------------------------------------------------------------------ #
     @staticmethod
     def is_allowed_capture_type(mover: Piece, target: Piece) -> bool:
@@ -246,6 +269,8 @@ class Board:
 
     def square_disallowed_for_placement(self, row: int, col: int, player: str, ptype: str) -> bool:
         if (row, col) in self.special_squares:
+            return True
+        if (row, col) in self.transform_squares:
             return True
         if ptype == "ConquestPawn":
             return any(max(abs(row - r), abs(col - c)) < 3 for r, c in self.special_squares)
@@ -282,7 +307,14 @@ class Board:
                 (c * cfg.SQ_SIZE + cfg.SQ_SIZE // 2, r * cfg.SQ_SIZE + cfg.SQ_SIZE // 2),
                 cfg.SQ_SIZE // 3 + 5,
             )
-
+        # --- transform squares (icona) ---
+        for r, c in self.transform_squares:
+            icon = self.assets.transform_icon
+            # calcolo del centro del quadrato
+            x = c * cfg.SQ_SIZE + cfg.SQ_SIZE // 2
+            y = r * cfg.SQ_SIZE + cfg.SQ_SIZE // 2
+            rect = icon.get_rect(center=(x, y))
+            surface.blit(icon, rect)
         # --- pieces ----------------------------------------------------
         for r in range(cfg.ROWS):
             for c in range(cfg.COLS):
@@ -402,10 +434,15 @@ class AssaltoRealeGame:
 
         # pygame --------------------------------------------------------
         pygame.init()
-        self.screen = pygame.display.set_mode((self.cfg.WIDTH, self.cfg.HEIGHT))
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
         pygame.display.set_caption("Assalto Reale – OOP edition")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("bookmanoldstyle", 20)
+
+        self.time_left   = {"Black": 12 * 60.0,   # seconds
+                            "White": 12 * 60.0}
+        self._last_tick  = pygame.time.get_ticks()   # ms timestamp
+        self.time_font   = pygame.font.SysFont("bookmanoldstyle", 26, bold=True)
 
         # core state ----------------------------------------------------
         self.board = Board(self.cfg, self.assets)
@@ -465,6 +502,7 @@ class AssaltoRealeGame:
     # =============================== main loop ======================= #
     def run(self) -> None:
         while self.running:
+            self._update_clock()
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT:
                     self.running = False
@@ -474,6 +512,21 @@ class AssaltoRealeGame:
             self._draw()
             self.clock.tick(30)
         pygame.quit()
+
+    def _update_clock(self) -> None:
+        """Subtract real‑time delta from the *current* player’s clock."""
+        now   = pygame.time.get_ticks()
+        delta = (now - self._last_tick) / 1000.0   # to seconds
+        self._last_tick = now
+        player = AssaltoRealeGame.players[self.current_player]
+        self.time_left[player] = max(0.0, self.time_left[player] - delta)
+
+        # flag victory if someone runs out
+        if self.time_left["Black"] == 0.0:
+            self._flash_winner_king("White")
+        elif self.time_left["White"] == 0.0:
+            self._flash_winner_king("Black")
+
 
     # ============================ event handling ===================== #
     def _on_click(self, pos: Tuple[int, int]) -> None:
@@ -560,7 +613,8 @@ class AssaltoRealeGame:
             kr, kc = end
             defender = self.board.get_defense_adjacent_to_king(kr, kc, captured.player)
             if defender:
-                self._animate_king_attack(end)  # <--- pulse even when king is defended
+                self._animate_king_attack(end)
+                self.assets.shield_sound.play()
 
                 def_piece = copy.deepcopy(self.board[defender[0]][defender[1]])
                 path   = self.board.repulse_attack_pawn_path(start, end)
@@ -572,6 +626,7 @@ class AssaltoRealeGame:
                     {"defense": (def_piece, defender)}
                 )
 
+
                 delta = max(abs(newpos[0] - start[0]), abs(newpos[1] - start[1]))
                 self.moves_this_turn += 1 if delta == 1 else 2
                 if self.moves_this_turn >= 2:
@@ -581,7 +636,8 @@ class AssaltoRealeGame:
                      # <‑‑‑‑‑‑‑‑ STOP here, do **not** fall through
             else:
                 # ---- sacrifice branch (King dies) ----
-                self._animate_king_attack(end)         # <--- NEW animation here
+                self._animate_king_attack(end)
+                self.assets.capture_sound.play() 
                 self._flash_winner_king(piece.player)
                 return
 
@@ -597,8 +653,14 @@ class AssaltoRealeGame:
         ):
             self.board.controlled_squares[captured.player].discard(end)
 
-        self.board[end[0]][end[1]] = piece
+        self.board[end[0]][end[1]] = None
         self.board[start[0]][start[1]] = None
+
+        # animazione slide
+        self._animate_slide(start, end, piece)
+
+        # piazza il pezzo nella nuova casella
+        self.board[end[0]][end[1]] = piece
         # ------------------------------------------------------------
         #   SPECIAL‑SQUARE CONTROL for Conquest‑pawn
         # ------------------------------------------------------------
@@ -613,7 +675,10 @@ class AssaltoRealeGame:
                 self._flash_effects[end] = pygame.time.get_ticks()
                 self._check_special_squares()       # update candidate logic
 
-        self.assets.move_sound.play()
+        if captured:                            # any enemy piece was on the square
+            self.assets.capture_sound.play()    # • play “attack”
+        else:
+            self.assets.move_sound.play()       # • otherwise normal move click
 
         delta = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
         move_cost = 1 if (captured is None or delta == 1) else 2
@@ -621,6 +686,10 @@ class AssaltoRealeGame:
         if self.moves_this_turn >= 2:
             self._switch_player()
         self.selected = None
+
+        # se siamo su una casella di trasformazione
+        if end in self.board.transform_squares and piece.type in ("AttackPawn","DefensePawn","ConquestPawn"):
+            self._prompt_transformation(end, piece)
 
     # ============================= bookkeeping ======================= #
     def _switch_player(self) -> None:
@@ -630,8 +699,12 @@ class AssaltoRealeGame:
         self.turn_pieces_count = 0
         self.moves_this_turn = 0
 
+        self._last_tick = pygame.time.get_ticks()
+
         # --- turn counter / pending‑win logic -----------------------
         self.turn_counter += 1
+        if self.turn_counter == 30:
+            self.board._generate_transform_square()
         self._check_candidate_win()
 
 
@@ -725,10 +798,105 @@ class AssaltoRealeGame:
         self._draw_hud()
         self._draw_square_flashes()
         pygame.display.flip()
+    
+    def _prompt_transformation(self, pos: Vec2, piece: Piece) -> None:
+        options = ["AttackPawn", "DefensePawn", "ConquestPawn"]
+        icons: list[tuple[pygame.Surface, tuple[int,int]]] = []
+        rects: list[pygame.Rect] = []
+        size = self.cfg.SQ_SIZE
+        spacing = 20
+        total_w = len(options)*size + (len(options)-1)*spacing
+        start_x = (self.cfg.WIDTH - total_w) // 2
+        y = (self.cfg.HEIGHT - size) // 2
+
+        # Prepara icone e rettangoli cliccabili
+        for i, opt in enumerate(options):
+            img = self.assets.piece_images[piece.player][opt]
+            img = pygame.transform.scale(img, (size, size))
+            x = start_x + i*(size+spacing)
+            icons.append((img, (x, y)))
+            rects.append(pygame.Rect(x, y, size, size))
+
+        # Scegli il colore del pannello: bianco se seleziona Nero, nero se seleziona Bianco
+        panel_color = self.cfg.WHITE if piece.player == "Black" else self.cfg.BLACK
+        # Dimensioni del pannello con un padding
+        pad = 10
+        panel_x = start_x - pad
+        panel_y = y - pad
+        panel_w = total_w + 2*pad
+        panel_h = size + 2*pad
+
+        selecting = True
+        while selecting:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                if ev.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = ev.pos
+                    for idx, rect in enumerate(rects):
+                        if rect.collidepoint(mx, my):
+                            # cambia tipo e riposiziona la transform square
+                            new_type = options[idx]
+                            player   = piece.player
+                            self.board.grid[pos[0]][pos[1]] = Piece.create(new_type, player)
+                            self.board.move_transform_square()
+                            selecting = False
+                            break
+
+            # redraw board
+            self.board.draw(self.screen, self.font, None, [])
+
+            # disegna il pannello dietro le icone
+            pygame.draw.rect(
+                self.screen,
+                panel_color,
+                (panel_x, panel_y, panel_w, panel_h),
+                border_radius=8
+            )
+            # opzionale: bordo a contrasto
+            pygame.draw.rect(
+                self.screen,
+                (255,255,255) if panel_color==(0,0,0) else (0,0,0),
+                (panel_x, panel_y, panel_w, panel_h),
+                width=2,
+                border_radius=8
+            )
+
+            # disegna le icone sopra
+            for img, (x, y) in icons:
+                self.screen.blit(img, (x, y))
+
+            pygame.display.flip()
+            self.clock.tick(30)
+
+
 
     # ------------------------------------------------------------------ #
     def _draw_hud(self) -> None:
         cfg = self.cfg
+
+        # ─── NEW: timer read‑outs ───────────────────────────────────────────
+        def fmt(t: float) -> str:
+            return f"{int(t)//60:02d}:{int(t)%60:02d}"
+
+        black_t = fmt(self.time_left["Black"])
+        white_t = fmt(self.time_left["White"])
+
+        bx = self.BUTTON_X + self.BUTTON_W // 2
+        by = self.BUTTON_Y - 150
+        wx = bx
+        wy = by + 28
+
+        # background rectangles for readability
+        for (tx, ty, colour, txt) in [
+            (bx, by, cfg.BLACK, black_t),
+            (wx, wy, cfg.WHITE, white_t),
+        ]:
+            surf = self.time_font.render(txt, True, colour)
+            rect = surf.get_rect(center=(tx, ty))
+            pygame.draw.rect(self.screen, cfg.GRAY, rect.inflate(8, 4))
+            self.screen.blit(surf, rect)
+
         # --- PASS / TURN button ---------------------------------------
         pygame.draw.rect(self.screen, cfg.BUTTON_COLOR, (self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H))
         pygame.draw.rect(self.screen, cfg.BLACK, (self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H), 2)
@@ -874,7 +1042,7 @@ class AssaltoRealeGame:
 
         max_radius = self.cfg.SQ_SIZE // 2
         start = pygame.time.get_ticks()
-        duration = 300  # ms
+        duration = 600  # ms
         clock = pygame.time.Clock()
 
         while pygame.time.get_ticks() - start < duration:
@@ -904,7 +1072,7 @@ class AssaltoRealeGame:
                            colour: Tuple[int, int, int] | None = None) -> None:
         """Highlight *winner*’s King, then stop the game."""
         if colour is None:
-            colour = (0, 255, 0) if winner == "Black" else (255, 0, 0)
+            colour = (255, 0, 0) if winner == "Black" else (255, 0, 0)
 
         # locate the King -------------------------------------------------
         king_pos: Vec2 | None = None
@@ -1000,6 +1168,46 @@ class AssaltoRealeGame:
             else:
                 # lost control → cancel pending win
                 self.candidate_winner = None
+
+    def _animate_slide(
+    self,
+    start: Vec2,
+    end: Vec2,
+    piece: Piece,
+    duration_ms: int = 200,
+    ) -> None:
+        """
+        Fa scorrere il pezzo da start a end in pixel, interpolando
+        in duration_ms millisecondi.
+        """
+        # calcola posizioni in pixel
+        sx = start[1] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
+        sy = start[0] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
+        ex = end[1] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
+        ey = end[0] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
+
+        img = self.assets.piece_images[piece.player][piece.type]
+        clock = pygame.time.Clock()
+        start_time = pygame.time.get_ticks()
+
+        while True:
+            now = pygame.time.get_ticks()
+            t = min((now - start_time) / duration_ms, 1.0)
+            cx = int(sx + (ex - sx) * t)
+            cy = int(sy + (ey - sy) * t)
+
+            # disegna tutto tranne il pezzo in movimento
+            self.board.draw(self.screen, self.font, self.selected, [])
+            # disegna il pezzo “flottante”
+            rect = img.get_rect(center=(cx, cy))
+            self.screen.blit(img, rect)
+            self._draw_hud()
+            pygame.display.flip()
+
+            if t >= 1.0:
+                break
+            clock.tick(60)
+
 
 
 
