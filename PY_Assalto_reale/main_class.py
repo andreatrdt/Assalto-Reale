@@ -10,6 +10,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
+import sys
 
 import pygame
 
@@ -77,6 +78,8 @@ class AssetLoader:
         # scala a mezzo SQ_SIZE se vuoi un’icona piccola, o a SQ_SIZE per una dimensione piena
         size = cfg.SQ_SIZE // 2
         self.transform_icon = pygame.transform.scale(raw, (size, size))
+        self.placement_history: list[dict] = []
+
 
     # ------------------------------------------------------------------ #
     def _load_sound(self, filename: str) -> pygame.mixer.Sound:
@@ -435,6 +438,7 @@ class AssaltoRealeGame:
         # pygame --------------------------------------------------------
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.SCR_W, self.SCR_H = self.screen.get_size()
         pygame.display.set_caption("Assalto Reale – OOP edition")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("bookmanoldstyle", 20)
@@ -445,6 +449,7 @@ class AssaltoRealeGame:
         self.time_font   = pygame.font.SysFont("bookmanoldstyle", 26, bold=True)
 
         # core state ----------------------------------------------------
+        self.placement_history: list[dict] = []  
         self.board = Board(self.cfg, self.assets)
         self._flash_effects: dict[Vec2, int] = {}
         self.current_player: int = 0  # index into players
@@ -456,6 +461,11 @@ class AssaltoRealeGame:
         self.both_at_four: bool = False
         self.turn_counter: int = 0          # increments every time we switch
         self.last_move: Optional[Tuple[Vec2, Vec2]] = None
+        self.menu_active   = False
+        self.menu_winner   = None  # "Black" or "White"
+        # button rects, computed after you know OX/OY/SQ:
+        self.menu_buttons  = {}    # will hold {'save':Rect, 'quit':Rect}
+
 
 
         # placement‑phase bookkeeping ----------------------------------
@@ -499,6 +509,14 @@ class AssaltoRealeGame:
         self.QUIT_X = self.RESET_X
         self.QUIT_Y = self.RESET_Y + self.RESET_H + 20
 
+        # ─── Save‑moves button ────────────────────────────────────────────
+        self.SAVE_W, self.SAVE_H = 125, 50
+        self.SAVE_X = self.BUTTON_X
+        self.SAVE_Y = self.QUIT_Y + self.QUIT_H + 20
+
+
+
+
     # =============================== main loop ======================= #
     def run(self) -> None:
         while self.running:
@@ -513,6 +531,95 @@ class AssaltoRealeGame:
             self.clock.tick(30)
         pygame.quit()
 
+    def _show_endgame_menu(self, winner: str) -> None:
+        self.menu_active = True
+        self.menu_winner = winner
+        # freeze the board — don’t call pygame.quit() yet
+        # build button rects in screen coords:
+        cx, cy = self.SCR_W//2, self.SCR_H//2
+        w, h   = 200, 50
+        self.menu_buttons['save'] = pygame.Rect(cx - w//2, cy,          w, h)
+        self.menu_buttons['quit'] = pygame.Rect(cx - w//2, cy + h + 20, w, h)
+
+    
+    def _format_game_history(self) -> str:
+        lines: list[str] = []
+        # 1) Placements
+        lines.append("# PLACEMENTS")
+        for i, p in enumerate(self.placement_history, start=1):
+            row, col = p["pos"]
+            sq = f"{chr(ord('A')+col)}{self.cfg.ROWS-row}"
+            lines.append(f"{i}. {p['player']} places {p['type']} on {sq}")
+
+        # 2) Moves
+        lines.append("")           # blank line
+        lines.append("# MOVES")
+        for i, m in enumerate(self.move_history, start=1):
+            piece     = m["piece"]
+            fr, to    = m["from"], m["to"]
+            start_sq  = f"{chr(ord('A')+fr[1])}{self.cfg.ROWS-fr[0]}"
+            end_sq    = f"{chr(ord('A')+to[1])}{self.cfg.ROWS-to[0]}"
+            captured  = m["captured"]
+            # capture description
+            if isinstance(captured, dict) and "defense" in captured:
+                cap_desc = " (repelled defense pawn)"
+            elif captured:
+                cap_desc = f" captured {captured.type}"
+            else:
+                cap_desc = ""
+            lines.append(f"{i}. {piece.player} {piece.type} {start_sq}→{end_sq}{cap_desc}")
+
+        return "\n".join(lines)
+
+    
+    def _save_moves_to_file(self, filename: str = "moves.txt") -> None:
+        log = self._format_game_history()
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(log)
+        print(f"Moves saved to {filename}")
+
+    def _parse_game_file(self, filename: str) -> tuple[list[dict], list[dict]]:
+        """
+        Returns (placements, moves), where:
+            - placements is a list of {"player","type","pos"}
+            - moves is a list of {"player","type","start","end","captured"}
+        """
+        with open(filename, "r", encoding="utf-8") as f:
+            section = "placements"
+            placements: list[dict] = []
+            moves:      list[dict] = []
+            for raw in f:
+                line = raw.strip()
+                if not line:
+                    continue
+                # switch section on marker
+                if line.upper().startswith("# MOVES"):
+                    section = "moves"
+                    continue
+                if line.startswith("#"):
+                    continue
+
+                # drop the leading "n. "
+                try:
+                    _, content = line.split(" ", 1)
+                except ValueError:
+                    content = line
+
+                if section == "placements":
+                    # content e.g. "White places AttackPawn on B3"
+                    parts = content.split()
+                    player, _, ptype, _, sq = parts  # unpack 5 tokens
+                    col = ord(sq[0].upper()) - ord("A")
+                    row = self.cfg.ROWS - int(sq[1:])
+                    placements.append({"player": player, "type": ptype, "pos": (row, col)})
+                else:
+                    # content e.g. "Black DefensePawn A2→A3 captured Pawn"
+                    mv = self._parse_single_move(content)
+                    moves.append(mv)
+
+            return placements, moves
+
+
     def _update_clock(self) -> None:
         """Subtract real‑time delta from the *current* player’s clock."""
         now   = pygame.time.get_ticks()
@@ -523,14 +630,26 @@ class AssaltoRealeGame:
 
         # flag victory if someone runs out
         if self.time_left["Black"] == 0.0:
-            self._flash_winner_king("White")
+            self._show_endgame_menu("White")
         elif self.time_left["White"] == 0.0:
-            self._flash_winner_king("Black")
+            self._show_endgame_menu("Black")
+
+    def _handle_endgame_click(self, pos: Tuple[int,int]) -> None:
+        x, y = pos
+        if self.menu_buttons['save'].collidepoint(x,y):
+            self._save_moves_to_file()
+        elif self.menu_buttons['quit'].collidepoint(x,y):
+            pygame.quit()
+            sys.exit()
+    
 
 
     # ============================ event handling ===================== #
     def _on_click(self, pos: Tuple[int, int]) -> None:
         x, y = pos
+        if self.menu_active:
+            self._handle_endgame_click(pos)
+            return
 
         # --- buttons ---------------------------------------------------
         if self._within(x, y, self.UNDO_X, self.UNDO_Y, self.UNDO_W, self.UNDO_H):
@@ -545,6 +664,12 @@ class AssaltoRealeGame:
         if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
             self.running = False
             return
+            # in _on_click, after your other button‐checks:
+        if self._within(x, y, self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H):
+            self._save_moves_to_file("moves.txt")
+            return
+
+
 
         # --- board interaction ----------------------------------------
         col, row = x // self.cfg.SQ_SIZE, y // self.cfg.SQ_SIZE
@@ -574,6 +699,11 @@ class AssaltoRealeGame:
 
         # place piece ---------------------------------------------------
         self.board[r][c] = Piece.create(ptype, player)
+        self.placement_history.append({
+            "player": player,
+            "type": ptype,
+            "pos":   (r, c),
+        })
         self.pieces_left[player][ptype] -= 1
         self.pieces_placed[player] += 1
         self.turn_pieces_count += 1
@@ -638,7 +768,7 @@ class AssaltoRealeGame:
                 # ---- sacrifice branch (King dies) ----
                 self._animate_king_attack(end)
                 self.assets.capture_sound.play() 
-                self._flash_winner_king(piece.player)
+                self._show_endgame_menu(piece.player)
                 return
 
                # game ends inside flash helper
@@ -797,7 +927,30 @@ class AssaltoRealeGame:
         self._draw_placement_overlay()
         self._draw_hud()
         self._draw_square_flashes()
+        if self.menu_active:
+            self._draw_endgame_menu()
+
         pygame.display.flip()
+
+    def _draw_endgame_menu(self) -> None:
+        # semi‑transparent overlay
+        overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
+        overlay.fill((0,0,0,180))
+        self.screen.blit(overlay, (0,0))
+
+        # title
+        txt = f"{self.menu_winner} wins"
+        surf = self.font.render(txt, True, self.cfg.WHITE)
+        self.screen.blit(surf, surf.get_rect(center=(self.SCR_W//2, self.SCR_H//2 - 80)))
+
+        # buttons
+        for name, rect in self.menu_buttons.items():
+            color = self.cfg.BUTTON_COLOR
+            pygame.draw.rect(self.screen, color, rect)
+            label = "Save moves" if name=='save' else "Quit"
+            txt_surf = self.font.render(label, True, self.cfg.BLACK)
+            self.screen.blit(txt_surf, txt_surf.get_rect(center=rect.center))
+
     
     def _prompt_transformation(self, pos: Vec2, piece: Piece) -> None:
         options = ["AttackPawn", "DefensePawn", "ConquestPawn"]
@@ -953,6 +1106,18 @@ class AssaltoRealeGame:
         if any(v for d in self.board.captured_pieces.values() for v in d.values()):
             self._draw_capture_counter()
 
+        # --- save moves -----------------------------------------------
+        pygame.draw.rect(self.screen, cfg.BUTTON_COLOR,
+                        (self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H))
+        pygame.draw.rect(self.screen, cfg.BLACK,
+                        (self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H), 2)
+        label = self.font.render("SAVE", True, cfg.WHITE)
+        lx = self.SAVE_X + (self.SAVE_W - label.get_width()) // 2
+        ly = self.SAVE_Y + (self.SAVE_H - label.get_height()) // 2
+        self.screen.blit(label, (lx, ly))
+
+
+
     def _draw_capture_counter(self) -> None:
         cfg = self.cfg
         piece_order = ["King", "AttackPawn", "DefensePawn", "ConquestPawn"]
@@ -1104,7 +1269,7 @@ class AssaltoRealeGame:
             pygame.display.flip()
             pygame.time.delay(50)
 
-        self.running = False                # end the game gracefully
+        # self.running = False                # end the game gracefully
 
 
     def _draw_placement_overlay(self) -> None:
@@ -1164,7 +1329,7 @@ class AssaltoRealeGame:
         if (self.candidate_winner is not None and
                 self.turn_counter - (self.candidate_turn_index or 0) >= 2):
             if len(self.board.controlled_squares[self.candidate_winner]) >= 3:
-                self._flash_winner_king(self.candidate_winner)
+                self._show_endgame_menu(self.candidate_winner)
             else:
                 # lost control → cancel pending win
                 self.candidate_winner = None
