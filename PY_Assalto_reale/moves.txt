@@ -1,8 +1,8 @@
 # SETTINGS
-black_time=688
-white_time=702
-current_turn=Black
-turn_counter=18
+black_time=636
+white_time=641
+current_turn=White
+turn_counter=31
 board_size=12x12
 
 # SPECIAL_SQUARES
@@ -13,6 +13,7 @@ G6
 F3
 
 # TRANSFORM_SQUARE
+G4
 
 # PLACEMENTS
 1. Black places King on C7
@@ -50,3 +51,27 @@ F3
 5. Black King D8→E8
 6. White DefensePawn I6→H7
 7. White DefensePawn H7→G6
+8. Black King E8→F8
+9. Black DefensePawn F5→E6
+10. White AttackPawn K7→J6
+11. White King K8→J7
+12. Black King F8→G8
+13. Black DefensePawn E6→F6
+14. White AttackPawn J6→I5
+15. White AttackPawn I5→H4
+16. Black DefensePawn D3→E4
+17. Black DefensePawn E4→F3
+18. White AttackPawn H4→H3 captured DefensePawn
+19. White AttackPawn H3→I3 captured DefensePawn
+20. Black ConquestPawn I1→H1
+21. Black ConquestPawn K1→J1
+22. White DefensePawn G6→H7
+23. White DefensePawn H7→H8
+24. Black ConquestPawn H1→I3 captured AttackPawn
+25. White King J7→I6
+26. White AttackPawn K5→K6
+27. Black ConquestPawn I3→K2 captured AttackPawn
+28. White ConquestPawn J2→I2
+29. White ConquestPawn I2→H2
+30. Black DefensePawn F6→G5
+31. Black DefensePawn G5→H5
