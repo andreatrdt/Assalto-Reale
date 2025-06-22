@@ -1,47 +1,52 @@
 # SETTINGS
-black_time=703
-white_time=711
-current_turn=White
-turn_counter=15
+black_time=688
+white_time=702
+current_turn=Black
+turn_counter=18
 board_size=12x12
 
 # SPECIAL_SQUARES
-E10
-H9
-D7
-E4
-I3
+H11
+E9
+D6
+G6
+F3
 
 # TRANSFORM_SQUARE
 
 # PLACEMENTS
-1. Black places King on C4
-2. White places King on I5
-3. White places AttackPawn on L6
-4. Black places AttackPawn on B7
-5. Black places AttackPawn on B3
-6. White places AttackPawn on K3
-7. White places AttackPawn on K8
-8. Black places AttackPawn on A12
-9. Black places AttackPawn on B9
-10. White places AttackPawn on K11
-11. White places DefensePawn on E6
-12. Black places DefensePawn on J6
-13. Black places DefensePawn on G8
-14. White places DefensePawn on D10
-15. White places DefensePawn on D11
-16. Black places DefensePawn on G11
-17. Black places DefensePawn on I10
-18. White places DefensePawn on I9
-19. White places ConquestPawn on A3
-20. Black places ConquestPawn on A6
-21. Black places ConquestPawn on B1
-22. White places ConquestPawn on D1
-23. White places ConquestPawn on L2
-24. Black places ConquestPawn on L4
-25. Black places ConquestPawn on L5
-26. White places ConquestPawn on L8
+1. Black places King on C7
+2. White places King on K8
+3. White places AttackPawn on K5
+4. Black places AttackPawn on A6
+5. Black places AttackPawn on A9
+6. White places AttackPawn on L10
+7. White places AttackPawn on K7
+8. Black places AttackPawn on B8
+9. Black places AttackPawn on A4
+10. White places AttackPawn on K2
+11. White places DefensePawn on L3
+12. Black places DefensePawn on I3
+13. Black places DefensePawn on G4
+14. White places DefensePawn on F4
+15. White places DefensePawn on D4
+16. Black places DefensePawn on D3
+17. Black places DefensePawn on H3
+18. White places DefensePawn on I6
+19. White places ConquestPawn on B11
+20. Black places ConquestPawn on C12
+21. Black places ConquestPawn on K12
+22. White places ConquestPawn on K9
+23. White places ConquestPawn on J2
+24. Black places ConquestPawn on I1
+25. Black places ConquestPawn on K1
+26. White places ConquestPawn on L1
 
 # MOVES
-1. Black DefensePawn J6→I6
-2. Black DefensePawn I6→H6
+1. Black King C7→D8
+2. White ConquestPawn B11→C10
+3. White ConquestPawn C10→D10
+4. Black DefensePawn G4→F5
+5. Black King D8→E8
+6. White DefensePawn I6→H7
+7. White DefensePawn H7→G6
