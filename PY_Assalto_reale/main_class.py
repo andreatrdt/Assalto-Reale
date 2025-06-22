@@ -534,6 +534,7 @@ class AssaltoRealeGame:
         self._flash_effects: dict[Vec2, int] = {}
         self.current_player: int = 0  # index into players
         self.moves_this_turn: int = 0
+        self.king_moved_this_turn: bool = False
         self.selected: Optional[Vec2] = None
         self.running: bool = True
         self.candidate_winner: Optional[str] = None
@@ -675,6 +676,7 @@ class AssaltoRealeGame:
         self.move_history.clear()
         self.current_player   = 0
         self.moves_this_turn  = 0
+        self.king_moved_this_turn = False
         self.turn_counter     = 0
         self.menu_active      = False
 
@@ -1081,6 +1083,7 @@ class AssaltoRealeGame:
         # 1) parse everything
         settings, special_sqs, transform_sqs, placements, moves = self._parse_game_file(filename)
         self.moves_this_turn = 0
+        self.king_moved_this_turn = False
 
         # 2) restore the turn counter before anything else
         self.turn_counter = int(settings.get("turn_counter", 0))
@@ -1139,7 +1142,8 @@ class AssaltoRealeGame:
                 "captured": None,
                 "state": {
                    "current_player": self.current_player,
-                   "moves":            self.moves_this_turn
+                   "moves":            self.moves_this_turn,
+                   "king_moved":       self.king_moved_this_turn
                 },
                 "special_control": {
                     "Black": self.board.controlled_squares["Black"].copy(),
@@ -1217,6 +1221,9 @@ class AssaltoRealeGame:
         if not piece:
             self.selected = None
             return
+        if piece.type == "King" and self.king_moved_this_turn:
+            self.selected = None
+            return
         if not piece.valid_move(self.board, start, end, self.moves_this_turn):
             self.selected = None
             return
@@ -1286,6 +1293,8 @@ class AssaltoRealeGame:
 
         # piazza il pezzo nella nuova casella
         self.board[end[0]][end[1]] = piece
+        if piece.type == "King":
+            self.king_moved_this_turn = True
         # ------------------------------------------------------------
         #   SPECIAL‑SQUARE CONTROL for Conquest‑pawn
         # ------------------------------------------------------------
@@ -1306,10 +1315,7 @@ class AssaltoRealeGame:
             self.assets.move_sound.play()       # • otherwise normal move click
 
         delta = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
-        if piece.type == "King":
-            move_cost = 2
-        else:
-            move_cost = 1 if (captured is None or delta == 1) else 2
+        move_cost = 1 if (captured is None or delta == 1) else 2
         self.moves_this_turn += move_cost
         if self.moves_this_turn >= 2:
             self._switch_player()
@@ -1326,6 +1332,7 @@ class AssaltoRealeGame:
                               len(self.turn_sequence) - 1)
         self.turn_pieces_count = 0
         self.moves_this_turn = 0
+        self.king_moved_this_turn = False
 
         self._last_tick = pygame.time.get_ticks()
 
@@ -1348,7 +1355,8 @@ class AssaltoRealeGame:
             "captured": captured,
             "state": {
                 "current_player": self.current_player,
-                "moves": self.moves_this_turn
+                "moves": self.moves_this_turn,
+                "king_moved": self.king_moved_this_turn
             },
             "special_control": {
                 "Black": self.board.controlled_squares["Black"].copy(),
@@ -1403,6 +1411,7 @@ class AssaltoRealeGame:
         # 3) rewind turn bookkeeping
         self.current_player = last["state"]["current_player"]
         self.moves_this_turn = last["state"]["moves"]
+        self.king_moved_this_turn = last["state"].get("king_moved", False)
         self.selected = None
 
         if "control" in last:
@@ -1844,6 +1853,9 @@ class AssaltoRealeGame:
 
     # ======================== helpers =============================== #
     def _compute_valid_moves(self, piece: Piece, pos: Vec2) -> List[Vec2]:
+        if piece.type == "King" and self.king_moved_this_turn:
+            return []
+
         moves: List[Vec2] = []
         for r in range(self.cfg.ROWS):
             for c in range(self.cfg.COLS):
