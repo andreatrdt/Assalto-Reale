@@ -259,19 +259,54 @@ class Board:
 
 
 
-    def _generate_transform_square(self) -> None:
-        while not self.transform_squares:
-            r = random.randint(1, self.cfg.ROWS - 2)
-            c = random.randint(3, self.cfg.COLS - 4)
-            if (r, c) not in self.special_squares:
-                self.transform_squares.add((r, c))
+    def _generate_transform_square(self) -> bool:
+        """Generate a transform square following the equality rule.
+
+        The chosen square must not be occupied or special and must be
+        equidistant from the two closest pawns belonging to different
+        players.  If no such square exists the set remains empty and
+        ``False`` is returned.
+        """
+
+        self.transform_squares.clear()
+
+        pawns: list[tuple[int, int, str]] = []
+        for rr in range(self.cfg.ROWS):
+            for cc in range(self.cfg.COLS):
+                p = self.grid[rr][cc]
+                if p and p.type != "King":
+                    pawns.append((rr, cc, p.player))
+
+        candidates: list[Vec2] = []
+        for r in range(1, self.cfg.ROWS - 1):
+            for c in range(1, self.cfg.COLS - 1):
+                if (r, c) in self.special_squares:
+                    continue
+                if self.grid[r][c] is not None:
+                    continue
+                dists = sorted(
+                    (
+                        (max(abs(r - pr), abs(c - pc)), player)
+                        for pr, pc, player in pawns
+                    ),
+                    key=lambda x: x[0],
+                )
+                if len(dists) < 2:
+                    continue
+                (d1, p1), (d2, p2) = dists[0], dists[1]
+                if d1 == d2 and p1 != p2:
+                    candidates.append((r, c))
+
+        if candidates:
+            self.transform_squares.add(random.choice(candidates))
+            return True
+
+        return False
 
     
     def move_transform_square(self) -> None:
-        """Rimuove l’attuale casella di trasformazione e ne genera subito una nuova."""
-        # svuota il set (eravamo in genere in singleton)
+        """Move the transform square to a new valid location."""
         self.transform_squares.clear()
-        # genera una nuova posizione casuale che non sovrapponga special_squares
         self._generate_transform_square()
     # ------------------------------------------------------------------ #
     @staticmethod
@@ -1340,7 +1375,7 @@ class AssaltoRealeGame:
 
         # --- turn counter / pending‑win logic -----------------------
         self.turn_counter += 1
-        if self.turn_counter == 30:
+        if self.turn_counter >= 30 and not self.board.transform_squares:
             self.board._generate_transform_square()
         self._check_candidate_win()
 
@@ -1355,6 +1390,8 @@ class AssaltoRealeGame:
             "to": end,
             "piece": copy.deepcopy(piece),
             "captured": captured,
+            "transform_square": (next(iter(self.board.transform_squares))
+                                 if self.board.transform_squares else None),
             "state": {
                 "current_player": self.current_player,
                 "moves": self.moves_this_turn,
@@ -1419,6 +1456,12 @@ class AssaltoRealeGame:
         if "control" in last:
             self.board.controlled_squares["Black"] = last["control"]["Black"].copy()
             self.board.controlled_squares["White"] = last["control"]["White"].copy()
+
+        # restore transform square position
+        self.board.transform_squares.clear()
+        tsq = last.get("transform_square")
+        if tsq is not None:
+            self.board.transform_squares.add(tsq)
 
 
 
