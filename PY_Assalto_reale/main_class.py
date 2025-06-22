@@ -1306,7 +1306,10 @@ class AssaltoRealeGame:
             self.assets.move_sound.play()       # • otherwise normal move click
 
         delta = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
-        move_cost = 1 if (captured is None or delta == 1) else 2
+        if piece.type == "King":
+            move_cost = 2
+        else:
+            move_cost = 1 if (captured is None or delta == 1) else 2
         self.moves_this_turn += move_cost
         if self.moves_this_turn >= 2:
             self._switch_player()
