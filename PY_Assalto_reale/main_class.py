@@ -31,6 +31,8 @@ class GameConfig:
     ROWS: int = 12
     COLS: int = 12
 
+    SPECIAL_COUNT: int = 5
+
     # UI layout (computed on‑class so they are available as GameConfig.X) ----
     RIGHT_MARGIN: int = 240  # reserved for HUD
     SQ_SIZE: int = WIDTH // (COLS + 4)
@@ -51,7 +53,7 @@ class GameConfig:
     BLINK_INTERVAL: float = 1.0
 
     # Assets
-    ASSETS_DIR: str = field(default_factory=lambda: os.path.join(os.path.dirname(__file__), "assets2"))
+    ASSETS_DIR: str = field(default_factory=lambda: os.path.join(os.path.dirname(__file__), "assets"))
 
 
 ######################################################################
@@ -227,14 +229,18 @@ class Board:
         return self.grid[idx]
 
     # ------------------------------------------------------------------ #
-    def _generate_special_squares(self) -> None:
+    # in class Board:
+    def _generate_special_squares(self, count: int = 5) -> None:
+        self.special_squares.clear()
         attempts = 0
-        while len(self.special_squares) < 5 and attempts < 100_000:
+        while len(self.special_squares) < count and attempts < 100_000:
             r = random.randint(1, self.cfg.ROWS - 2)
             c = random.randint(3, self.cfg.COLS - 4)
             if all(max(abs(r - rr), abs(c - cc)) >= 3 for rr, cc in self.special_squares):
                 self.special_squares.add((r, c))
             attempts += 1
+
+
 
     def _generate_transform_square(self) -> None:
         while not self.transform_squares:
@@ -338,14 +344,23 @@ class Board:
                     (c * cfg.SQ_SIZE + cfg.SQ_SIZE // 2, r * cfg.SQ_SIZE + cfg.SQ_SIZE // 2),
                     cfg.SQ_SIZE // 6,
                 )
+    
+
 
         # --- board coordinates ----------------------------------------
+        margin = 10
+        num_x = cfg.COLS * cfg.SQ_SIZE + margin
         for r in range(cfg.ROWS):
-            label = font.render(str(cfg.ROWS - r), True, cfg.BLACK)
-            surface.blit(label, (cfg.WIDTH - cfg.RIGHT_MARGIN + 10, r * cfg.SQ_SIZE + cfg.SQ_SIZE / 2 - label.get_height() / 2))
+            lbl = font.render(str(cfg.ROWS - r), True, cfg.BLACK)
+            y   = r * cfg.SQ_SIZE + (cfg.SQ_SIZE // 2) - (lbl.get_height() // 2)
+            surface.blit(lbl, (num_x, y))
+
+        # files (letters) just below the grid
+        file_y = cfg.ROWS * cfg.SQ_SIZE + margin
         for c in range(cfg.COLS):
-            letter_lbl = font.render(chr(ord("A") + c), True, cfg.BLACK)
-            surface.blit(letter_lbl, (c * cfg.SQ_SIZE + cfg.SQ_SIZE / 2 - letter_lbl.get_width() / 2, cfg.ROWS * cfg.SQ_SIZE + 5))
+            lbl = font.render(chr(ord("A") + c), True, cfg.BLACK)
+            x   = c * cfg.SQ_SIZE + (cfg.SQ_SIZE // 2) - (lbl.get_width() // 2)
+            surface.blit(lbl, (x, file_y))
 
     # ================================================================= #
     #                    Extra helper utilities (static)                #
@@ -435,9 +450,42 @@ class AssaltoRealeGame:
         self.cfg = GameConfig()
         self.assets = AssetLoader(self.cfg)
 
+        # ─── menu settings before game ───────────────────────────────
+        self.timer_options   = [5*60, 10*60, 12*60, 15*60, 20*60]
+        self.timer_index     = 2                  # default 12′
+        self.board_sizes     = [(8,8), (10,10), (12,12), (14,14), (16,16), (18,18)]
+        self.board_index     = 2                  # default 12×12
+        # allow selecting how many special squares to generate
+        self.special_options = [3, 4, 5, 6, 7]
+        # default to 5 (the old behavior)
+        self.special_index   = self.special_options.index(5)
+        self.settings      = {}
+
+
+        # pygame init …
+        pygame.init()
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.SCR_W, self.SCR_H = self.screen.get_size()
+        pygame.display.set_caption("Assalto Reale – OOP edition")
+        self.clock = pygame.time.Clock()
+        self.font  = pygame.font.SysFont("bookmanoldstyle", 20)
+
+        # placeholder; we'll overwrite after menu
+        self.time_left   = {"Black": 0.0, "White": 0.0}
+        self._last_tick  = 0
+        self.time_font   = pygame.font.SysFont("bookmanoldstyle", 26, bold=True)
+
         # pygame --------------------------------------------------------
         pygame.init()
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        self.SCR_W, self.SCR_H = self.screen.get_size()
+
+        bg_path = os.path.join(self.cfg.ASSETS_DIR, "background_MENU.png")
+        self.menu_background = pygame.image.load(bg_path).convert()
+        self.menu_background = pygame.transform.scale(
+            self.menu_background,
+            (self.SCR_W, self.SCR_H)
+        )
         self.SCR_W, self.SCR_H = self.screen.get_size()
         pygame.display.set_caption("Assalto Reale – OOP edition")
         self.clock = pygame.time.Clock()
@@ -487,38 +535,289 @@ class AssaltoRealeGame:
 
     # ============================= UI layout ========================= #
     def _init_ui_geometry(self) -> None:
-        self.BUTTON_W, self.BUTTON_H = 125, 50
-        self.BUTTON_X = self.cfg.WIDTH - 140
-        self.BUTTON_Y = self.cfg.HEIGHT // 2 - 25
+        # ─── Compute left edge of HUD area ─────────────────────────────
+        board_width = self.cfg.COLS * self.cfg.SQ_SIZE
+        padding = 300
+        self.UI_X = board_width + padding
 
-        self.SCOREBOARD_X, self.SCOREBOARD_Y = self.BUTTON_X, self.BUTTON_Y - 88
-        self.CAPTURE_COUNTER_X, self.CAPTURE_COUNTER_Y = self.cfg.WIDTH - 200, self.cfg.HEIGHT - 312
+        # Base vertical start
+        current_y = 50
 
+        # ─── Scoreboard ────────────────────────────────────────────────
+        self.SCOREBOARD_W, self.SCOREBOARD_H = 125, 75
+        self.SCOREBOARD_X = self.UI_X
+        self.SCOREBOARD_Y = current_y
+
+        # ─── Placement icon ────────────────────────────────────────────
         self.PLACEMENT_ICON_W, self.PLACEMENT_ICON_H = 125, 63
-        self.PLACEMENT_ICON_X = self.SCOREBOARD_X - 113
-        self.PLACEMENT_ICON_Y = self.SCOREBOARD_Y + 82
+        self.PLACEMENT_ICON_X = self.UI_X - 170
+        self.PLACEMENT_ICON_Y = current_y
+        current_y += self.SCOREBOARD_H + 20
 
+        # current_y += self.PLACEMENT_ICON_H + 20
+
+        # ─── Timer panel ──────────────────────────────────────────────
+        self.TIMER_W, self.TIMER_H = 125, 75
+        self.TIMER_X = self.UI_X + self.TIMER_W//2
+        self.TIMER_Y = current_y
+        current_y += self.TIMER_H + 20
+
+
+        # ─── Undo button ───────────────────────────────────────────────
         self.UNDO_W, self.UNDO_H = 60, 50
-        self.UNDO_X = self.SCOREBOARD_X
-        self.UNDO_Y = self.PLACEMENT_ICON_Y + self.PLACEMENT_ICON_H + 20
+        self.UNDO_X = self.UI_X
+        self.UNDO_Y = current_y
+        current_y += self.UNDO_H + 20
+        
+        # ─── PASS / TURN button ────────────────────────────────────────
+        self.BUTTON_W, self.BUTTON_H = 125, 50
+        self.BUTTON_X = self.UI_X
+        self.BUTTON_Y = current_y
+        current_y += self.BUTTON_H + 20
 
-        self.RESET_W = self.QUIT_W = 125
-        self.RESET_H = self.QUIT_H = 50
-        self.RESET_X = self.SCOREBOARD_X
-        self.RESET_Y = self.UNDO_Y + self.UNDO_H + 20
-        self.QUIT_X = self.RESET_X
-        self.QUIT_Y = self.RESET_Y + self.RESET_H + 20
+        # ─── Reset button ──────────────────────────────────────────────
+        self.RESET_W, self.RESET_H = 125, 50
+        self.RESET_X = self.UI_X
+        self.RESET_Y = current_y
+        current_y += self.RESET_H + 20
 
-        # ─── Save‑moves button ────────────────────────────────────────────
+        # ─── Quit button ───────────────────────────────────────────────
+        self.QUIT_W, self.QUIT_H = 125, 50
+        self.QUIT_X = self.UI_X
+        self.QUIT_Y = current_y
+        current_y += self.QUIT_H + 20
+
+        # ─── Save button ───────────────────────────────────────────────
         self.SAVE_W, self.SAVE_H = 125, 50
-        self.SAVE_X = self.BUTTON_X
-        self.SAVE_Y = self.QUIT_Y + self.QUIT_H + 20
+        self.SAVE_X = self.UI_X
+        self.SAVE_Y = current_y
+        current_y += self.SAVE_H + 20
+
+        # ─── Load button ───────────────────────────────────────────────
+        self.LOAD_W, self.LOAD_H = 125, 50
+        self.LOAD_X = self.UI_X
+        self.LOAD_Y = current_y
+        current_y += self.LOAD_H + 20
 
 
+        # ─── Capture-counter panel ─────────────────────────────────────
+        self.CAPTURE_COUNTER_W, self.CAPTURE_COUNTER_H = 250, 128
+        self.CAPTURE_COUNTER_X = self.UI_X
+        self.CAPTURE_COUNTER_Y = current_y
+
+    def reset_game(self):
+        # 1) remember the menu picks
+        saved_timer       = self.settings.get("timer")
+        saved_board_size  = self.settings.get("board_size")
+        saved_special_idx = self.special_index
+
+        # 2) re-init core state
+        self.__init__()      # re-runs __init__, but overwrote our saved picks…
+
+        # 3) restore our saved picks
+        self.settings["timer"]      = saved_timer
+        self.settings["board_size"] = saved_board_size
+        self.special_index          = saved_special_idx
+
+        # 4) re-apply exactly the same settings _without_ showing menu again
+        t = saved_timer
+        rows, cols = saved_board_size
+        self.cfg = GameConfig(ROWS=rows, COLS=cols)
+        object.__setattr__(self.cfg, 'SQ_SIZE', self.cfg.WIDTH // (cols + 4))
+        self.assets = AssetLoader(self.cfg)
+        self._init_ui_geometry()
+
+        # 5) rebuild board with exactly the same # special squares
+        self.board = Board(self.cfg, self.assets)
+        self.board._generate_special_squares(self.special_options[self.special_index])
+
+        # 6) reset clocks & other per-game state
+        self.time_left  = {"Black": t, "White": t}
+        self._last_tick = pygame.time.get_ticks()
+        self.placing     = True
+        self.pieces_left = {
+            "Black": {"AttackPawn":4,"DefensePawn":4,"ConquestPawn":4,"King":1},
+            "White": {"AttackPawn":4,"DefensePawn":4,"ConquestPawn":4,"King":1},
+        }
+        self.placement_history.clear()
+        self.move_history.clear()
+        self.current_player   = 0
+        self.moves_this_turn  = 0
+        self.turn_counter     = 0
+        self.menu_active      = False
+
+
+    def _show_start_menu(self) -> None:
+        title_f = pygame.font.SysFont("bookmanoldstyle", 48, bold=True)
+        sub_f   = pygame.font.SysFont("bookmanoldstyle", 30)
+
+        # --- load creators image once
+        creator_orig = pygame.image.load(os.path.join(self.cfg.ASSETS_DIR, "CREATORS.jpeg")).convert_alpha()
+        creator_img  = pygame.transform.smoothscale(creator_orig, (120, 120))
+        creator_pos  = (130, self.SCR_H - 20 - creator_img.get_height())
+        caption_surf = sub_f.render("The creators of  Assalto Reale:", True, (255,255,255))
+        caption_pos  = (20, creator_pos[1] - creator_img.get_height()//2)
+
+        # Buttons
+        btn_w, btn_h = 250, 60
+        start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
+        load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
+
+        labels = ["Timer (min)", "Board size", "Special Squares"]
+        get_values = [
+            lambda: str(self.timer_options[self.timer_index] // 60),
+            lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
+            lambda: str(self.special_options[self.special_index]),
+        ]
+
+        x_center   = self.SCR_W // 2
+        top_margin = 200
+        n          = len(labels)
+        total_h    = (self.SCR_H - top_margin) - 300
+        spacing_y  = total_h // (n + 1)
+
+        arrow_size = 40
+        gap        = 100
+        quit_rect  = pygame.Rect(self.SCR_W - 40, 10, 30, 30)
+
+        error_message = None  # 🛑
+
+        while True:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                if ev.type == pygame.MOUSEBUTTONDOWN:
+                    mx, my = ev.pos
+                    if quit_rect.collidepoint(mx, my):
+                        pygame.quit(); sys.exit()
+
+                    # arrow clicks
+                    for i in range(n):
+                        y_label = top_margin + i * spacing_y
+                        y_val   = y_label + 40
+                        left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
+                        right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
+
+                        if left.collidepoint(mx, my):
+                            if i == 0:
+                                self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
+                            elif i == 1:
+                                self.board_index   = (self.board_index   - 1) % len(self.board_sizes)
+                            else:
+                                self.special_index = (self.special_index - 1) % len(self.special_options)
+
+                        if right.collidepoint(mx, my):
+                            if i == 0:
+                                self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
+                            elif i == 1:
+                                self.board_index   = (self.board_index   + 1) % len(self.board_sizes)
+                            else:
+                                self.special_index = (self.special_index + 1) % len(self.special_options)
+
+                    # START NEW GAME
+                    if start_btn.collidepoint(mx, my):
+                        self.settings["timer"]         = self.timer_options[self.timer_index]
+                        self.settings["board_size"]    = self.board_sizes[self.board_index]
+                        self.settings["special_count"] = self.special_options[self.special_index]
+                        return
+
+                    # LOAD SAVED GAME
+                    if load_btn.collidepoint(mx, my):
+                        try:
+                            self._load_moves_from_file("moves.txt")
+                            self.settings["timer"] = float(self.time_left["Black"])
+                            self.settings["board_size"] = (self.cfg.ROWS, self.cfg.COLS)
+                            self.settings["special_count"] = len(self.board.special_squares)
+                            return
+                        except Exception as e:
+                            error_message = str(e)
+
+            # --- draw everything
+            self.screen.blit(self.menu_background, (0, 0))
+            # Quit-X
+            pygame.draw.rect(self.screen, (200,50,50), quit_rect)
+            pygame.draw.line(self.screen, (255,255,255), quit_rect.topleft, quit_rect.bottomright, 3)
+            pygame.draw.line(self.screen, (255,255,255), quit_rect.topright, quit_rect.bottomleft, 3)
+
+            # Title
+            t_surf = title_f.render("Assalto Reale", True, (240,240,240))
+            self.screen.blit(t_surf, t_surf.get_rect(center=(x_center, 100)))
+
+            # selectors
+            for i, label in enumerate(labels):
+                y_label = top_margin + i * spacing_y
+                lbl = sub_f.render(label, True, (200,200,200))
+                self.screen.blit(lbl, lbl.get_rect(center=(x_center, y_label)))
+                y_val = y_label + 40
+                val = sub_f.render(get_values[i](), True, (255,255,255))
+                self.screen.blit(val, val.get_rect(center=(x_center, y_val)))
+                left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
+                right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
+                pygame.draw.polygon(self.screen, (180,180,180),
+                    [(left.right,left.top),(left.left,left.centery),(left.right,left.bottom)])
+                pygame.draw.polygon(self.screen, (180,180,180),
+                    [(right.left,right.top),(right.right,right.centery),(right.left,right.bottom)])
+
+            # START NEW GAME button
+            pygame.draw.rect(self.screen, (70,200,70), start_btn)
+            st = sub_f.render("START", True, (0,0,0))
+            self.screen.blit(st, st.get_rect(center=start_btn.center))
+
+            # LOAD SAVED GAME button
+            pygame.draw.rect(self.screen, (70,150,230), load_btn)
+            ld = sub_f.render("LOAD GAME", True, (0,0,0))
+            self.screen.blit(ld, ld.get_rect(center=load_btn.center))
+
+            # creators image
+            self.screen.blit(creator_img, creator_pos)
+            self.screen.blit(caption_surf, caption_pos)
+
+            # 🛑 Error overlay
+            if error_message:
+                self._draw_error_overlay(error_message)
+
+            pygame.display.flip()
+            self.clock.tick(30)
+
+    def _draw_error_overlay(self, message: str) -> None:
+        overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
+
+        font_big = pygame.font.SysFont("bookmanoldstyle", 36, bold=True)
+        font_small = pygame.font.SysFont("bookmanoldstyle", 24)
+
+        error_title = font_big.render("Error Loading Game", True, (255,50,50))
+        error_msg   = font_small.render(message, True, (255,255,255))
+
+        self.screen.blit(error_title, error_title.get_rect(center=(self.SCR_W//2, self.SCR_H//2 - 30)))
+        self.screen.blit(error_msg, error_msg.get_rect(center=(self.SCR_W//2, self.SCR_H//2 + 20)))
 
 
     # =============================== main loop ======================= #
     def run(self) -> None:
+        # 1) Show menu to pick timer & board size
+        self._show_start_menu()
+
+        # 2) Apply settings
+        t = self.settings["timer"]
+        rows, cols = self.settings["board_size"]
+        special = self.settings.get("special_count", 5)
+        # rebuild config with chosen board size
+        self.cfg = GameConfig(ROWS=rows, COLS=cols, SPECIAL_COUNT=special)
+        # recompute square size:
+        object.__setattr__(self.cfg, 'SQ_SIZE', self.cfg.WIDTH // (cols + 4))
+        # reload assets, ui geometry, and board
+        self.assets = AssetLoader(self.cfg)
+        self._init_ui_geometry()
+        self.board  = Board(self.cfg, self.assets)
+        self.board._generate_special_squares(special)
+
+        # 3) Set the clocks
+        self.time_left  = {"Black": t, "White": t}
+        self._last_tick = pygame.time.get_ticks()
+
+        # 4) Enter main loop
         while self.running:
             self._update_clock()
             for ev in pygame.event.get():
@@ -526,10 +825,10 @@ class AssaltoRealeGame:
                     self.running = False
                 elif ev.type == pygame.MOUSEBUTTONDOWN:
                     self._on_click(ev.pos)
-
             self._draw()
             self.clock.tick(30)
         pygame.quit()
+
 
     def _show_endgame_menu(self, winner: str) -> None:
         self.menu_active = True
@@ -538,21 +837,47 @@ class AssaltoRealeGame:
         # build button rects in screen coords:
         cx, cy = self.SCR_W//2, self.SCR_H//2
         w, h   = 200, 50
-        self.menu_buttons['save'] = pygame.Rect(cx - w//2, cy,          w, h)
-        self.menu_buttons['quit'] = pygame.Rect(cx - w//2, cy + h + 20, w, h)
+        spacing = 20
+        self.menu_buttons['Save'] = pygame.Rect(cx - w//2, cy,          w, h)
+        self.menu_buttons['Quit'] = pygame.Rect(cx - w//2, cy + h + spacing , w, h)
+        self.menu_buttons['Restart'] = pygame.Rect(cx - w//2, cy + 2 * (h + spacing), w, h)
 
     
     def _format_game_history(self) -> str:
         lines: list[str] = []
-        # 1) Placements
+
+        # 0) SETTINGS
+        lines.append("# SETTINGS")
+        lines.append(f"black_time={int(self.time_left['Black'])}")
+        lines.append(f"white_time={int(self.time_left['White'])}")
+        lines.append(f"current_turn={self.players[self.current_player]}")
+        lines.append(f"turn_counter={self.turn_counter}")
+        lines.append(f"board_size={self.cfg.ROWS}x{self.cfg.COLS}")
+        lines.append("")  # blank
+
+        # 1) SPECIAL_SQUARES
+        lines.append("# SPECIAL_SQUARES")
+        for (r, c) in sorted(self.board.special_squares):
+            sq = f"{chr(ord('A')+c)}{self.cfg.ROWS-r}"
+            lines.append(sq)
+        lines.append("")  # blank
+
+        # 2) TRANSFORM_SQUARE
+        lines.append("# TRANSFORM_SQUARE")
+        for (r, c) in sorted(self.board.transform_squares):
+            sq = f"{chr(ord('A')+c)}{self.cfg.ROWS-r}"
+            lines.append(sq)
+        lines.append("")  # blank
+
+        # 3) PLACEMENTS
         lines.append("# PLACEMENTS")
         for i, p in enumerate(self.placement_history, start=1):
             row, col = p["pos"]
             sq = f"{chr(ord('A')+col)}{self.cfg.ROWS-row}"
             lines.append(f"{i}. {p['player']} places {p['type']} on {sq}")
+        lines.append("")  # blank
 
-        # 2) Moves
-        lines.append("")           # blank line
+        # 4) MOVES
         lines.append("# MOVES")
         for i, m in enumerate(self.move_history, start=1):
             piece     = m["piece"]
@@ -560,7 +885,6 @@ class AssaltoRealeGame:
             start_sq  = f"{chr(ord('A')+fr[1])}{self.cfg.ROWS-fr[0]}"
             end_sq    = f"{chr(ord('A')+to[1])}{self.cfg.ROWS-to[0]}"
             captured  = m["captured"]
-            # capture description
             if isinstance(captured, dict) and "defense" in captured:
                 cap_desc = " (repelled defense pawn)"
             elif captured:
@@ -576,48 +900,82 @@ class AssaltoRealeGame:
         log = self._format_game_history()
         with open(filename, "w", encoding="utf-8") as f:
             f.write(log)
-        print(f"Moves saved to {filename}")
 
-    def _parse_game_file(self, filename: str) -> tuple[list[dict], list[dict]]:
-        """
-        Returns (placements, moves), where:
-            - placements is a list of {"player","type","pos"}
-            - moves is a list of {"player","type","start","end","captured"}
-        """
+    def _parse_game_file(self, filename: str):
+        settings: dict[str,str] = {}
+        special_sqs: list[Vec2] = []
+        transform_sqs: list[Vec2] = []
+        placements:   list[dict] = []
+        moves:        list[dict] = []
+        section:      str | None = None
+
         with open(filename, "r", encoding="utf-8") as f:
-            section = "placements"
-            placements: list[dict] = []
-            moves:      list[dict] = []
             for raw in f:
                 line = raw.strip()
                 if not line:
                     continue
-                # switch section on marker
-                if line.upper().startswith("# MOVES"):
-                    section = "moves"
-                    continue
+                up = line.upper()
+                if up.startswith("# SETTINGS"):
+                    section = "settings"; continue
+                if up.startswith("# SPECIAL_SQUARES"):
+                    section = "special"; continue
+                if up.startswith("# TRANSFORM_SQUARE"):
+                    section = "transform"; continue
+                if up.startswith("# PLACEMENTS"):
+                    section = "placements"; continue
+                if up.startswith("# MOVES"):
+                    section = "moves"; continue
                 if line.startswith("#"):
                     continue
 
-                # drop the leading "n. "
-                try:
-                    _, content = line.split(" ", 1)
-                except ValueError:
-                    content = line
+                if section == "settings":
+                    if "=" in line:
+                        key, val = line.split("=",1)
+                        settings[key.strip()] = val.strip()
 
-                if section == "placements":
-                    # content e.g. "White places AttackPawn on B3"
+                elif section == "special":
+                    for token in line.split():
+                        c = ord(token[0].upper()) - ord("A")
+                        r = self.cfg.ROWS - int(token[1:])
+                        special_sqs.append((r, c))
+
+                elif section == "transform":
+                    for token in line.split():
+                        c = ord(token[0].upper()) - ord("A")
+                        r = self.cfg.ROWS - int(token[1:])
+                        transform_sqs.append((r, c))
+
+                elif section == "placements":
+                    content = line
+                    if ". " in line and line.split(" ",1)[0][:-1].isdigit():
+                        _, content = line.split(" ", 1)
                     parts = content.split()
-                    player, _, ptype, _, sq = parts  # unpack 5 tokens
-                    col = ord(sq[0].upper()) - ord("A")
-                    row = self.cfg.ROWS - int(sq[1:])
-                    placements.append({"player": player, "type": ptype, "pos": (row, col)})
-                else:
-                    # content e.g. "Black DefensePawn A2→A3 captured Pawn"
+                    # parts = [player, "places", ptype, "on", sq]
+                    player, _, ptype, _, sq = parts
+                    c = ord(sq[0].upper()) - ord("A")
+                    r = self.cfg.ROWS - int(sq[1:])
+                    placements.append({"player": player, "type": ptype, "pos": (r, c)})
+
+                elif section == "moves":
+                    content = line
+                    if ". " in line and line.split(" ",1)[0][:-1].isdigit():
+                        _, content = line.split(" ", 1)
                     mv = self._parse_single_move(content)
                     moves.append(mv)
+                elif section=="settings":
+                    if "=" in line:
+                        key,val = line.split("=",1)
+                        settings[key.strip()] = val.strip()
 
-            return placements, moves
+        for colour in ("Black","White"):
+            for ptype in ("AttackPawn","DefensePawn","ConquestPawn","King"):
+                key = f"{colour.lower()}_captured_{ptype}"
+                if key in settings:
+                    self.board.captured_pieces[colour][ptype] = int(settings[key])
+
+        return settings, special_sqs, transform_sqs, placements, moves
+
+
 
 
     def _update_clock(self) -> None:
@@ -636,11 +994,14 @@ class AssaltoRealeGame:
 
     def _handle_endgame_click(self, pos: Tuple[int,int]) -> None:
         x, y = pos
-        if self.menu_buttons['save'].collidepoint(x,y):
+        if self.menu_buttons['Save'].collidepoint(x,y):
             self._save_moves_to_file()
-        elif self.menu_buttons['quit'].collidepoint(x,y):
+        elif self.menu_buttons['Quit'].collidepoint(x,y):
             pygame.quit()
             sys.exit()
+        elif self.menu_buttons['Restart'].collidepoint(x,y):
+            self.reset_game()
+            self.menu_active = False
     
 
 
@@ -655,11 +1016,11 @@ class AssaltoRealeGame:
         if self._within(x, y, self.UNDO_X, self.UNDO_Y, self.UNDO_W, self.UNDO_H):
             self._undo()
             return
-        if self._within(x, y, self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H):
+        if not self.placing and self._within(x, y, self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H):
             self._end_turn()
             return
         if self._within(x, y, self.RESET_X, self.RESET_Y, self.RESET_W, self.RESET_H):
-            self.__init__()  # cheap reset
+            self.reset_game()
             return
         if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
             self.running = False
@@ -668,7 +1029,10 @@ class AssaltoRealeGame:
         if self._within(x, y, self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H):
             self._save_moves_to_file("moves.txt")
             return
-
+        if self._within(x, y, self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H):
+            self._load_moves_from_file("moves.txt")
+            return
+    
 
 
         # --- board interaction ----------------------------------------
@@ -680,6 +1044,98 @@ class AssaltoRealeGame:
             self._handle_placement_click((row, col))
         else:
             self._handle_move_click((row, col))
+
+    def _load_moves_from_file(self, filename: str = "moves.txt") -> None:
+        # 1) parse everything
+        settings, special_sqs, transform_sqs, placements, moves = self._parse_game_file(filename)
+        self.moves_this_turn = 0
+
+        # 2) restore the turn counter before anything else
+        self.turn_counter = int(settings.get("turn_counter", 0))
+
+        # 3) apply board‐size from settings
+        bs = settings.get("board_size", f"{self.cfg.ROWS}x{self.cfg.COLS}")
+        rows, cols = [int(x) for x in bs.split("x")]
+        self.cfg = GameConfig(ROWS=rows, COLS=cols, SPECIAL_COUNT=self.cfg.SPECIAL_COUNT)
+        object.__setattr__(self.cfg, 'SQ_SIZE', self.cfg.WIDTH // (cols + 4))
+        self.assets = AssetLoader(self.cfg)
+        self._init_ui_geometry()
+        self.board = Board(self.cfg, self.assets)
+
+        # 4) override special/transform squares
+        self.board.special_squares   = set(special_sqs)
+        self.board.transform_squares = set(transform_sqs)
+
+        # 5) exit placement phase
+        self.placement_history.clear()
+        self.move_history.clear()
+        self.placing = False
+
+        # 6) restore clocks & current player
+        self.time_left["Black"] = float(settings.get("black_time", 0))
+        self.time_left["White"] = float(settings.get("white_time", 0))
+        self.current_player      = self.players.index(settings.get("current_turn", "Black"))
+
+        # 7) replay placements
+        for p in placements:
+            r, c = p["pos"]
+            piece = Piece.create(p["type"], p["player"])
+            self.board.grid[r][c] = piece
+            self.placement_history.append(p)
+
+        # rebuild control for any conquest pawns
+        for sq in self.board.special_squares:
+            pr = self.board.grid[sq[0]][sq[1]]
+            if pr and pr.type == "ConquestPawn":
+                self.board.controlled_squares[pr.player].add(sq)
+
+        # 8) replay moves
+        for m in moves:
+            fr, to = m["start"], m["end"]
+            piece = Piece.create(m["type"], m["player"])
+            self.board.grid[fr[0]][fr[1]] = None
+            self.board.grid[to[0]][to[1]] = piece
+            if piece.type == "ConquestPawn":
+                if fr in self.board.special_squares:
+                    self.board.controlled_squares[piece.player].discard(fr)
+                if to in self.board.special_squares:
+                    self.board.controlled_squares[piece.player].add(to)
+            # record for undo
+            self.move_history.append({
+                "from": fr, "to": to,
+                "piece": copy.deepcopy(piece),
+                "captured": None,
+                "state": {
+                   "current_player": self.current_player,
+                   "moves":            self.moves_this_turn
+                },
+                "special_control": {
+                    "Black": self.board.controlled_squares["Black"].copy(),
+                    "White": self.board.controlled_squares["White"].copy()
+                },
+                "control": {
+                    "Black": self.board.controlled_squares["Black"].copy(),
+                    "White": self.board.controlled_squares["White"].copy()
+                },
+            })
+
+
+    def _parse_single_move(self, content: str) -> dict:
+        tokens = content.split()
+        player, ptype = tokens[0], tokens[1]
+        fr_sq, to_sq = tokens[2].split("→")
+        col_from = ord(fr_sq[0]) - ord("A")
+        row_from = self.cfg.ROWS - int(fr_sq[1:])
+        col_to   = ord(to_sq[0]) - ord("A")
+        row_to   = self.cfg.ROWS - int(to_sq[1:])
+        return {
+            "player": player,
+            "type":   ptype,
+            "start":  (row_from, col_from),
+            "end":    (row_to,   col_to),
+            "captured": None,
+        }
+
 
     @staticmethod
     def _within(px: int, py: int, x: int, y: int, w: int, h: int) -> bool:
@@ -735,6 +1191,9 @@ class AssaltoRealeGame:
 
         captured = copy.deepcopy(self.board[end[0]][end[1]])
 
+        if captured:
+            self.board.captured_pieces[captured.player][captured.type] += 1
+
         if (
             piece.type == "AttackPawn"
             and captured
@@ -747,6 +1206,10 @@ class AssaltoRealeGame:
                 self.assets.shield_sound.play()
 
                 def_piece = copy.deepcopy(self.board[defender[0]][defender[1]])
+
+                # ── qui aggiorniamo il contatore ──
+                self.board.captured_pieces[def_piece.player]["DefensePawn"] += 1
+
                 path   = self.board.repulse_attack_pawn_path(start, end)
                 newpos = self._animate_repulsion(path, piece)
                 self.board[defender[0]][defender[1]] = None
@@ -933,23 +1396,20 @@ class AssaltoRealeGame:
         pygame.display.flip()
 
     def _draw_endgame_menu(self) -> None:
-        # semi‑transparent overlay
         overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
-        overlay.fill((0,0,0,180))
-        self.screen.blit(overlay, (0,0))
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
 
-        # title
-        txt = f"{self.menu_winner} wins"
-        surf = self.font.render(txt, True, self.cfg.WHITE)
-        self.screen.blit(surf, surf.get_rect(center=(self.SCR_W//2, self.SCR_H//2 - 80)))
+        winner_txt = f"{self.menu_winner} wins"
+        surf = self.font.render(winner_txt, True, self.cfg.WHITE)
+        self.screen.blit(surf, surf.get_rect(center=(self.SCR_W // 2, self.SCR_H // 2 - 80)))
 
-        # buttons
         for name, rect in self.menu_buttons.items():
-            color = self.cfg.BUTTON_COLOR
-            pygame.draw.rect(self.screen, color, rect)
-            label = "Save moves" if name=='save' else "Quit"
-            txt_surf = self.font.render(label, True, self.cfg.BLACK)
+            pygame.draw.rect(self.screen, self.cfg.BUTTON_COLOR, rect)
+            pygame.draw.rect(self.screen, self.cfg.BLACK, rect, 2)
+            txt_surf = self.font.render(name, True, self.cfg.WHITE)
             self.screen.blit(txt_surf, txt_surf.get_rect(center=rect.center))
+
 
     
     def _prompt_transformation(self, pos: Vec2, piece: Piece) -> None:
@@ -1035,10 +1495,10 @@ class AssaltoRealeGame:
         black_t = fmt(self.time_left["Black"])
         white_t = fmt(self.time_left["White"])
 
-        bx = self.BUTTON_X + self.BUTTON_W // 2
-        by = self.BUTTON_Y - 150
-        wx = bx
-        wy = by + 28
+        bx = self.TIMER_X
+        by = self.TIMER_Y
+        wx = self.TIMER_X
+        wy = self.TIMER_Y + 40
 
         # background rectangles for readability
         for (tx, ty, colour, txt) in [
@@ -1050,6 +1510,15 @@ class AssaltoRealeGame:
             pygame.draw.rect(self.screen, cfg.GRAY, rect.inflate(8, 4))
             self.screen.blit(surf, rect)
 
+        pygame.draw.rect(self.screen, cfg.BUTTON_COLOR,
+                        (self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H))
+        pygame.draw.rect(self.screen, cfg.BLACK,
+                        (self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H), 2)
+        lbl = self.font.render("LOAD", True, cfg.WHITE)
+        lx = self.LOAD_X + (self.LOAD_W - lbl.get_width()) // 2
+        ly = self.LOAD_Y + (self.LOAD_H - lbl.get_height()) // 2
+
+        self.screen.blit(lbl, (lx, ly))
         # --- PASS / TURN button ---------------------------------------
         pygame.draw.rect(self.screen, cfg.BUTTON_COLOR, (self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H))
         pygame.draw.rect(self.screen, cfg.BLACK, (self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H), 2)
@@ -1106,15 +1575,32 @@ class AssaltoRealeGame:
         if any(v for d in self.board.captured_pieces.values() for v in d.values()):
             self._draw_capture_counter()
 
-        # --- save moves -----------------------------------------------
+
         pygame.draw.rect(self.screen, cfg.BUTTON_COLOR,
                         (self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H))
         pygame.draw.rect(self.screen, cfg.BLACK,
                         (self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H), 2)
-        label = self.font.render("SAVE", True, cfg.WHITE)
-        lx = self.SAVE_X + (self.SAVE_W - label.get_width()) // 2
-        ly = self.SAVE_Y + (self.SAVE_H - label.get_height()) // 2
-        self.screen.blit(label, (lx, ly))
+        save_lbl = self.font.render("SAVE", True, cfg.WHITE)
+        lx = self.SAVE_X + (self.SAVE_W - save_lbl.get_width()) // 2
+        ly = self.SAVE_Y + (self.SAVE_H - save_lbl.get_height()) // 2
+        self.screen.blit(save_lbl, (lx, ly))
+
+        # LOAD:
+        pygame.draw.rect(self.screen, cfg.BUTTON_COLOR,
+                        (self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H))
+        pygame.draw.rect(self.screen, cfg.BLACK,
+                        (self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H), 2)
+        load_lbl = self.font.render("LOAD", True, cfg.WHITE)
+        lx = self.LOAD_X + (self.LOAD_W - load_lbl.get_width()) // 2
+        ly = self.LOAD_Y + (self.LOAD_H - load_lbl.get_height()) // 2
+        self.screen.blit(load_lbl, (lx, ly))
+
+                # --- captured pieces on board margins in HUD ----------------
+        icon_size = self.cfg.SQ_SIZE // 2
+        spacing   = 4
+        board_w_px = self.cfg.COLS * self.cfg.SQ_SIZE
+        board_h_px = self.cfg.ROWS * self.cfg.SQ_SIZE
+
 
 
 
