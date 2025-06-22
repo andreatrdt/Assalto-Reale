@@ -190,6 +190,8 @@ class ConquestPawn(Piece):
         dr, dc = abs(re - rs), abs(ce - cs)
         target = board[re][ce]
         if target and target.player != self.player:
+            if max(dr, dc) == 1:
+                return Board.is_allowed_capture_type(self, target)
             if (dr, dc) in [(2, 1), (1, 2)] and moves_this_turn == 0:
                 return Board.is_allowed_capture_type(self, target)
             return False
