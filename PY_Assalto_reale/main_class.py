@@ -138,11 +138,21 @@ class AttackPawn(Piece):
         # capture -----------------------------------------------------------
         if target and target.player != self.player:
             if (dr, dc) in [(1, 0), (0, 1)]:
+                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
+                    return False
                 return Board.is_allowed_capture_type(self, target)
             if (dr, dc) in [(2, 0), (0, 2)] and moves_this_turn == 0:
                 mid_r, mid_c = (rs + re) // 2, (cs + ce) // 2
                 if target.type != "King" and board[mid_r][mid_c] is not None:
                     return False
+                if target.type == "King" and board[mid_r][mid_c] is not None:
+                    mid_piece = board[mid_r][mid_c]
+                    if not (
+                        mid_piece.type == "DefensePawn"
+                        and mid_piece.player == target.player
+                        and board.defense_pawn_guards_king(mid_r, mid_c)
+                    ):
+                        return False
                 return Board.is_allowed_capture_type(self, target)
             return False
         # normal move -------------------------------------------------------
@@ -157,8 +167,15 @@ class DefensePawn(Piece):
         target = board[re][ce]
         if target and target.player != self.player:
             if (dr, dc) == (1, 1):
+                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
+                    return False
                 return Board.is_allowed_capture_type(self, target)
             if (dr, dc) == (2, 2) and moves_this_turn == 0:
+                mid_r, mid_c = (rs + re) // 2, (cs + ce) // 2
+                if board[mid_r][mid_c] is not None:
+                    return False
+                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
+                    return False
                 return Board.is_allowed_capture_type(self, target)
             return False
         return (not target) and max(dr, dc) == 1
@@ -183,9 +200,9 @@ class King(Piece):
         re, ce = end
         dr, dc = abs(re - rs), abs(ce - cs)
         target = board[re][ce]
-        if target and target.player != self.player:
-            return max(dr, dc) == 1  # capture any adjacent piece
-        return (not target) and max(dr, dc) == 1
+        if target:
+            return False
+        return max(dr, dc) == 1 and target is None
 
 
 ######################################################################
@@ -378,6 +395,21 @@ class Board:
                     if p and p.type == "DefensePawn" and p.player == king_player:
                         return rr, cc
             return None
+
+    def defense_pawn_guards_king(self, row: int, col: int) -> bool:
+        pawn = self.grid[row][col]
+        if not pawn or pawn.type != "DefensePawn":
+            return False
+        for dr, dc in [
+            (-1, 0), (1, 0), (0, -1), (0, 1),
+            (-1, -1), (-1, 1), (1, -1), (1, 1)
+        ]:
+            rr, cc = row + dr, col + dc
+            if 0 <= rr < self.cfg.ROWS and 0 <= cc < self.cfg.COLS:
+                k = self.grid[rr][cc]
+                if k and k.type == "King" and k.player == pawn.player:
+                    return True
+        return False
 
 
     # ------------------------------------------------------------------ #
@@ -875,6 +907,16 @@ class AssaltoRealeGame:
         mover      = last["piece"]          # the Attack‑Pawn
         captured   = last["captured"]       # None | Piece | {"defense": (…)}
 
+        if "transformation" in last:
+            t = last["transformation"]
+            tr_r, tr_c = t["pos"]
+            player = t["player"]
+            old_type = t["old_type"]
+            self.board.grid[tr_r][tr_c] = Piece.create(old_type, player)
+            self.board.transform_squares.clear()
+            if t["old_square"] is not None:
+                self.board.transform_squares.add(t["old_square"])
+
         # 1) put the moving piece back
         self.board[fr_r][fr_c] = mover
 
@@ -991,8 +1033,23 @@ class AssaltoRealeGame:
                             # cambia tipo e riposiziona la transform square
                             new_type = options[idx]
                             player   = piece.player
+                            old_square = None
+                            if self.board.transform_squares:
+                                old_square = next(iter(self.board.transform_squares))
                             self.board.grid[pos[0]][pos[1]] = Piece.create(new_type, player)
                             self.board.move_transform_square()
+                            new_square = None
+                            if self.board.transform_squares:
+                                new_square = next(iter(self.board.transform_squares))
+                            if self.move_history:
+                                self.move_history[-1]["transformation"] = {
+                                    "pos": pos,
+                                    "player": player,
+                                    "old_type": piece.type,
+                                    "new_type": new_type,
+                                    "old_square": old_square,
+                                    "new_square": new_square,
+                                }
                             selecting = False
                             break
 
