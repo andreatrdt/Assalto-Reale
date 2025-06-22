@@ -1,77 +1,29 @@
 # SETTINGS
-black_time=636
-white_time=641
+black_time=886
+white_time=841
 current_turn=White
-turn_counter=31
+turn_counter=5
 board_size=12x12
 
 # SPECIAL_SQUARES
-H11
-E9
-D6
-G6
-F3
+G11
+I8
+F6
+E3
+I3
 
 # TRANSFORM_SQUARE
-G4
 
 # PLACEMENTS
-1. Black places King on C7
-2. White places King on K8
-3. White places AttackPawn on K5
-4. Black places AttackPawn on A6
-5. Black places AttackPawn on A9
-6. White places AttackPawn on L10
-7. White places AttackPawn on K7
-8. Black places AttackPawn on B8
-9. Black places AttackPawn on A4
-10. White places AttackPawn on K2
-11. White places DefensePawn on L3
-12. Black places DefensePawn on I3
-13. Black places DefensePawn on G4
-14. White places DefensePawn on F4
-15. White places DefensePawn on D4
-16. Black places DefensePawn on D3
-17. Black places DefensePawn on H3
-18. White places DefensePawn on I6
-19. White places ConquestPawn on B11
-20. Black places ConquestPawn on C12
-21. Black places ConquestPawn on K12
-22. White places ConquestPawn on K9
-23. White places ConquestPawn on J2
-24. Black places ConquestPawn on I1
-25. Black places ConquestPawn on K1
-26. White places ConquestPawn on L1
+1. Black places King on B6
+2. White places King on L12
+3. White places AttackPawn on K6
+4. Black places AttackPawn on B11
+5. Black places AttackPawn on B8
+6. White places AttackPawn on K9
+7. White places AttackPawn on K4
+8. Black places AttackPawn on B10
+9. Black places AttackPawn on B7
+10. White places AttackPawn on K11
 
 # MOVES
-1. Black King C7→D8
-2. White ConquestPawn B11→C10
-3. White ConquestPawn C10→D10
-4. Black DefensePawn G4→F5
-5. Black King D8→E8
-6. White DefensePawn I6→H7
-7. White DefensePawn H7→G6
-8. Black King E8→F8
-9. Black DefensePawn F5→E6
-10. White AttackPawn K7→J6
-11. White King K8→J7
-12. Black King F8→G8
-13. Black DefensePawn E6→F6
-14. White AttackPawn J6→I5
-15. White AttackPawn I5→H4
-16. Black DefensePawn D3→E4
-17. Black DefensePawn E4→F3
-18. White AttackPawn H4→H3 captured DefensePawn
-19. White AttackPawn H3→I3 captured DefensePawn
-20. Black ConquestPawn I1→H1
-21. Black ConquestPawn K1→J1
-22. White DefensePawn G6→H7
-23. White DefensePawn H7→H8
-24. Black ConquestPawn H1→I3 captured AttackPawn
-25. White King J7→I6
-26. White AttackPawn K5→K6
-27. Black ConquestPawn I3→K2 captured AttackPawn
-28. White ConquestPawn J2→I2
-29. White ConquestPawn I2→H2
-30. Black DefensePawn F6→G5
-31. Black DefensePawn G5→H5
