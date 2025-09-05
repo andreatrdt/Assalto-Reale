@@ -76,7 +76,7 @@ QUIT: Exits the game.
 
 All game piece images and sounds are stored in the assets/ folder.
 
-vRunning the Game**
+**Running the Game**
 
 Make sure Python and Pygame are installed. Execute the game with:
 
