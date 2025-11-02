@@ -875,7 +875,7 @@ class AssaltoRealeGame:
                 self._draw_error_overlay(error_message)
 
             pygame.display.flip()
-        await asyncio.sleep(0)
+            await asyncio.sleep(0)
 
     def _show_start_menu(self) -> None:
         title_f = pygame.font.SysFont("bookmanoldstyle", 48, bold=True)
