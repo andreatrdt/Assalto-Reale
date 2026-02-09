@@ -1,0 +1,3 @@
+/archives/*  https://pygame-web.github.io/archives/:splat  200
+/archives/* https://pygame-web.github.io/archives/:splat 200
+/archives/repo/* https://pygame-web.github.io/archives/repo/:splat 200
