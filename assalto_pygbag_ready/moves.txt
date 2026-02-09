@@ -1,0 +1,45 @@
+# SETTINGS
+black_time=710
+white_time=716
+current_turn=Black
+turn_counter=14
+board_size=12x12
+
+# SPECIAL_SQUARES
+D11
+G9
+I6
+D5
+G2
+
+# TRANSFORM_SQUARE
+
+# PLACEMENTS
+1. Black places King on C8
+2. White places King on J9
+3. White places AttackPawn on K9
+4. Black places AttackPawn on B8
+5. Black places AttackPawn on A9
+6. White places AttackPawn on L9
+7. White places AttackPawn on L6
+8. Black places AttackPawn on B7
+9. Black places AttackPawn on A6
+10. White places AttackPawn on K5
+11. White places DefensePawn on K6
+12. Black places DefensePawn on L8
+13. Black places DefensePawn on K11
+14. White places DefensePawn on J11
+15. White places DefensePawn on I11
+16. Black places DefensePawn on H11
+17. Black places DefensePawn on G11
+18. White places DefensePawn on F11
+19. White places ConquestPawn on D8
+20. Black places ConquestPawn on A8
+21. Black places ConquestPawn on L11
+22. White places ConquestPawn on K12
+23. White places ConquestPawn on J12
+24. Black places ConquestPawn on G12
+25. Black places ConquestPawn on I12
+26. White places ConquestPawn on H12
+
+# MOVES

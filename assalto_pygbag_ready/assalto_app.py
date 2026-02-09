@@ -83,6 +83,15 @@ class AssaltoRealeApp:
         self.king_moved: bool = False
         self.selected: Optional[Vec2] = None
         self.running: bool = True
+        # menu/game flow flags
+        self.return_to_menu: bool = False
+
+        # lightweight in-game notifications (toast)
+        self.toast_message: Optional[str] = None
+        self.toast_until_ms: int = 0
+
+        # rules/help (start-menu info button)
+        self._rules_img_cache: dict[tuple[str,int,int], pygame.Surface] = {}
         self.candidate_winner: Optional[str] = None
         self.candidate_turn_index: Optional[int] = None
         self.both_at_four: bool = False
@@ -290,6 +299,7 @@ class AssaltoRealeApp:
 
         self.CAPTURE_COUNTER_W, self.CAPTURE_COUNTER_H = counter_w, counter_h
         self.CAPTURE_COUNTER_X, self.CAPTURE_COUNTER_Y = int(x), int(y)
+
     def reset_game(self):
         # 1) remember the menu picks
         saved_timer       = self.settings.get("timer")
@@ -309,7 +319,7 @@ class AssaltoRealeApp:
         rows, cols = saved_board_size
         self.cfg = GameConfig(ROWS=rows, COLS=cols)
         self._apply_responsive_layout(force=True)
-# 5) rebuild board with exactly the same # special squares
+        # 5) rebuild board with exactly the same # special squares
         self.board = Board(self.cfg)
         self.board._generate_special_squares(self.special_options[self.special_index])
 
@@ -330,169 +340,518 @@ class AssaltoRealeApp:
         self.menu_active      = False
 
 
+    
+
+    def _reset_match_state(self) -> None:
+        """Reset per-game state without reinitializing pygame.
+
+        This is important on the web (pygbag/Vercel) where repeatedly calling
+        pygame.init()/set_mode can be fragile.
+        """
+        self.placement_history = []
+        self._flash_effects = {}
+        self.current_player = 0
+        self.moves_this_turn = 0
+        self.king_moved = False
+        self.selected = None
+        self.candidate_winner = None
+        self.candidate_turn_index = None
+        self.both_at_four = False
+        self.turn_counter = 0
+        self.last_move = None
+
+        # endgame menu state
+        self.menu_active = False
+        self.menu_winner = None
+        self.menu_buttons = {}
+
+        # placement phase
+        self.placing = True
+        self.pieces_left = {
+            "Black": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+            "White": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+        }
+        self.pieces_placed = {"Black": 0, "White": 0}
+        self.turn_sequence = [1] + [2] * 12 + [1]
+        self.turn_index = 0
+        self.turn_pieces_count = 0
+
+        # undo history
+        self.move_history = []
+
+        # toast
+        self.toast_message = None
+        self.toast_until_ms = 0
+
+        self.return_to_menu = False
     async def _show_start_menu(self) -> None:
-        # Fonts and image codecs can differ between desktop and web.
-        # Keep the menu resilient: if a font or a JPEG decode fails, we still render.
-        try:
-            title_f = pygame.font.SysFont("bookmanoldstyle", 48, bold=True)
-            sub_f   = pygame.font.SysFont("bookmanoldstyle", 30)
-        except Exception:
-            title_f = pygame.font.Font(None, 48)
-            sub_f   = pygame.font.Font(None, 30)
+            # Fonts and image codecs can differ between desktop and web.
+            # Keep the menu resilient: if a font or a JPEG decode fails, we still render.
+            try:
+                title_f = pygame.font.SysFont("bookmanoldstyle", 48, bold=True)
+                sub_f   = pygame.font.SysFont("bookmanoldstyle", 30)
+                sec_f   = pygame.font.SysFont("bookmanoldstyle", 26, bold=True)
+                body_f  = pygame.font.SysFont("bookmanoldstyle", 20)
+            except Exception:
+                title_f = pygame.font.Font(None, 48)
+                sub_f   = pygame.font.Font(None, 30)
+                sec_f   = pygame.font.Font(None, 26)
+                body_f  = pygame.font.Font(None, 20)
 
-        # --- creators image (optional; JPEG may be unsupported on some builds)
-        creator_img = None
-        creator_pos = None
-        caption_surf = None
-        caption_pos = None
-        try:
-            creator_orig = None
-            for fname in ("CREATORS.png", "CREATORS.jpeg", "CREATORS.jpg"):
-                try:
-                    creator_orig = pygame.image.load(os.path.join(self.cfg.ASSETS_DIR, fname)).convert_alpha()
-                    break
-                except Exception:
-                    continue
-            if creator_orig is not None:
-                creator_img  = pygame.transform.smoothscale(creator_orig, (120, 120))
-                creator_pos  = (130, self.SCR_H - 20 - creator_img.get_height())
-                caption_surf = sub_f.render("The creators of  Assalto Reale:", True, (255,255,255))
-                caption_pos  = (20, creator_pos[1] - creator_img.get_height()//2)
-        except Exception:
-            # Skip creators block if it cannot be loaded.
+            # --- creators image (optional; JPEG may be unsupported on some builds)
             creator_img = None
+            creator_pos = None
+            caption_surf = None
+            caption_pos = None
+            try:
+                creator_orig = None
+                for fname in ("CREATORS.png", "CREATORS.jpeg", "CREATORS.jpg"):
+                    try:
+                        creator_orig = pygame.image.load(os.path.join(self.cfg.ASSETS_DIR, fname)).convert_alpha()
+                        break
+                    except Exception:
+                        continue
+                if creator_orig is not None:
+                    creator_img  = pygame.transform.smoothscale(creator_orig, (120, 120))
+            except Exception:
+                creator_img = None
 
-        # Buttons
-        btn_w, btn_h = 250, 60
-        start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
-        load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
+            def _refresh_menu_background() -> None:
+                # Re-scale menu background on resize (avoid repeated scaling on an already-scaled surface)
+                self.SCR_W, self.SCR_H = self.screen.get_size()
+                fallback = pygame.Surface((self.SCR_W, self.SCR_H))
+                fallback.fill((30, 30, 30))
+                self.menu_background = fallback
+                try:
+                    bg_path = os.path.join(self.cfg.ASSETS_DIR, "background_MENU.png")
+                    bg = pygame.image.load(bg_path).convert()
+                    self.menu_background = pygame.transform.smoothscale(bg, (self.SCR_W, self.SCR_H))
+                except Exception:
+                    pass
 
-        labels = ["Timer (min)", "Board size", "Special Squares"]
-        get_values = [
-            lambda: str(self.timer_options[self.timer_index] // 60),
-            lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
-            lambda: str(self.special_options[self.special_index]),
-        ]
+            def _wrap_lines(font: pygame.font.Font, text: str, max_w: int) -> List[str]:
+                words = text.replace("\n", " \n ").split(" ")
+                lines: List[str] = []
+                cur = ""
+                for w in words:
+                    if w == "\n":
+                        if cur:
+                            lines.append(cur)
+                            cur = ""
+                        lines.append("")
+                        continue
+                    test = (cur + " " + w).strip()
+                    if font.size(test)[0] <= max_w or not cur:
+                        cur = test
+                    else:
+                        lines.append(cur)
+                        cur = w
+                if cur:
+                    lines.append(cur)
+                return lines
 
-        x_center   = self.SCR_W // 2
-        top_margin = 200
-        n          = len(labels)
-        total_h    = (self.SCR_H - top_margin) - 300
-        spacing_y  = total_h // (n + 1)
+            # Rules content (images are optional; you can add them later in /assets)
+            rules_sections = [
+                {
+                    "title": "1) Objective",
+                    "body": (
+                        "Win in either of these ways:\n"
+                        "• Capture the opponent’s King.\n"
+                        "• OR control at least 3 Special Squares (green circles) and keep that control for 2 full turns.\n\n"
+                        "Control means: your Conquest Pawn ends a move on a Special Square."
+                    ),
+                    "img": "rules_objective.png",
+                },
+                {
+                    "title": "2) Board & Special Squares",
+                    "body": (
+                        "At the start, Special Squares are randomly generated (count = the menu setting).\n"
+                        "Special Squares can never contain a piece during placement.\n\n"
+                        "Example idea for an image: highlight 3 green circles and show a Conquest Pawn standing on one."
+                    ),
+                    "img": "rules_special_squares_example.png",
+                },
+                {
+                    "title": "3) Pieces and what they can capture",
+                    "body": (
+                        "There are 4 piece types per side:\n"
+                        "• King\n"
+                        "• Attack Pawn\n"
+                        "• Defense Pawn\n"
+                        "• Conquest Pawn\n\n"
+                        "Capture rules (rock-paper-scissors-ish):\n"
+                        "• Attack Pawn captures: King and Defense Pawn.\n"
+                        "• Defense Pawn captures: Conquest Pawn.\n"
+                        "• Conquest Pawn captures: Attack Pawn.\n"
+                        "• King captures: any pawn type.\n"
+                    ),
+                    "img": "rules_capture_table.png",
+                },
+                {
+                    "title": "4) Movement rules (normal moves)",
+                    "body": (
+                        "All pieces move 1 square for a normal (non-capture) move.\n"
+                        "• Attack Pawn: 1 square orthogonally.\n"
+                        "• Defense Pawn: 1 square (any direction) for non-capture.\n"
+                        "• Conquest Pawn: 1 square (any direction).\n"
+                        "• King: 1 square (any direction)."
+                    ),
+                    "img": "rules_moves_normal.png",
+                },
+                {
+                    "title": "5) Capture patterns (the spicy part)",
+                    "body": (
+                        "Attack Pawn captures orthogonally:\n"
+                        "• 1-square orthogonal capture.\n"
+                        "• OR a 2-square orthogonal capture (only if it is your FIRST move of the turn).\n"
+                        "  For a 2-square capture, the middle square must be empty (special rule when capturing a defended King).\n\n"
+                        "Defense Pawn captures diagonally:\n"
+                        "• 1-square diagonal capture.\n"
+                        "• OR a 2-square diagonal capture (only if it is your FIRST move of the turn) AND the middle square is empty.\n\n"
+                        "Conquest Pawn captures by stepping onto an adjacent enemy Attack Pawn.\n"
+                    ),
+                    "img": "rules_captures_examples.png",
+                },
+                {
+                    "title": "6) The defended King rule (repulsion)",
+                    "body": (
+                        "If an Attack Pawn tries to capture a King that is protected by an adjacent friendly Defense Pawn:\n"
+                        "• The Defense Pawn is sacrificed (removed).\n"
+                        "• The Attack Pawn is repulsed away from the King along a short path.\n\n"
+                        "If the King is NOT protected, the capture succeeds and the game ends."
+                    ),
+                    "img": "rules_defended_king.png",
+                },
+                {
+                    "title": "7) Two moves per turn",
+                    "body": (
+                        "Each player can make up to 2 moves per turn.\n"
+                        "Some long captures (the 2-square ones) are only allowed as the FIRST move of your turn."
+                    ),
+                    "img": "rules_two_moves.png",
+                },
+                {
+                    "title": "8) Transform Square (late-game twist)",
+                    "body": (
+                        "After enough turns, a special Transform Square may appear.\n"
+                        "If a pawn ends its move on that square, it can transform into a different pawn type.\n\n"
+                        "Idea for an image: show the transform icon on a square, and an arrow to the piece selection."
+                    ),
+                    "img": "rules_transform_square.png",
+                },
+                {
+                    "title": "9) Saving & Loading",
+                    "body": (
+                        "Save writes a local file (moves.txt).\n"
+                        "Load restores the last saved game.\n"
+                        "On the web, saves may not persist across browsers/devices (it depends on the runtime), "
+                        "but the game won’t crash if no save exists."
+                    ),
+                    "img": "rules_save_load.png",
+                },
+            ]
 
-        arrow_size = 40
-        gap        = 100
-        quit_rect  = pygame.Rect(self.SCR_W - 40, 10, 30, 30)
+            # --- state for this menu session
+            view: str = "main"   # "main" | "rules"
+            rules_scroll: int = 0
+            error_message: Optional[str] = None
 
-        error_message = None  # 🛑
+            # Initial layout refresh (handles first render + any prior resizes)
+            _refresh_menu_background()
 
-        while True:
-            for ev in pygame.event.get():
-                if ev.type == pygame.QUIT:
-                    self.running = False; return
-                if ev.type == pygame.MOUSEBUTTONDOWN:
-                    mx, my = ev.pos
-                    if quit_rect.collidepoint(mx, my):
-                        self.running = False; return
-
-                    # arrow clicks
-                    for i in range(n):
-                        y_label = top_margin + i * spacing_y
-                        y_val   = y_label + 40
-                        left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
-                        right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
-
-                        if left.collidepoint(mx, my):
-                            if i == 0:
-                                self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
-                            elif i == 1:
-                                self.board_index   = (self.board_index   - 1) % len(self.board_sizes)
-                            else:
-                                self.special_index = (self.special_index - 1) % len(self.special_options)
-
-                        if right.collidepoint(mx, my):
-                            if i == 0:
-                                self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
-                            elif i == 1:
-                                self.board_index   = (self.board_index   + 1) % len(self.board_sizes)
-                            else:
-                                self.special_index = (self.special_index + 1) % len(self.special_options)
-
-                    # START NEW GAME
-                    if start_btn.collidepoint(mx, my):
-                        self.settings["timer"]         = self.timer_options[self.timer_index]
-                        self.settings["board_size"]    = self.board_sizes[self.board_index]
-                        self.settings["special_count"] = self.special_options[self.special_index]
+            while True:
+                for ev in pygame.event.get():
+                    if ev.type == pygame.QUIT:
+                        self.running = False
                         return
 
-                    # LOAD SAVED GAME
-                    if load_btn.collidepoint(mx, my):
+                    if ev.type == pygame.VIDEORESIZE:
                         try:
-                            self._load_moves_from_file("moves.txt")
-                            self.settings["timer"] = float(self.time_left["Black"])
-                            self.settings["board_size"] = (self.cfg.ROWS, self.cfg.COLS)
-                            self.settings["special_count"] = len(self.board.special_squares)
-                            return
-                        except Exception as e:
-                            error_message = str(e)
+                            self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                        except Exception:
+                            self.screen = pygame.display.set_mode((ev.w, ev.h))
+                        _refresh_menu_background()
 
-            # --- draw everything
-            self.screen.blit(self.menu_background, (0, 0))
-            # Quit-X
-            pygame.draw.rect(self.screen, (200,50,50), quit_rect)
-            pygame.draw.line(self.screen, (255,255,255), quit_rect.topleft, quit_rect.bottomright, 3)
-            pygame.draw.line(self.screen, (255,255,255), quit_rect.topright, quit_rect.bottomleft, 3)
+                    if view == "main":
+                        if ev.type == pygame.MOUSEBUTTONDOWN:
+                            mx, my = ev.pos
 
-            # Title
-            t_surf = title_f.render("Assalto Reale", True, (240,240,240))
-            self.screen.blit(t_surf, t_surf.get_rect(center=(x_center, 100)))
+                            # layout (recomputed on-the-fly, so clicks stay correct after resize)
+                            btn_w, btn_h = 250, 60
+                            start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
+                            load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
 
-            # selectors
-            for i, label in enumerate(labels):
-                y_label = top_margin + i * spacing_y
-                lbl = sub_f.render(label, True, (200,200,200))
-                self.screen.blit(lbl, lbl.get_rect(center=(x_center, y_label)))
-                y_val = y_label + 40
-                val = sub_f.render(get_values[i](), True, (255,255,255))
-                self.screen.blit(val, val.get_rect(center=(x_center, y_val)))
-                left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
-                right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
-                pygame.draw.polygon(self.screen, (180,180,180),
-                    [(left.right,left.top),(left.left,left.centery),(left.right,left.bottom)])
-                pygame.draw.polygon(self.screen, (180,180,180),
-                    [(right.left,right.top),(right.right,right.centery),(right.left,right.bottom)])
+                            info_rect = pygame.Rect(self.SCR_W - 52, 12, 40, 40)
 
-            # START NEW GAME button
-            pygame.draw.rect(self.screen, (70,200,70), start_btn)
-            st = sub_f.render("START", True, (0,0,0))
-            self.screen.blit(st, st.get_rect(center=start_btn.center))
+                            labels = ["Timer (min)", "Board size", "Special Squares"]
+                            get_values = [
+                                lambda: str(self.timer_options[self.timer_index] // 60),
+                                lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
+                                lambda: str(self.special_options[self.special_index]),
+                            ]
 
-            # LOAD SAVED GAME button
-            pygame.draw.rect(self.screen, (70,150,230), load_btn)
-            ld = sub_f.render("LOAD GAME", True, (0,0,0))
-            self.screen.blit(ld, ld.get_rect(center=load_btn.center))
+                            x_center   = self.SCR_W // 2
+                            top_margin = 200
+                            n          = len(labels)
+                            total_h    = (self.SCR_H - top_margin) - 300
+                            spacing_y  = max(90, total_h // (n + 1))
 
-            # creators image (optional)
-            if creator_img is not None and creator_pos is not None:
-                self.screen.blit(creator_img, creator_pos)
-            if caption_surf is not None and caption_pos is not None:
-                self.screen.blit(caption_surf, caption_pos)
+                            arrow_size = 40
+                            gap        = 100
 
-            # 🛑 Error overlay
-            if error_message:
-                self._draw_error_overlay(error_message)
+                            # info (rules)
+                            if info_rect.collidepoint(mx, my):
+                                view = "rules"
+                                rules_scroll = 0
+                                error_message = None
+                                continue
 
-            pygame.display.flip()
-            await asyncio.sleep(0)
-            self.clock.tick(30)
+                            # arrow clicks
+                            for i in range(n):
+                                y_label = top_margin + i * spacing_y
+                                y_val   = y_label + 40
+                                left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
+                                right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
 
+                                if left.collidepoint(mx, my):
+                                    if i == 0:
+                                        self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
+                                    elif i == 1:
+                                        self.board_index   = (self.board_index   - 1) % len(self.board_sizes)
+                                    else:
+                                        self.special_index = (self.special_index - 1) % len(self.special_options)
+
+                                if right.collidepoint(mx, my):
+                                    if i == 0:
+                                        self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
+                                    elif i == 1:
+                                        self.board_index   = (self.board_index   + 1) % len(self.board_sizes)
+                                    else:
+                                        self.special_index = (self.special_index + 1) % len(self.special_options)
+
+                            # START NEW GAME
+                            if start_btn.collidepoint(mx, my):
+                                self.settings["timer"]         = self.timer_options[self.timer_index]
+                                self.settings["board_size"]    = self.board_sizes[self.board_index]
+                                self.settings["special_count"] = self.special_options[self.special_index]
+                                self.settings["_action"]       = "new"
+                                return
+
+                            # LOAD SAVED GAME
+                            if load_btn.collidepoint(mx, my):
+                                if not self._has_saved_game("moves.txt"):
+                                    error_message = "No saved game found."
+                                    continue
+                                try:
+                                    self._load_moves_from_file("moves.txt")
+                                    # keep menu in sync with what we loaded
+                                    self.settings["timer"] = float(self.time_left["Black"])
+                                    self.settings["board_size"] = (self.cfg.ROWS, self.cfg.COLS)
+                                    self.settings["special_count"] = len(self.board.special_squares)
+                                    self.settings["_action"] = "load"
+                                    return
+                                except Exception as e:
+                                    error_message = str(e)
+
+                    else:  # view == "rules"
+                        if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                            view = "main"
+                            continue
+                        if ev.type == pygame.MOUSEBUTTONDOWN:
+                            mx, my = ev.pos
+                            panel = pygame.Rect(60, 60, self.SCR_W - 120, self.SCR_H - 120)
+                            back_rect = pygame.Rect(panel.left + 16, panel.top + 14, 96, 36)
+                            if back_rect.collidepoint(mx, my):
+                                view = "main"
+                                continue
+                        if ev.type == pygame.MOUSEWHEEL:
+                            rules_scroll -= int(ev.y * 40)  # wheel up => y=+1 => scroll up
+                        if ev.type == pygame.KEYDOWN:
+                            if ev.key in (pygame.K_DOWN, pygame.K_PAGEDOWN):
+                                rules_scroll += 60
+                            elif ev.key in (pygame.K_UP, pygame.K_PAGEUP):
+                                rules_scroll -= 60
+
+                # ------------------ draw ------------------
+                self.screen.blit(self.menu_background, (0, 0))
+
+                if view == "main":
+                    # layout values
+                    btn_w, btn_h = 250, 60
+                    start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
+                    load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
+
+                    labels = ["Timer (min)", "Board size", "Special Squares"]
+                    get_values = [
+                        lambda: str(self.timer_options[self.timer_index] // 60),
+                        lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
+                        lambda: str(self.special_options[self.special_index]),
+                    ]
+
+                    x_center   = self.SCR_W // 2
+                    top_margin = 200
+                    n          = len(labels)
+                    total_h    = (self.SCR_H - top_margin) - 300
+                    spacing_y  = max(90, total_h // (n + 1))
+                    arrow_size = 40
+                    gap        = 100
+
+                    # Info button [i]
+                    info_rect = pygame.Rect(self.SCR_W - 52, 12, 40, 40)
+                    pygame.draw.ellipse(self.screen, (30, 30, 30), info_rect)
+                    pygame.draw.ellipse(self.screen, (255, 255, 255), info_rect, 2)
+                    i_surf = sub_f.render("i", True, (255, 255, 255))
+                    self.screen.blit(i_surf, i_surf.get_rect(center=info_rect.center))
+
+                    # Title
+                    t_surf = title_f.render("Assalto Reale", True, (240,240,240))
+                    self.screen.blit(t_surf, t_surf.get_rect(center=(x_center, 100)))
+
+                    # selectors
+                    for i, label in enumerate(labels):
+                        y_label = top_margin + i * spacing_y
+                        lbl = sub_f.render(label, True, (200,200,200))
+                        self.screen.blit(lbl, lbl.get_rect(center=(x_center, y_label)))
+                        y_val = y_label + 40
+                        val = sub_f.render(get_values[i](), True, (255,255,255))
+                        self.screen.blit(val, val.get_rect(center=(x_center, y_val)))
+                        left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
+                        right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
+                        pygame.draw.polygon(self.screen, (180,180,180),
+                            [(left.right,left.top),(left.left,left.centery),(left.right,left.bottom)])
+                        pygame.draw.polygon(self.screen, (180,180,180),
+                            [(right.left,right.top),(right.right,right.centery),(right.left,right.bottom)])
+
+                    # START NEW GAME button
+                    pygame.draw.rect(self.screen, (70,200,70), start_btn, border_radius=10)
+                    st = sub_f.render("START", True, (0,0,0))
+                    self.screen.blit(st, st.get_rect(center=start_btn.center))
+
+                    # LOAD SAVED GAME button (dim if no save)
+                    has_save = self._has_saved_game("moves.txt")
+                    load_col = (70,150,230) if has_save else (70, 90, 120)
+                    pygame.draw.rect(self.screen, load_col, load_btn, border_radius=10)
+                    ld = sub_f.render("LOAD GAME", True, (0,0,0))
+                    self.screen.blit(ld, ld.get_rect(center=load_btn.center))
+
+                    # creators image + caption
+                    if creator_img is not None:
+                        creator_pos  = (130, self.SCR_H - 20 - creator_img.get_height())
+                        self.screen.blit(creator_img, creator_pos)
+                        caption_surf = sub_f.render("The creators of  Assalto Reale:", True, (255,255,255))
+                        caption_pos  = (20, creator_pos[1] - creator_img.get_height()//2)
+                        self.screen.blit(caption_surf, caption_pos)
+
+                    # error overlay (load failures)
+                    if error_message:
+                        self._draw_error_overlay(error_message)
+
+                else:
+                    # RULES screen
+                    overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
+                    overlay.fill((0, 0, 0, 120))
+                    self.screen.blit(overlay, (0, 0))
+
+                    panel = pygame.Rect(60, 60, self.SCR_W - 120, self.SCR_H - 120)
+                    pygame.draw.rect(self.screen, (20, 20, 20), panel, border_radius=16)
+                    pygame.draw.rect(self.screen, (255, 255, 255), panel, 2, border_radius=16)
+
+                    back_rect = pygame.Rect(panel.left + 16, panel.top + 14, 96, 36)
+                    pygame.draw.rect(self.screen, (125, 125, 125), back_rect, border_radius=10)
+                    back_txt = body_f.render("BACK", True, (0, 0, 0))
+                    self.screen.blit(back_txt, back_txt.get_rect(center=back_rect.center))
+
+                    title = sec_f.render("Rules of the game", True, (255, 255, 255))
+                    self.screen.blit(title, (panel.left + 140, panel.top + 18))
+
+                    inner = panel.inflate(-40, -70)  # space for header
+                    clip_rect = inner.copy()
+                    self.screen.set_clip(clip_rect)
+
+                    y = inner.top - rules_scroll
+                    max_w = inner.width
+
+                    # render sections and compute total height
+                    total_h = 0
+                    for sec in rules_sections:
+                        # section title
+                        t = sec_f.render(sec["title"], True, (230, 230, 230))
+                        self.screen.blit(t, (inner.left, y))
+                        y += t.get_height() + 8
+                        total_h += t.get_height() + 8
+
+                        # body
+                        for line in _wrap_lines(body_f, sec["body"], max_w):
+                            if line == "":
+                                y += body_f.get_height() // 2
+                                total_h += body_f.get_height() // 2
+                                continue
+                            s = body_f.render(line, True, (240, 240, 240))
+                            self.screen.blit(s, (inner.left, y))
+                            y += s.get_height() + 3
+                            total_h += s.get_height() + 3
+
+                        # image (optional)
+                        img_name = sec.get("img")
+                        if img_name:
+                            box_w = min(max_w, 520)
+                            box_h = 170
+                            img_rect = pygame.Rect(inner.left, y + 6, box_w, box_h)
+
+                            img = None
+                            try:
+                                key = (img_name, img_rect.w, img_rect.h)
+                                if key in self._rules_img_cache:
+                                    img = self._rules_img_cache[key]
+                                else:
+                                    p = os.path.join(self.cfg.ASSETS_DIR, img_name)
+                                    raw = pygame.image.load(p).convert_alpha()
+                                    img = pygame.transform.smoothscale(raw, (img_rect.w, img_rect.h))
+                                    self._rules_img_cache[key] = img
+                            except Exception:
+                                img = None
+
+                            if img is not None:
+                                self.screen.blit(img, img_rect)
+                                pygame.draw.rect(self.screen, (255, 255, 255), img_rect, 2)
+                            else:
+                                placeholder = pygame.Surface((img_rect.w, img_rect.h), pygame.SRCALPHA)
+                                placeholder.fill((60, 60, 60, 160))
+                                self.screen.blit(placeholder, img_rect)
+                                pygame.draw.rect(self.screen, (200, 200, 200), img_rect, 2)
+                                ph = body_f.render(f"[add: {img_name}]", True, (255, 255, 255))
+                                self.screen.blit(ph, ph.get_rect(center=img_rect.center))
+
+                            y += img_rect.h + 18
+                            total_h += img_rect.h + 18
+                        else:
+                            y += 14
+                            total_h += 14
+
+                    self.screen.set_clip(None)
+
+                    # clamp scroll
+                    max_scroll = max(0, (total_h + 20) - inner.height)
+                    rules_scroll = max(0, min(rules_scroll, max_scroll))
+
+                    # simple scroll hint
+                    hint = body_f.render("Scroll: mouse wheel / ↑↓", True, (200, 200, 200))
+                    self.screen.blit(hint, (panel.left + 140, panel.bottom - 32))
+
+                pygame.display.flip()
+                await asyncio.sleep(0)
+                self.clock.tick(30)
     def _draw_error_overlay(self, message: str) -> None:
         overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
 
-        font_big = pygame.font.SysFont("bookmanoldstyle", 36, bold=True)
-        font_small = pygame.font.SysFont("bookmanoldstyle", 24)
+        try:
+            font_big = pygame.font.SysFont("bookmanoldstyle", 36, bold=True)
+            font_small = pygame.font.SysFont("bookmanoldstyle", 24)
+        except Exception:
+            font_big = pygame.font.Font(None, 36)
+            font_small = pygame.font.Font(None, 24)
 
         error_title = font_big.render("Error Loading Game", True, (255,50,50))
         error_msg   = font_small.render(message, True, (255,255,255))
@@ -503,36 +862,61 @@ class AssaltoRealeApp:
 
     # =============================== main loop ======================= #
     async def run(self) -> None:
-        # 1) Show menu to pick timer & board size
-        await self._show_start_menu()
-
-        # 2) Apply settings
-        t = self.settings["timer"]
-        rows, cols = self.settings["board_size"]
-        special = self.settings.get("special_count", 5)
-        # rebuild config with chosen board size
-        self.cfg = GameConfig(ROWS=rows, COLS=cols, SPECIAL_COUNT=special)
-        # (re)compute responsive layout + reload assets
-        self._apply_responsive_layout(force=True)
-        self.board  = Board(self.cfg)
-        self.board._generate_special_squares(special)
-
-        # 3) Set the clocks
-        self.time_left  = {"Black": t, "White": t}
-        self._last_tick = pygame.time.get_ticks()
-
-        # 4) Enter main loop
+        # main loop: menu -> game -> (back to menu) until the window/tab closes
         while self.running:
-            self._update_clock()
-            for ev in pygame.event.get():
-                if ev.type == pygame.QUIT:
-                    self.running = False
-                elif ev.type == pygame.MOUSEBUTTONDOWN:
-                    await self._on_click(ev.pos)
-            self._draw()
-            self.clock.tick(60)
-            await asyncio.sleep(0)
+            self.return_to_menu = False
+            await self._show_start_menu()
+            if not self.running:
+                break
+
+            action = self.settings.get("_action", "new")
+
+            if action == "new":
+                # apply menu settings
+                t = float(self.settings["timer"])
+                rows, cols = self.settings["board_size"]
+                special = int(self.settings.get("special_count", 5))
+
+                # reset per-match state (keep pygame alive)
+                self._reset_match_state()
+
+                # rebuild config with chosen board size
+                self.cfg = GameConfig(ROWS=rows, COLS=cols, SPECIAL_COUNT=special)
+                self._apply_responsive_layout(force=True)
+                self.board = Board(self.cfg)
+                self.board._generate_special_squares(special)
+
+                # per-player clocks
+                self.time_left = {"Black": t, "White": t}
+                self._last_tick = pygame.time.get_ticks()
+
+            elif action == "load":
+                # _show_start_menu already loaded and reconstructed the game state.
+                self.return_to_menu = False
+                self.menu_active = False
+                self._apply_responsive_layout(force=True)
+                self._last_tick = pygame.time.get_ticks()
+
+            # ---------------- game loop ----------------
+            while self.running and not self.return_to_menu:
+                self._update_clock()
+
+                for ev in pygame.event.get():
+                    if ev.type == pygame.QUIT:
+                        self.running = False
+                    elif ev.type == pygame.MOUSEBUTTONDOWN:
+                        await self._on_click(ev.pos)
+
+                self._draw()
+                self.clock.tick(60)
+                await asyncio.sleep(0)
+
+            # clean up any overlay state before showing the menu again
+            self.menu_active = False
+            self.menu_buttons = {}
+
         pygame.quit()
+
 
 
     def _show_endgame_menu(self, winner: str) -> None:
@@ -602,9 +986,17 @@ class AssaltoRealeApp:
 
     
     def _save_moves_to_file(self, filename: str = "moves.txt") -> None:
+        """Persist current game state in a Vercel/pygbag-safe way.
+
+        We do an atomic write (temp + replace) so a partial write can’t corrupt
+        an existing save if the browser tab is closed mid-write.
+        """
         log = self._format_game_history()
-        with open(filename, "w", encoding="utf-8") as f:
+        tmp = f"{filename}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             f.write(log)
+        # atomic on POSIX; on Windows it's best-effort but still safer than direct writes
+        os.replace(tmp, filename)
 
     def _parse_game_file(self, filename: str):
         settings: dict[str,str] = {}
@@ -700,10 +1092,9 @@ class AssaltoRealeApp:
     def _handle_endgame_click(self, pos: Tuple[int,int]) -> None:
         x, y = pos
         if self.menu_buttons['Save'].collidepoint(x,y):
-            self._save_moves_to_file()
+            self._try_save_game("moves.txt")
         elif self.menu_buttons['Quit'].collidepoint(x,y):
-            pygame.quit()
-            sys.exit()
+            self._go_to_main_menu()
         elif self.menu_buttons['Restart'].collidepoint(x,y):
             self.reset_game()
             self.menu_active = False
@@ -728,14 +1119,14 @@ class AssaltoRealeApp:
             self.reset_game()
             return
         if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
-            self.running = False
+            self._go_to_main_menu()
             return
             # in _on_click, after your other button‐checks:
         if self._within(x, y, self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H):
-            self._save_moves_to_file("moves.txt")
+            self._try_save_game("moves.txt")
             return
         if self._within(x, y, self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H):
-            self._load_moves_from_file("moves.txt")
+            self._try_load_saved_game("moves.txt")
             return
     
 
@@ -757,6 +1148,9 @@ class AssaltoRealeApp:
     def _load_moves_from_file(self, filename: str = "moves.txt") -> None:
         # 1) parse everything
         settings, special_sqs, transform_sqs, placements, moves = self._parse_game_file(filename)
+
+        # wipe any in-memory state from a previous match (prevents weird carry-over after Load)
+        self._reset_match_state()
         self.moves_this_turn = 0
         self.king_moved = False
 
@@ -849,6 +1243,77 @@ class AssaltoRealeApp:
     @staticmethod
     def _within(px: int, py: int, x: int, y: int, w: int, h: int) -> bool:
         return x <= px <= x + w and y <= py <= y + h
+
+    # ======================= UX helpers (toast) ======================= #
+    def _set_toast(self, message: str, *, duration_ms: int = 2500) -> None:
+        self.toast_message = message
+        self.toast_until_ms = pygame.time.get_ticks() + int(duration_ms)
+
+    def _draw_toast(self) -> None:
+        if not self.toast_message:
+            return
+        if pygame.time.get_ticks() > self.toast_until_ms:
+            self.toast_message = None
+            return
+
+        msg = self.toast_message
+        # Use a web-safe font
+        try:
+            f = pygame.font.SysFont("bookmanoldstyle", max(18, int(self.cfg.SQ_SIZE * 0.32)))
+        except Exception:
+            f = pygame.font.Font(None, max(18, int(self.cfg.SQ_SIZE * 0.32)))
+
+        pad_x, pad_y = 14, 10
+        surf = f.render(msg, True, (255, 255, 255))
+        w = surf.get_width() + 2 * pad_x
+        h = surf.get_height() + 2 * pad_y
+
+        x = (self.SCR_W - w) // 2
+        y = self.SCR_H - h - 20
+
+        box = pygame.Surface((w, h), pygame.SRCALPHA)
+        box.fill((0, 0, 0, 170))
+        pygame.draw.rect(box, (255, 255, 255), (0, 0, w, h), 2, border_radius=10)
+        box.blit(surf, (pad_x, pad_y))
+        self.screen.blit(box, (x, y))
+
+    # ======================= Save / Load helpers ====================== #
+    def _has_saved_game(self, filename: str = "moves.txt") -> bool:
+        try:
+            return os.path.exists(filename) and os.path.getsize(filename) > 0
+        except Exception:
+            return False
+
+    def _try_load_saved_game(self, filename: str = "moves.txt", *, show_toast: bool = True) -> bool:
+        if not self._has_saved_game(filename):
+            if show_toast:
+                self._set_toast("No saved game found.")
+            return False
+        try:
+            self._load_moves_from_file(filename)
+            if show_toast:
+                self._set_toast("Game loaded.")
+            return True
+        except Exception as e:
+            if show_toast:
+                self._set_toast(f"Load failed: {e}")
+            return False
+
+    def _try_save_game(self, filename: str = "moves.txt") -> bool:
+        try:
+            self._save_moves_to_file(filename)
+            self._set_toast("Game saved.")
+            return True
+        except Exception as e:
+            self._set_toast(f"Save failed: {e}")
+            return False
+
+    def _go_to_main_menu(self) -> None:
+        # leave pygame running; just break the current game loop
+        self.return_to_menu = True
+        self.menu_active = False
+        self.selected = None
+
 
     # =========================== placement phase ===================== #
     def _handle_placement_click(self, pos: Vec2) -> None:
@@ -1140,6 +1605,9 @@ class AssaltoRealeApp:
         if self.menu_active:
             self._draw_endgame_menu()
 
+        # lightweight notifications
+        self._draw_toast()
+
         pygame.display.flip()
 
 
@@ -1155,7 +1623,8 @@ class AssaltoRealeApp:
         for name, rect in self.menu_buttons.items():
             pygame.draw.rect(self.screen, self.cfg.BUTTON_COLOR, rect)
             pygame.draw.rect(self.screen, self.cfg.BLACK, rect, 2)
-            txt_surf = self.font.render(name, True, self.cfg.WHITE)
+            label = "MAIN MENU" if name == "Quit" else name
+            txt_surf = self.font.render(label, True, self.cfg.WHITE)
             self.screen.blit(txt_surf, txt_surf.get_rect(center=rect.center))
 
 
@@ -1323,7 +1792,7 @@ class AssaltoRealeApp:
         # --- reset / quit --------------------------------------------
         for x, y, label in [
             (self.RESET_X, self.RESET_Y, "RESET"),
-            (self.QUIT_X, self.QUIT_Y, "QUIT"),
+            (self.QUIT_X, self.QUIT_Y, "MENU"),
         ]:
             pygame.draw.rect(self.screen, cfg.BUTTON_COLOR, (x, y, self.RESET_W, self.RESET_H))
             pygame.draw.rect(self.screen, cfg.BLACK, (x, y, self.RESET_W, self.RESET_H), 2)
@@ -1444,11 +1913,11 @@ class AssaltoRealeApp:
         self.screen.blit(panel, (x0, y0))
 
     async def _animate_repulsion(
-        self,
-        path: list[Vec2],           # positions from start to landing
-        piece: Piece,
-        step_delay_ms: int = 200,   # pause between hops
-    ) -> Vec2:
+            self,
+            path: list[Vec2],           # positions from start to landing
+            piece: Piece,
+            step_delay_ms: int = 200,   # pause between hops
+        ) -> Vec2:
         """
         Visually moves *piece* along *path* (excluding the first square,
         because the pawn is already there).  The board grid is updated
@@ -1646,6 +2115,7 @@ class AssaltoRealeApp:
         # calcola posizioni in pixel
         sx = start[1] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
         sy = start[0] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
+
         ex = end[1] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
         ey = end[0] * self.cfg.SQ_SIZE + self.cfg.SQ_SIZE // 2
 
@@ -1659,13 +2129,19 @@ class AssaltoRealeApp:
             cx = int(sx + (ex - sx) * t)
             cy = int(sy + (ey - sy) * t)
 
-            # disegna tutto tranne il pezzo in movimento
-            draw_board(self.board, self.screen, self.font, self.selected, [], cfg=self.cfg, assets=self.assets)
-            # disegna il pezzo “flottante”
-            rect = img.get_rect(center=(cx, cy))
+            draw_board(self.board, self.board_surface, self.font, self.selected, [], cfg=self.cfg, assets=self.assets)
+
+            # then blit the board_surface where it belongs
+            self.screen.blit(self.board_surface, self.board_surf_rect.topleft)
+
+            # draw the floating piece with board offset
+            rect = img.get_rect(center=(self.board_surf_rect.x + cx, self.board_surf_rect.y + cy))
             self.screen.blit(img, rect)
+
+            # draw HUD normally
             self._draw_hud()
             pygame.display.flip()
+
 
             if t >= 1.0:
                 break
