@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import pygame
 
 ######################################################################
 #                          Top‑level imports                         #
@@ -73,6 +73,8 @@ class AssetLoader:
         self.move_sound = self._load_sound("move_chess.wav")
         self.capture_sound = self._load_sound("attack_chess.wav")
         self.shield_sound = self._load_sound("shield_chess.ogg")
+        self.victory_sound = self._load_sound("Victory.wav")
+        
         raw = pygame.image.load(os.path.join(self.cfg.ASSETS_DIR, "transform_square.png"))
         # scala a mezzo SQ_SIZE se vuoi un’icona piccola, o a SQ_SIZE per una dimensione piena
         size = cfg.SQ_SIZE // 2
@@ -137,8 +139,6 @@ class AttackPawn(Piece):
         # capture -----------------------------------------------------------
         if target and target.player != self.player:
             if (dr, dc) in [(1, 0), (0, 1)]:
-                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
-                    return False
                 return Board.is_allowed_capture_type(self, target)
             if (dr, dc) in [(2, 0), (0, 2)] and moves_this_turn == 0:
                 mid_r, mid_c = (rs + re) // 2, (cs + ce) // 2
@@ -166,14 +166,10 @@ class DefensePawn(Piece):
         target = board[re][ce]
         if target and target.player != self.player:
             if (dr, dc) == (1, 1):
-                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
-                    return False
                 return Board.is_allowed_capture_type(self, target)
             if (dr, dc) == (2, 2) and moves_this_turn == 0:
                 mid_r, mid_c = (rs + re) // 2, (cs + ce) // 2
                 if board[mid_r][mid_c] is not None:
-                    return False
-                if target.type == "DefensePawn" and board.defense_pawn_guards_king(re, ce):
                     return False
                 return Board.is_allowed_capture_type(self, target)
             return False

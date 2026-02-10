@@ -1,5 +1,5 @@
 import asyncio
-from assalto_app import AssaltoRealeApp
+from assalto_app_ai import AssaltoRealeApp
 
 async def main():
     app = AssaltoRealeApp()

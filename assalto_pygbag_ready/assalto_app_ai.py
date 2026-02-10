@@ -5,6 +5,7 @@ import os
 import sys
 import copy
 import math
+import random
 from typing import Dict, List, Optional, Tuple
 
 import pygame
@@ -71,6 +72,52 @@ class AssaltoRealeApp:
         self.special_index   = self.special_options.index(5)
         self.settings: Dict[str, object] = {}
 
+        self.opponent_options = ["Human", "Computer"]
+        self.opponent_index   = 0
+        # single-player mode (set per match in the start menu)
+        self.vs_ai: bool = False
+        self.ai_side: str = "White"   # AI plays White by default
+        self.human_side: str = "Black"
+
+
+
+
+        # --- AI pacing (ms) ---------------------------------------------
+        # Makes the Computer feel more "human": one action every N ms
+        self.ai_delay_ms_move: int = 650     # pause between AI moves
+        self.ai_delay_ms_place: int = 200    # faster placements
+        self.ai_move_anim_ms: int = 320      # slower slide animation for AI moves
+        self._ai_next_tick: int = 0
+
+
+        # --- AI strength --------------------------------------------------
+        # Turn-level minimax depth (in *turns*). 3 = [AI now] + [opp reply] + [AI next].
+        # Higher is stronger but slower on web.
+        self.ai_depth_turns: int = 3
+
+        # Candidate limiting per action inside a turn (controls branching).
+        self.ai_topk1: int = 18   # first action options
+        self.ai_topk2: int = 14   # second action options
+
+        # Hard cap on number of full-turn sequences considered at each node.
+        self.ai_max_sequences: int = 42
+
+        # Time budget per AI decision (ms). Prevents long freezes on the browser.
+        self.ai_time_budget_ms: int = 260
+
+        # Transposition table (reset each turn) to reuse evaluated positions.
+        self._ai_tt: Dict[Tuple, float] = {}
+        # --- audio ------------------------------------------------------
+        # Desktop pygame: audio is usually available immediately.
+        # Web (pygbag): browsers often BLOCK audio until the first user gesture
+        # (click/tap/key press). If mixer init fails at boot, we will retry later.
+        self._audio_unlocked: bool = False
+        self._audio_unlock_failed: bool = False
+        self._audio_last_unlock_attempt_ms: int = 0
+
+        # Victory SFX is loaded lazily after audio unlock (see _ensure_audio()).
+        self._victory_played: bool = False
+        self.victory_sound = None
         # --- clocks -----------------------------------------------------
         self.time_left   = {"Black": 12 * 60.0, "White": 12 * 60.0}
         self._last_tick  = pygame.time.get_ticks()
@@ -83,6 +130,7 @@ class AssaltoRealeApp:
         self.moves_this_turn: int = 0
         self.king_moved: bool = False
         self.selected: Optional[Vec2] = None
+        self.hover_cell: Optional[Vec2] = None  # hover preview (no click)
         self.running: bool = True
         # menu/game flow flags
         self.return_to_menu: bool = False
@@ -355,6 +403,7 @@ class AssaltoRealeApp:
         self.moves_this_turn = 0
         self.king_moved = False
         self.selected = None
+        self._victory_played = False
         self.candidate_winner = None
         self.candidate_turn_index = None
         self.both_at_four = False
@@ -576,6 +625,7 @@ class AssaltoRealeApp:
                     if view == "main":
                         if ev.type == pygame.MOUSEBUTTONDOWN:
                             mx, my = ev.pos
+                            self._ensure_audio()
 
                             # layout (recomputed on-the-fly, so clicks stay correct after resize)
                             btn_w, btn_h = 250, 60
@@ -584,13 +634,13 @@ class AssaltoRealeApp:
 
                             info_rect = pygame.Rect(self.SCR_W - 52, 12, 40, 40)
 
-                            labels = ["Timer (min)", "Board size", "Special Squares"]
+                            labels = ["Timer (min)", "Board size", "Special Squares", "Opponent"]
                             get_values = [
                                 lambda: str(self.timer_options[self.timer_index] // 60),
                                 lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
                                 lambda: str(self.special_options[self.special_index]),
+                                lambda: self.opponent_options[self.opponent_index],
                             ]
-
                             x_center   = self.SCR_W // 2
                             top_margin = 200
                             n          = len(labels)
@@ -619,22 +669,27 @@ class AssaltoRealeApp:
                                         self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
                                     elif i == 1:
                                         self.board_index   = (self.board_index   - 1) % len(self.board_sizes)
-                                    else:
+                                    elif i == 2:
                                         self.special_index = (self.special_index - 1) % len(self.special_options)
+                                    else:
+                                        self.opponent_index = (self.opponent_index - 1) % len(self.opponent_options)
 
                                 if right.collidepoint(mx, my):
                                     if i == 0:
                                         self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
                                     elif i == 1:
                                         self.board_index   = (self.board_index   + 1) % len(self.board_sizes)
-                                    else:
+                                    elif i == 2:
                                         self.special_index = (self.special_index + 1) % len(self.special_options)
+                                    else:
+                                        self.opponent_index = (self.opponent_index + 1) % len(self.opponent_options)
 
                             # START NEW GAME
                             if start_btn.collidepoint(mx, my):
                                 self.settings["timer"]         = self.timer_options[self.timer_index]
                                 self.settings["board_size"]    = self.board_sizes[self.board_index]
                                 self.settings["special_count"] = self.special_options[self.special_index]
+                                self.settings["opponent"]     = self.opponent_options[self.opponent_index]
                                 self.settings["_action"]       = "new"
                                 return
 
@@ -660,6 +715,7 @@ class AssaltoRealeApp:
                             continue
                         if ev.type == pygame.MOUSEBUTTONDOWN:
                             mx, my = ev.pos
+                            self._ensure_audio()
                             panel = pygame.Rect(60, 60, self.SCR_W - 120, self.SCR_H - 120)
                             back_rect = pygame.Rect(panel.left + 16, panel.top + 14, 96, 36)
                             if back_rect.collidepoint(mx, my):
@@ -682,13 +738,13 @@ class AssaltoRealeApp:
                     start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
                     load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
 
-                    labels = ["Timer (min)", "Board size", "Special Squares"]
+                    labels = ["Timer (min)", "Board size", "Special Squares", "Opponent"]
                     get_values = [
                         lambda: str(self.timer_options[self.timer_index] // 60),
                         lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
                         lambda: str(self.special_options[self.special_index]),
+                        lambda: self.opponent_options[self.opponent_index],
                     ]
-
                     x_center   = self.SCR_W // 2
                     top_margin = 200
                     n          = len(labels)
@@ -872,6 +928,12 @@ class AssaltoRealeApp:
 
             action = self.settings.get("_action", "new")
 
+
+            # match mode (Human vs Human / Human vs Computer)
+            self.vs_ai = (self.settings.get("opponent", "Human") == "Computer")
+            # For now: AI always plays White, human plays Black.
+            self.ai_side = "White"
+            self.human_side = "Black"
             if action == "new":
                 # apply menu settings
                 t = float(self.settings["timer"])
@@ -905,8 +967,39 @@ class AssaltoRealeApp:
                 for ev in pygame.event.get():
                     if ev.type == pygame.QUIT:
                         self.running = False
+
+                    elif ev.type == pygame.VIDEORESIZE:
+                        # Keep the window resizable across desktop + web
+                        try:
+                            self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                        except Exception:
+                            self.screen = pygame.display.set_mode((ev.w, ev.h))
+                        self.SCR_W, self.SCR_H = self.screen.get_size()
+
+                    elif ev.type == pygame.MOUSEMOTION:
+                        self.hover_cell = self._screen_to_cell(ev.pos)
+
+                    elif ev.type == pygame.KEYDOWN:
+                        # Audio unlock can be triggered by any user gesture
+                        self._ensure_audio()
+
+                        if ev.key == pygame.K_ESCAPE:
+                            # Quick return to main menu (keeps pygame alive)
+                            self._go_to_main_menu()
+                        elif ev.key == pygame.K_u:
+                            self._undo()
+                        elif ev.key == pygame.K_s:
+                            self._try_save_game("moves.txt")
+                        elif ev.key == pygame.K_l:
+                            self._try_load_saved_game("moves.txt")
+
                     elif ev.type == pygame.MOUSEBUTTONDOWN:
+                        # Browser audio unlock: retry mixer init on first click.
+                        self._ensure_audio()
                         await self._on_click(ev.pos)
+
+                # AI step (if enabled)
+                await self._maybe_ai_step()
 
                 self._draw()
                 self.clock.tick(60)
@@ -923,6 +1016,14 @@ class AssaltoRealeApp:
     def _show_endgame_menu(self, winner: str) -> None:
         self.menu_active = True
         self.menu_winner = winner
+        # play victory sound once (optional; safe on web if audio is blocked)
+        if not self._victory_played:
+            self._victory_played = True
+            try:
+                if self.victory_sound:
+                    self.victory_sound.play()
+            except Exception:
+                pass
         # freeze the board — don’t call pygame.quit() yet
         # build button rects in screen coords:
         cx, cy = self.SCR_W//2, self.SCR_H//2
@@ -1109,6 +1210,18 @@ class AssaltoRealeApp:
             self._handle_endgame_click(pos)
             return
 
+        ai_turn = self.vs_ai and (AssaltoRealeApp.players[self.current_player] == self.ai_side)
+        if ai_turn:
+            # While the AI is making its turn, ignore player clicks (prevents desync).
+            # Keep only the emergency exits.
+            if self._within(x, y, self.RESET_X, self.RESET_Y, self.RESET_W, self.RESET_H):
+                self.reset_game()
+                return
+            if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
+                self._go_to_main_menu()
+                return
+            return
+
         # --- buttons ---------------------------------------------------
         if self._within(x, y, self.UNDO_X, self.UNDO_Y, self.UNDO_W, self.UNDO_H):
             self._undo()
@@ -1244,6 +1357,75 @@ class AssaltoRealeApp:
     @staticmethod
     def _within(px: int, py: int, x: int, y: int, w: int, h: int) -> bool:
         return x <= px <= x + w and y <= py <= y + h
+
+
+    def _screen_to_cell(self, pos: Tuple[int, int]) -> Optional[Vec2]:
+        """Map a screen (pixel) position to a board cell (r,c), or None."""
+        if not hasattr(self, "board_grid_rect"):
+            return None
+        rect = self.board_grid_rect
+        mx, my = pos
+        if not rect.collidepoint(mx, my):
+            return None
+        c = int((mx - rect.x) // self.cfg.SQ_SIZE)
+        r = int((my - rect.y) // self.cfg.SQ_SIZE)
+        if 0 <= r < self.cfg.ROWS and 0 <= c < self.cfg.COLS:
+            return (r, c)
+        return None
+
+    def _ensure_audio(self) -> None:
+        """Best-effort audio unlock (needed on web due to autoplay restrictions).
+
+        Call this ONLY as a direct consequence of a user gesture (mouse/key event).
+        """
+        if self._audio_unlocked or self._audio_unlock_failed:
+            return
+
+        # Avoid hammering init every frame if something is genuinely broken.
+        now = pygame.time.get_ticks()
+        if now - self._audio_last_unlock_attempt_ms < 750:
+            return
+        self._audio_last_unlock_attempt_ms = now
+
+        try:
+            # 1) Try enabling audio in the AssetLoader (may retry mixer.init internally).
+            if hasattr(self, "assets") and hasattr(self.assets, "try_enable_audio"):
+                self.assets.try_enable_audio()
+
+            # 2) If mixer isn't up, try to start it now.
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+
+            # If the initial AssetLoader was created before the first user gesture,
+            # it may have fallen back to no-op sounds. Recreate it once audio is available.
+            try:
+                if hasattr(self, "assets") and getattr(self.assets, "_audio_ok", True) is False:
+                    self.assets = AssetLoader(self.cfg)
+            except Exception:
+                pass
+
+            # 3) Load victory sound after mixer is alive.
+            if self.victory_sound is None and pygame.mixer.get_init():
+                # Prefer OGG/WAV on web; MP3 support is inconsistent.
+                candidates = [
+                    "victory.ogg", "victory.wav",
+                    "Victory.ogg", "Victory.wav",
+                    "Victory.mp3", "victory.mp3",
+                ]
+                for fn in candidates:
+                    try:
+                        path = os.path.join(self.cfg.ASSETS_DIR, fn)
+                        if os.path.exists(path):
+                            self.victory_sound = pygame.mixer.Sound(path)
+                            break
+                    except Exception:
+                        continue
+
+            self._audio_unlocked = True
+        except Exception:
+            # On the web, this commonly fails before the first click; we will retry later.
+            self._audio_unlock_failed = False
+
 
     # ======================= UX helpers (toast) ======================= #
     def _set_toast(self, message: str, *, duration_ms: int = 2500) -> None:
@@ -1430,8 +1612,11 @@ class AssaltoRealeApp:
         self.board[start[0]][start[1]] = None
 
         # animazione slide
-        await self._animate_slide(start, end, piece)
-
+        # animazione slide (slightly slower for AI moves)
+        dur = 200
+        if self.vs_ai and piece.player == self.ai_side:
+            dur = int(self.ai_move_anim_ms)
+        await self._animate_slide(start, end, piece, duration_ms=dur)
         # piazza il pezzo nella nuova casella
         self.board[end[0]][end[1]] = piece
         # ------------------------------------------------------------
@@ -1466,7 +1651,10 @@ class AssaltoRealeApp:
 
         # se siamo su una casella di trasformazione
         if end in self.board.transform_squares and piece.type in ("AttackPawn","DefensePawn","ConquestPawn"):
-            await self._prompt_transformation(end, piece)
+            if self.vs_ai and piece.player == self.ai_side:
+                self._ai_auto_transform(end, piece)
+            else:
+                await self._prompt_transformation(end, piece)
 
     # ============================= bookkeeping ======================= #
     def _switch_player(self) -> None:
@@ -1479,6 +1667,9 @@ class AssaltoRealeApp:
 
         self._last_tick = pygame.time.get_ticks()
 
+
+        # reset any queued AI plan when turn switches
+        self._ai_plan = []
         # --- turn counter / pending‑win logic -----------------------
         self.turn_counter += 1
         if self.turn_counter >= 30 and not self.board.transform_squares:
@@ -1486,6 +1677,10 @@ class AssaltoRealeApp:
         self._check_candidate_win()
 
 
+
+        # If AI is to play next, give a small pacing delay before the first action
+        if self.vs_ai and AssaltoRealeApp.players[self.current_player] == self.ai_side:
+            self._ai_next_tick = pygame.time.get_ticks() + int(self.ai_delay_ms_move)
     def _end_turn(self) -> None:
         self._switch_player()
 
@@ -1661,14 +1856,28 @@ class AssaltoRealeApp:
         # Keep layout in sync with the current window size
         self._apply_responsive_layout()
 
+        # Selection OR hover preview
+        sel: Optional[Vec2] = self.selected
         valid: List[Vec2] = []
+
         if self.selected:
             piece = self.board[self.selected[0]][self.selected[1]]
             if piece:
                 valid = self._compute_valid_moves(piece, self.selected)
 
+        # Hover preview (only when nothing is selected)
+        elif self.hover_cell and not self.placing and not self.menu_active:
+            # If vs AI, only preview for the human side
+            cur_side = AssaltoRealeApp.players[self.current_player]
+            if (not self.vs_ai) or (cur_side == self.human_side):
+                r, c = self.hover_cell
+                piece = self.board[r][c]
+                if piece and piece.player == cur_side:
+                    sel = self.hover_cell
+                    valid = self._compute_valid_moves(piece, self.hover_cell)
+
         # Draw board onto offscreen surface (origin at 0,0)
-        draw_board(self.board, self.board_surface, self.font, self.selected, valid, cfg=self.cfg, assets=self.assets)
+        draw_board(self.board, self.board_surface, self.font, sel, valid, cfg=self.cfg, assets=self.assets)
 
         # Last-move highlight (board coords)
         if self.last_move:
@@ -2037,12 +2246,18 @@ class AssaltoRealeApp:
                 y += icon_sz + row_gap
 
             # Draw just above the capture area, under the LOAD button
-            self.screen.blit(bg, (x0, y0 - box_h + 50))
+            dest_x = x0
+            dest_y = y0  # directly under LOAD button / top padding
+            # Clamp inside the HUD rect
+            dest_y = max(hud.top + pad, min(dest_y, hud.bottom - pad - box_h))
+            self.screen.blit(bg, (dest_x, dest_y))
             return
-        # Draw into a panel surface so nothing leaks outside its bounds.
-        panel = pygame.Surface((w, h), pygame.SRCALPHA)
-        panel.fill((30, 30, 30, 160))
-        pygame.draw.rect(panel, (0, 0, 0), (0, 0, w, h), 2, border_radius=10)
+        # Rounded, mostly-opaque panel (prevents "background tint" artifacts in fullscreen)
+        panel = pygame.Surface((w, h), pygame.SRCALPHA).convert_alpha()
+        panel.fill((0, 0, 0, 0))
+        R = 12
+        pygame.draw.rect(panel, (30, 30, 30, 235), panel.get_rect(), border_radius=R)
+        pygame.draw.rect(panel, (255, 255, 255, 255), panel.get_rect(), 2, border_radius=R)
         title_font = pygame.font.Font(None, max(18, int(self.cfg.SQ_SIZE * 0.36)))
         small_font = pygame.font.Font(None, max(16, int(self.cfg.SQ_SIZE * 0.32)))
 
@@ -2225,7 +2440,808 @@ class AssaltoRealeApp:
                     self.board_surface.blit(tint, (c * self.cfg.SQ_SIZE, r * self.cfg.SQ_SIZE))
 
 
-    # ======================== helpers =============================== #
+    # ======================== helpers ========================
+    # =========================== AI (single-player) ========================== #
+    async def _maybe_ai_step(self) -> None:
+        """If Human vs Computer and it's the AI's turn, perform ONE paced action.
+
+        Important: do not run the whole AI turn in one go, otherwise the UI
+        freezes and the move animation becomes invisible.
+        """
+        if (not self.vs_ai) or (not self.running) or self.menu_active or self.return_to_menu:
+            return
+
+        ai = self.ai_side
+        if AssaltoRealeApp.players[self.current_player] != ai:
+            return
+
+        now = pygame.time.get_ticks()
+        if now < self._ai_next_tick:
+            return
+
+        # schedule next AI action *after* we do this one
+        # (updated again below depending on phase)
+        if self.placing:
+            move_delay = self.ai_delay_ms_place
+            # place a single piece
+            r, c = self._ai_choose_placement()
+            if r is None:
+                self._end_turn()
+            else:
+                self._handle_placement_click((r, c))
+        else:
+            move_delay = self.ai_delay_ms_move
+
+            # If we don't already have a plan for this AI turn, compute one (2-ply minimax).
+            if not self._ai_plan:
+                self._ai_plan = self._ai_pick_best_turn_plan()
+
+            if not self._ai_plan:
+                self._end_turn()
+            else:
+                start, end = self._ai_plan.pop(0)
+                self.selected = None
+                await self._attempt_move(start, end)
+
+        self._ai_next_tick = pygame.time.get_ticks() + int(move_delay)
+
+
+    async def _ai_place_until_turn_switch(self) -> None:
+        ai = self.ai_side
+        guard = 0
+        while self.running and self.placing and AssaltoRealeApp.players[self.current_player] == ai:
+            choice = self._ai_choose_placement()
+            if choice is None:
+                # Shouldn't happen, but don't soft-lock.
+                self._switch_player()
+                return
+            self._handle_placement_click(choice)
+            guard += 1
+            if guard > 40:
+                return
+            await asyncio.sleep(0)
+
+    def _ai_choose_placement(self) -> Optional[Vec2]:
+        """Pick a legal placement square for the current AI piece."""
+        player = self.ai_side
+        ptype = self.board.next_piece_type_for(player, self.pieces_left)
+        if ptype is None:
+            return None
+
+        # locate our king (if already placed)
+        king_pos: Optional[Vec2] = None
+        for rr in range(self.cfg.ROWS):
+            for cc in range(self.cfg.COLS):
+                p = self.board[rr][cc]
+                if p and p.player == player and p.type == "King":
+                    king_pos = (rr, cc)
+                    break
+            if king_pos:
+                break
+
+        # target anchors
+        if ptype == "King":
+            target_r = self.cfg.ROWS // 2
+            target_c = self.cfg.COLS // 4 if player == "Black" else (3 * self.cfg.COLS) // 4
+        elif ptype == "DefensePawn" and king_pos is not None:
+            target_r, target_c = king_pos
+        else:
+            target_r = self.cfg.ROWS // 2
+            # keep attacks near their allowed columns; keep others nearer midline
+            if ptype == "AttackPawn":
+                target_c = 0 if player == "Black" else self.cfg.COLS - 1
+            else:
+                target_c = self.cfg.COLS // 2
+
+        best: Optional[Vec2] = None
+        best_score = -1e18
+
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                if self.board[r][c] is not None:
+                    continue
+                if self.board.square_disallowed_for_placement(r, c, player, ptype):
+                    continue
+
+                score = 0.0
+
+                # general: stay near target anchor
+                score -= 2.0 * (abs(r - target_r) + abs(c - target_c))
+
+                # conquest: be as close as possible to special squares while respecting the >=3 rule
+                if ptype == "ConquestPawn" and self.board.special_squares:
+                    d = min(max(abs(r - sr), abs(c - sc)) for (sr, sc) in self.board.special_squares)
+                    score += 40.0 / max(1.0, d)  # closer is better
+
+                # defense: prefer adjacent to king (to enable the "defended king" rule)
+                if ptype == "DefensePawn" and king_pos is not None:
+                    kr, kc = king_pos
+                    dd = max(abs(r - kr), abs(c - kc))
+                    if dd == 1:
+                        score += 80.0
+                    elif dd == 2:
+                        score += 25.0
+
+                # tiny noise to break ties
+                score += random.random() * 0.01
+
+                if score > best_score:
+                    best_score = score
+                    best = (r, c)
+
+        return best
+
+    async def _ai_play_turn(self) -> None:
+        """Play up to 2 moves for the AI side."""
+        ai = self.ai_side
+        guard = 0
+
+        while (
+            self.running
+            and (not self.placing)
+            and (not self.menu_active)
+            and (not self.return_to_menu)
+            and AssaltoRealeApp.players[self.current_player] == ai
+        ):
+            move = self._ai_pick_best_move()
+            if move is None:
+                # no legal moves; just end the turn
+                self._end_turn()
+                return
+
+            start, end = move
+            self.selected = None
+            await self._attempt_move(start, end)
+
+            guard += 1
+            if guard > 3:  # safety
+                return
+
+            await asyncio.sleep(0)
+
+    def _ai_pick_best_move(self) -> Optional[Tuple[Vec2, Vec2]]:
+        ai = self.ai_side
+        opp = "Black" if ai == "White" else "White"
+
+        legal = self._ai_generate_legal_moves(ai, self.board, self.moves_this_turn, self.king_moved)
+        if not legal:
+            return None
+
+        # current control count (for delta scoring)
+        base_ctrl = len(self.board.controlled_squares[ai])
+
+        best = None
+        best_score = -1e18
+
+        for start, end in legal:
+            mover = self.board[start[0]][start[1]]
+            if mover is None:
+                continue
+
+            b2, meta = self._ai_simulate_move(self.board, start, end)
+            winner = meta["winner"]
+            move_cost = meta["move_cost"]
+            end_pos = meta["end_pos"]
+            captured = meta["captured_type"]
+            defended_king = meta["defended_king"]
+
+            # immediate win/loss
+            if winner == ai:
+                return (start, end)  # do it
+            if winner == opp:
+                continue
+
+            # --- smarter scoring: position eval + opponent best-reply threat ---
+            # Start from a cheap position evaluation (material + specials + king safety)
+            score = self._ai_eval_position(b2, ai)
+
+            # Keep the "don't move away a defense pawn that guards our king" heuristic
+            if mover.type == "DefensePawn" and self.board.defense_pawn_guards_king(start[0], start[1]):
+                score -= 25.0
+
+            # Encourage immediate tactical gain (captures already reflected by eval, but give a bump)
+            if captured is not None:
+                bump = {"AttackPawn": 45, "DefensePawn": 70, "ConquestPawn": 60, "King": 0}.get(captured, 0)
+                score += 0.6 * bump
+
+            # Penalize the opponent's best immediate reply (prevents obvious blunders)
+            threat = self._ai_best_opponent_threat(b2, ai)
+            score -= 0.85 * threat
+
+            # Prefer cheaper moves on the 1st action (keeps options open)
+            if self.moves_this_turn == 0:
+                score += 6.0 / max(1, move_cost)
+
+            # tiny noise for variety
+            score += random.random() * 0.03
+
+            if score > best_score:
+                best_score = score
+                best = (start, end)
+
+        return best
+
+    def _ai_generate_legal_moves(
+        self, player: str, board: Board, moves_this_turn: int, king_moved: bool
+    ) -> List[Tuple[Vec2, Vec2]]:
+        """Generate legal moves efficiently.
+
+        Instead of scanning every square on the board as a destination candidate,
+        we only test a small neighborhood (Chebyshev radius 2), which covers all
+        normal moves (1 step) and all capture patterns (up to 2 steps) used by
+        this game. `Piece.valid_move(...)` remains the source of truth.
+        """
+        moves: List[Tuple[Vec2, Vec2]] = []
+        rows, cols = self.cfg.ROWS, self.cfg.COLS
+
+        for r in range(rows):
+            for c in range(cols):
+                p = board[r][c]
+                if not p or p.player != player:
+                    continue
+                if p.type == "King" and king_moved:
+                    continue
+
+                # candidate deltas: radius 2 neighborhood
+                for dr in (-2, -1, 0, 1, 2):
+                    for dc in (-2, -1, 0, 1, 2):
+                        if dr == 0 and dc == 0:
+                            continue
+                        rr = r + dr
+                        cc = c + dc
+                        if rr < 0 or rr >= rows or cc < 0 or cc >= cols:
+                            continue
+
+                        # small pruning: AttackPawn is orthogonal-only
+                        if p.type == "AttackPawn" and not (dr == 0 or dc == 0):
+                            continue
+                        # King is always 1-step
+                        if p.type == "King" and max(abs(dr), abs(dc)) > 1:
+                            continue
+
+                        if p.valid_move(board, (r, c), (rr, cc), moves_this_turn):
+                            moves.append(((r, c), (rr, cc)))
+
+        return moves
+
+    def _ai_find_king(self, board: Board, player: str) -> Optional[Vec2]:
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                p = board[r][c]
+                if p and p.player == player and p.type == "King":
+                    return (r, c)
+        return None
+
+    def _ai_king_is_undefended_and_capturable(self, board: Board, player: str) -> bool:
+        """True if the player's king has no adjacent DefensePawn and can be captured now by an enemy AttackPawn."""
+        opp = "Black" if player == "White" else "White"
+        kpos = self._ai_find_king(board, player)
+        if kpos is None:
+            return True
+
+        kr, kc = kpos
+        if board.get_defense_adjacent_to_king(kr, kc, player) is not None:
+            return False
+
+    def _ai_eval_position(self, board: Board, ai: str) -> float:
+        """Evaluation from `ai` perspective (biased toward specials & their defense).
+
+        Key goals:
+        - Prioritize conquering/holding special squares.
+        - Still avoid immediate king-loss blunders, but don't over-invest in turtling.
+        """
+        opp = "Black" if ai == "White" else "White"
+
+        # Material: Conquest is strategically important; Defense is useful but shouldn't dominate.
+        piece_val = {"AttackPawn": 1.0, "DefensePawn": 1.1, "ConquestPawn": 1.7, "King": 0.0}
+
+        mat_ai = 0.0
+        mat_opp = 0.0
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                p = board[r][c]
+                if not p:
+                    continue
+                v = piece_val.get(p.type, 0.0)
+                if p.player == ai:
+                    mat_ai += v
+                else:
+                    mat_opp += v
+
+        ctrl_ai = len(board.controlled_squares[ai])
+        ctrl_opp = len(board.controlled_squares[opp])
+
+        MAT_W = 150.0
+        SPEC_W = 420.0
+
+        score = MAT_W * (mat_ai - mat_opp) + SPEC_W * (ctrl_ai - ctrl_opp)
+
+        # Big milestone: reaching/denying 3 specials
+        if ctrl_ai >= 3:
+            score += 420.0
+        if ctrl_opp >= 3:
+            score -= 420.0
+
+        # Defend controlled specials: reward having nearby friendly guards (Defense preferred).
+        neigh8 = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+
+        def guard_bonus(player: str) -> float:
+            b = 0.0
+            for (sr, sc) in board.controlled_squares[player]:
+                has_guard = False
+                for dr, dc in neigh8:
+                    rr, cc = sr + dr, sc + dc
+                    if 0 <= rr < self.cfg.ROWS and 0 <= cc < self.cfg.COLS:
+                        q = board[rr][cc]
+                        if q and q.player == player:
+                            has_guard = True
+                            if q.type == "DefensePawn":
+                                b += 24.0
+                            elif q.type == "AttackPawn":
+                                b += 14.0
+                            else:
+                                b += 8.0
+                            break
+                if not has_guard:
+                    b -= 26.0
+            return b
+
+        score += guard_bonus(ai) - 0.85 * guard_bonus(opp)
+
+        # Potential to conquer: Conquest pawns close to unclaimed specials are valuable.
+        unclaimed = set(board.special_squares)
+        unclaimed.difference_update(board.controlled_squares[ai])
+        unclaimed.difference_update(board.controlled_squares[opp])
+
+        if unclaimed:
+            def proximity(player: str) -> float:
+                pts = []
+                for r in range(self.cfg.ROWS):
+                    for c in range(self.cfg.COLS):
+                        p = board[r][c]
+                        if p and p.player == player and p.type == "ConquestPawn":
+                            pts.append((r, c))
+                if not pts:
+                    return 0.0
+                s = 0.0
+                for pr, pc in pts:
+                    # nearest unclaimed special (Chebyshev distance)
+                    d = min(max(abs(pr - sr), abs(pc - sc)) for (sr, sc) in unclaimed)
+                    if d == 1:
+                        s += 40.0
+                    elif d == 2:
+                        s += 18.0
+                return s
+
+            score += proximity(ai) - 0.7 * proximity(opp)
+
+        # King safety: huge penalty only for immediate, undefended capturability.
+        if self._ai_king_is_undefended_and_capturable(board, ai):
+            score -= 5000.0
+        if self._ai_king_is_undefended_and_capturable(board, opp):
+            score += 1300.0
+
+        # Small nudge if king is defended (no penalty if not).
+        kpos = self._ai_find_king(board, ai)
+        if kpos is not None:
+            kr, kc = kpos
+            if board.get_defense_adjacent_to_king(kr, kc, ai) is not None:
+                score += 10.0
+
+        return score
+
+    def _ai_best_opponent_threat(self, board_after: Board, ai: str) -> float:
+        """How bad can the opponent make it immediately after our move?
+
+        Not a full minimax. Just a 1-move opponent 'best reply' threat estimate:
+        winning moves dominate, otherwise captures + special control + king danger.
+        """
+        opp = "Black" if ai == "White" else "White"
+        legal_opp = self._ai_generate_legal_moves(opp, board_after, moves_this_turn=0, king_moved=False)
+        if not legal_opp:
+            return 0.0
+
+        base_ctrl = len(board_after.controlled_squares[opp])
+        values = {"AttackPawn": 45, "DefensePawn": 70, "ConquestPawn": 60, "King": 10_000}
+
+        worst = 0.0
+        for s, e in legal_opp:
+            b3, meta = self._ai_simulate_move(board_after, s, e)
+            if meta["winner"] == opp:
+                return 1e7  # immediate loss for us next turn
+
+            t = 0.0
+            cap = meta["captured_type"]
+            if cap:
+                t += values.get(cap, 0)
+
+            # special control swing for opp
+            ctrl_after = len(b3.controlled_squares[opp])
+            t += (ctrl_after - base_ctrl) * 180.0
+            if ctrl_after >= 3:
+                t += 140.0
+
+            # if this reply leaves our king in immediate capture danger, that's very bad
+            if self._ai_king_is_undefended_and_capturable(b3, ai):
+                t += 4000.0
+
+            worst = max(worst, t)
+
+        return worst
+
+
+    # ------------------------- minimax (2-ply, turn-based) ------------------------- #
+    def _ai_turn_sequences(
+        self,
+        player: str,
+        board: Board,
+        moves_this_turn: int,
+        king_moved: bool,
+        topk1: int = 12,
+        topk2: int = 10,
+    ) -> List[Tuple[float, Board, Optional[str], List[Tuple[Vec2, Vec2]]]]:
+        '''Generate candidate sequences for a full turn (1 or 2 actions).
+
+        Returns tuples:
+            (ordering_score, board_after_turn, winner, sequence)
+
+        ordering_score is for pruning/ordering only.
+        '''
+        ai = self.ai_side  # evaluation perspective
+
+        def pref_score(b: Board, meta: dict, mover_player: str) -> float:
+            # base eval from AI perspective
+            base = self._ai_eval_position(b, ai)
+
+            # tactical bump for captures
+            cap = meta.get("captured_type")
+            if cap:
+                base += {"AttackPawn": 45, "DefensePawn": 70, "ConquestPawn": 60, "King": 0}.get(cap, 0) * 0.85
+
+            # specials swing for the mover this action
+            base_ctrl = len(board.controlled_squares[mover_player])
+            ctrl_after = len(b.controlled_squares[mover_player])
+            base += (ctrl_after - base_ctrl) * 280.0
+
+            # mover preference: AI maximizes base, opponent minimizes base
+            return base if mover_player == ai else -base
+
+        first_moves = self._ai_generate_legal_moves(player, board, moves_this_turn, king_moved)
+        if not first_moves:
+            return []
+
+        cand1 = []
+        for s, e in first_moves:
+            b1, meta1 = self._ai_simulate_move(board, s, e)
+            win1 = meta1.get("winner")
+            score1 = pref_score(b1, meta1, player)
+            cand1.append((score1, b1, win1, [(s, e)], meta1))
+
+        cand1.sort(key=lambda t: t[0], reverse=True)
+        cand1 = cand1[:topk1]
+
+        sequences: List[Tuple[float, Board, Optional[str], List[Tuple[Vec2, Vec2]]]] = []
+
+        for s1, b1, win1, seq1, meta1 in cand1:
+            # option: stop after first action
+            sequences.append((s1, b1, win1, seq1))
+
+            if win1 is not None:
+                continue
+
+            move_cost = int(meta1.get("move_cost", 1))
+            mt2 = moves_this_turn + move_cost
+            if mt2 >= 2:
+                continue  # no second action
+
+            km2 = bool(meta1.get("king_moved", king_moved))
+            second_moves = self._ai_generate_legal_moves(player, b1, mt2, km2)
+            if not second_moves:
+                continue
+
+            cand2 = []
+            for s2, e2 in second_moves:
+                b2, meta2 = self._ai_simulate_move(b1, s2, e2)
+                win2 = meta2.get("winner")
+                score2 = pref_score(b2, meta2, player)
+                cand2.append((s1 + 0.85 * score2, b2, win2, seq1 + [(s2, e2)]))
+
+            cand2.sort(key=lambda t: t[0], reverse=True)
+            for order_score, b2, win2, seq2 in cand2[:topk2]:
+                sequences.append((order_score, b2, win2, seq2))
+
+        sequences.sort(key=lambda t: t[0], reverse=True)
+        return sequences[: self.ai_max_sequences]
+
+    def _ai_tt_key(self, board: Board, to_move: str, depth: int) -> Tuple:
+        '''Hashable key for the transposition table (TT).'''
+        grid_codes: List[str] = []
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                p = board[r][c]
+                if p is None:
+                    grid_codes.append(".")
+                else:
+                    # 2-char code: player initial + piece initial (A/D/C/K)
+                    grid_codes.append(p.player[0] + p.type[0])
+
+        b_ctrl = tuple(sorted(board.controlled_squares["Black"]))
+        w_ctrl = tuple(sorted(board.controlled_squares["White"]))
+        specials = tuple(sorted(board.special_squares))
+        transforms = tuple(sorted(board.transform_squares))
+
+        return (to_move, depth, tuple(grid_codes), b_ctrl, w_ctrl, specials, transforms)
+
+    def _ai_minimax_turnnode(
+        self,
+        board: Board,
+        to_move: str,
+        depth_turns: int,
+        alpha: float,
+        beta: float,
+        start_ms: int,
+    ) -> float:
+        '''Alpha-beta minimax where each ply is a full turn (1 or 2 actions).'''
+        ai = self.ai_side
+        opp = "Black" if ai == "White" else "White"
+
+        # time budget guard
+        if pygame.time.get_ticks() - start_ms > self.ai_time_budget_ms:
+            return self._ai_eval_position(board, ai)
+
+        if depth_turns <= 0:
+            return self._ai_eval_position(board, ai)
+
+        key = self._ai_tt_key(board, to_move, depth_turns)
+        if key in self._ai_tt:
+            return self._ai_tt[key]
+
+        # branch caps: slightly tighter deeper in the tree
+        if depth_turns >= 2:
+            topk1, topk2 = self.ai_topk1, self.ai_topk2
+        else:
+            topk1, topk2 = max(12, self.ai_topk1 - 4), max(10, self.ai_topk2 - 4)
+
+        seqs = self._ai_turn_sequences(
+            to_move,
+            board,
+            moves_this_turn=0,
+            king_moved=False,
+            topk1=topk1,
+            topk2=topk2,
+        )
+        if not seqs:
+            val = self._ai_eval_position(board, ai)
+            self._ai_tt[key] = val
+            return val
+
+        if to_move == ai:
+            best = -1e18
+            for _order, b_after, winner, _seq in seqs:
+                if winner == ai:
+                    val = 1e9
+                elif winner == opp:
+                    val = -1e9
+                else:
+                    val = self._ai_minimax_turnnode(b_after, opp, depth_turns - 1, alpha, beta, start_ms)
+
+                if val > best:
+                    best = val
+                if best > alpha:
+                    alpha = best
+                if alpha >= beta:
+                    break
+        else:
+            best = 1e18
+            for _order, b_after, winner, _seq in seqs:
+                if winner == opp:
+                    val = -1e9
+                elif winner == ai:
+                    val = 1e9
+                else:
+                    val = self._ai_minimax_turnnode(b_after, ai, depth_turns - 1, alpha, beta, start_ms)
+
+                if val < best:
+                    best = val
+                if best < beta:
+                    beta = best
+                if alpha >= beta:
+                    break
+
+        self._ai_tt[key] = best
+        return best
+
+    def _ai_pick_best_turn_plan(self) -> List[Tuple[Vec2, Vec2]]:
+        '''Beefier turn-level minimax with alpha-beta + TT.
+
+        ai_depth_turns is measured in turns:
+          3 = AI now, opponent reply, AI next.
+        '''
+        ai = self.ai_side
+        opp = "Black" if ai == "White" else "White"
+
+        # If mid-turn, only plan the remaining single action.
+        if self.moves_this_turn != 0:
+            mv = self._ai_pick_best_move()
+            return [mv] if mv else []
+
+        # reset TT each decision (keeps memory bounded + avoids stale state)
+        self._ai_tt = {}
+        start_ms = pygame.time.get_ticks()
+
+        ai_seqs = self._ai_turn_sequences(
+            ai,
+            self.board,
+            moves_this_turn=0,
+            king_moved=self.king_moved,
+            topk1=self.ai_topk1,
+            topk2=self.ai_topk2,
+        )
+        if not ai_seqs:
+            return []
+
+        # immediate win path
+        for _o, _b, winner, seq in ai_seqs:
+            if winner == ai:
+                return seq
+
+        best_score = -1e18
+        best_seq: List[Tuple[Vec2, Vec2]] = []
+        alpha = -1e18
+        beta = 1e18
+
+        depth_after_root = max(0, self.ai_depth_turns - 1)
+
+        for _order, b_after_ai, winner_ai, seq_ai in ai_seqs:
+            if winner_ai == opp:
+                continue
+            if winner_ai == ai:
+                return seq_ai
+
+            if depth_after_root == 0:
+                score = self._ai_eval_position(b_after_ai, ai)
+            else:
+                score = self._ai_minimax_turnnode(b_after_ai, opp, depth_after_root, alpha, beta, start_ms)
+
+            if score > best_score:
+                best_score = score
+                best_seq = seq_ai
+
+            if best_score > alpha:
+                alpha = best_score
+            if alpha >= beta:
+                break
+
+            # time budget early exit
+            if pygame.time.get_ticks() - start_ms > self.ai_time_budget_ms:
+                break
+
+        return best_seq
+
+
+    def _ai_simulate_move(self, board: Board, start: Vec2, end: Vec2) -> Tuple[Board, dict]:
+        """Simulate a move on a deepcopy of `board` (no animations)."""
+        b2: Board = copy.deepcopy(board)
+
+        sr, sc = start
+        er, ec = end
+        mover = b2[sr][sc]
+        target = b2[er][ec]
+
+        meta = {
+            "winner": None,
+            "captured_type": target.type if target else None,
+            "defended_king": False,
+            "end_pos": end,
+            "move_cost": 1,
+        }
+
+        if mover is None:
+            return b2, meta
+
+        # Special case: AttackPawn capturing King -> defended king rule (repulsion)
+        if target and mover.type == "AttackPawn" and target.type == "King":
+            defender = b2.get_defense_adjacent_to_king(er, ec, target.player)
+            if defender is not None:
+                meta["defended_king"] = True
+                meta["captured_type"] = "DefensePawn"  # sacrificed defender
+                # remove defender
+                b2[defender[0]][defender[1]] = None
+                # repulse attacker away from king
+                path = b2.repulse_attack_pawn_path(start, end)
+                newpos = path[-1] if path else start
+                meta["end_pos"] = newpos
+                # move piece
+                b2[sr][sc] = None
+                b2[newpos[0]][newpos[1]] = mover
+                # cost depends on travel distance
+                delta = max(abs(newpos[0] - sr), abs(newpos[1] - sc))
+                meta["move_cost"] = 1 if delta == 1 else 2
+            else:
+                # king capture succeeds -> win
+                meta["winner"] = mover.player
+                b2[sr][sc] = None
+                b2[er][ec] = mover
+                meta["move_cost"] = 2 if max(abs(er - sr), abs(ec - sc)) == 2 else 1
+                return b2, meta
+        else:
+            # normal move/capture
+            b2[sr][sc] = None
+            b2[er][ec] = mover
+
+            delta = max(abs(er - sr), abs(ec - sc))
+            if mover.type == "King":
+                meta["move_cost"] = 1
+            else:
+                meta["move_cost"] = 1 if (target is None or delta == 1) else 2
+
+        # Update special-square control (ConquestPawn)
+        end_pos = meta["end_pos"]
+        if mover.type == "ConquestPawn":
+            if start in b2.special_squares:
+                b2.controlled_squares[mover.player].discard(start)
+            if end_pos in b2.special_squares:
+                b2.controlled_squares[mover.player].add(end_pos)
+
+        # If we captured a ConquestPawn standing on a special square, remove its control
+        if target and target.type == "ConquestPawn" and end in b2.special_squares:
+            b2.controlled_squares[target.player].discard(end)
+
+        return b2, meta
+
+    def _ai_auto_transform(self, pos: Vec2, piece: Piece) -> None:
+        """Auto-select a pawn transformation for AI (no UI prompt)."""
+        options = ["AttackPawn", "DefensePawn", "ConquestPawn"]
+
+        # Evaluate each option by immediate tactical opportunities (captures / special control).
+        best_t = piece.type
+        best_score = -1e18
+
+        for opt in options:
+            b2 = copy.deepcopy(self.board)
+            b2[pos[0]][pos[1]] = Piece.create(opt, piece.player)
+
+            # quick score: #captures available next, special control
+            score = 0.0
+            p2 = b2[pos[0]][pos[1]]
+            if p2 is None:
+                continue
+
+            # special control value
+            if opt == "ConquestPawn" and pos in b2.special_squares:
+                score += 50.0
+
+            # immediate captures from this square on next first-move
+            for r in range(self.cfg.ROWS):
+                for c in range(self.cfg.COLS):
+                    if p2.valid_move(b2, pos, (r, c), 0) and b2[r][c] is not None and b2[r][c].player != piece.player:
+                        score += 10.0
+                        if b2[r][c].type == "King":
+                            score += 500.0
+
+            score += random.random() * 0.01
+            if score > best_score:
+                best_score = score
+                best_t = opt
+
+        old_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
+
+        # Apply transformation highlights (mirrors the human prompt logic)
+        self.board.grid[pos[0]][pos[1]] = Piece.create(best_t, piece.player)
+        self.board.move_transform_square()
+        new_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
+
+        if self.move_history:
+            self.move_history[-1]["transformation"] = {
+                "pos": pos,
+                "player": piece.player,
+                "old_type": piece.type,
+                "new_type": best_t,
+                "old_square": old_square,
+                "new_square": new_square,
+            }
+
+    # ======================================================================= #
     def _compute_valid_moves(self, piece: Piece, pos: Vec2) -> List[Vec2]:
         if piece.type == "King" and self.king_moved:
             return []

@@ -38,6 +38,8 @@ def draw_board(
             cfg.SQ_SIZE // 3 + 5,
         )
 
+
+
     # --- transform squares (icon) ---------------------------------------
     for r, c in board.transform_squares:
         icon = assets.transform_icon
