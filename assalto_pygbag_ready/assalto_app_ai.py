@@ -2711,17 +2711,125 @@ class AssaltoRealeApp:
                 if p and p.player == player and p.type == "King":
                     return (r, c)
         return None
-
     def _ai_king_is_undefended_and_capturable(self, board: Board, player: str) -> bool:
-        """True if the player's king has no adjacent DefensePawn and can be captured now by an enemy AttackPawn."""
+        """True if the king has NO adjacent DefensePawn and can be captured immediately by an enemy AttackPawn."""
         opp = "Black" if player == "White" else "White"
         kpos = self._ai_find_king(board, player)
         if kpos is None:
             return True
 
         kr, kc = kpos
+        # defended king -> not immediately capturable under your rules (repulsion)
         if board.get_defense_adjacent_to_king(kr, kc, player) is not None:
             return False
+
+        # check immediate capture by an enemy AttackPawn (first action or second action)
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                p = board[r][c]
+                if not p or p.player != opp or p.type != "AttackPawn":
+                    continue
+                if p.valid_move(board, (r, c), (kr, kc), 0) or p.valid_move(board, (r, c), (kr, kc), 1):
+                    return True
+        return False
+
+    def _ai_piece_score_value(self, ptype: str) -> float:
+        # Values here are *tactical* (used for threats/hanging), not the big strategic eval.
+        return {
+            "AttackPawn": 1.0,
+            "DefensePawn": 1.2,
+            "ConquestPawn": 1.6,
+            "King": 5.0,
+        }.get(ptype, 1.0)
+
+    def _ai_tactical_threats(self, board: Board, player: str) -> Tuple[float, float]:
+        """Radius-2 tactical scan.
+
+        Returns:
+            (threat_value, hanging_value)
+
+        threat_value: how much material we are threatening to capture soon.
+        hanging_value: how much of our own material is hanging (capturable) without a simple counter-threat.
+
+        This is the "pieces should cooperate" glue: prefer positions where threatened pieces are either
+        (a) safe, (b) can counter-capture the attacker, or (c) can move away.
+        """
+        opp = "Black" if player == "White" else "White"
+
+        my_pieces = []
+        opp_pieces = []
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                p = board[r][c]
+                if not p:
+                    continue
+                if p.player == player:
+                    my_pieces.append((r, c, p))
+                else:
+                    opp_pieces.append((r, c, p))
+
+        def cheb(a, b):
+            return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+
+        # --- threatened enemy material (one-step tactical pressure) ---
+        threatened_enemy = set()
+        for er, ec, ep in opp_pieces:
+            # Only consider enemies within radius 2 of *some* of our pieces (cheap prefilter)
+            for mr, mc, mp in my_pieces:
+                if cheb((mr, mc), (er, ec)) > 2:
+                    continue
+                # allow capture in either action slot (mt 0 or 1)
+                if mp.valid_move(board, (mr, mc), (er, ec), 0) or mp.valid_move(board, (mr, mc), (er, ec), 1):
+                    threatened_enemy.add((er, ec))
+                    break
+
+        threat_value = 0.0
+        for er, ec in threatened_enemy:
+            ep = board[er][ec]
+            if ep:
+                threat_value += self._ai_piece_score_value(ep.type)
+
+        # --- our hanging material ---
+        hanging_value = 0.0
+
+        for mr, mc, mp in my_pieces:
+            # find enemy attackers that can capture us (radius 2 capture rules)
+            attackers = []
+            for er, ec, ep in opp_pieces:
+                if cheb((mr, mc), (er, ec)) > 2:
+                    continue
+                if ep.valid_move(board, (er, ec), (mr, mc), 0) or ep.valid_move(board, (er, ec), (mr, mc), 1):
+                    attackers.append((er, ec, ep))
+
+            if not attackers:
+                continue
+
+            # "equal threat" / counter-threat: can we capture at least one attacker right now?
+            counter = False
+            for er, ec, ep in attackers:
+                for fr, fc, fp in my_pieces:
+                    if cheb((fr, fc), (er, ec)) > 2:
+                        continue
+                    if fp.valid_move(board, (fr, fc), (er, ec), 0) or fp.valid_move(board, (fr, fc), (er, ec), 1):
+                        counter = True
+                        break
+                if counter:
+                    break
+
+            v = self._ai_piece_score_value(mp.type)
+            # Special-square Conquest is extra fragile: if you lose it, you lose control too.
+            if mp.type == "ConquestPawn" and (mr, mc) in board.special_squares:
+                v *= 2.6
+            elif (mr, mc) in board.special_squares:
+                v *= 1.35
+
+            if counter:
+                hanging_value += 0.28 * v
+            else:
+                hanging_value += 1.0 * v
+
+        return threat_value, hanging_value
+
 
     def _ai_eval_position(self, board: Board, ai: str) -> float:
         """Evaluation from `ai` perspective (biased toward specials & their defense).
@@ -2815,6 +2923,18 @@ class AssaltoRealeApp:
 
             score += proximity(ai) - 0.7 * proximity(opp)
 
+
+        # --- local tactics (radius 2): avoid hanging pieces & create threats ---
+        # This is what makes two-move play smarter: "reposition to threaten" becomes valuable,
+        # and "grab a defended special" becomes expensive unless it is tactically justified.
+        thr_ai, hang_ai = self._ai_tactical_threats(board, ai)
+        thr_opp, hang_opp = self._ai_tactical_threats(board, opp)
+
+        TACT_W = 70.0
+        HANG_W = 120.0
+        score += TACT_W * (thr_ai - 0.85 * thr_opp)
+        score += HANG_W * (0.85 * hang_opp - hang_ai)
+
         # King safety: huge penalty only for immediate, undefended capturability.
         if self._ai_king_is_undefended_and_capturable(board, ai):
             score -= 5000.0
@@ -2896,7 +3016,7 @@ class AssaltoRealeApp:
             # tactical bump for captures
             cap = meta.get("captured_type")
             if cap:
-                base += {"AttackPawn": 45, "DefensePawn": 70, "ConquestPawn": 60, "King": 0}.get(cap, 0) * 0.85
+                base += {"AttackPawn": 45, "DefensePawn": 70, "ConquestPawn": 60, "King": 0}.get(cap, 0) * 0.55
 
             # specials swing for the mover this action
             base_ctrl = len(board.controlled_squares[mover_player])
@@ -2918,7 +3038,12 @@ class AssaltoRealeApp:
             cand1.append((score1, b1, win1, [(s, e)], meta1))
 
         cand1.sort(key=lambda t: t[0], reverse=True)
-        cand1 = cand1[:topk1]
+        # Never prune captures: tactical replies (like recapturing a suicidal Conquest on a special)
+        # must stay in the tree, otherwise the AI looks blind.
+        cap1 = [t for t in cand1 if t[4].get("captured_type") is not None or t[4].get("defended_king")]
+        non1 = [t for t in cand1 if t not in cap1]
+        keep = cap1 + non1[:max(0, topk1 - len(cap1))]
+        cand1 = keep
 
         sequences: List[Tuple[float, Board, Optional[str], List[Tuple[Vec2, Vec2]]]] = []
 
