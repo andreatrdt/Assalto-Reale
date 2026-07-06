@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 import copy
@@ -1178,6 +1179,138 @@ class AssaltoRealeApp:
         self.menu_buttons['Restart'] = pygame.Rect(cx - w//2, cy + 2 * (h + spacing), w, h)
 
     
+    def _save_snapshot_dict(self) -> dict:
+        settings = copy.deepcopy(self.settings)
+        if isinstance(settings.get("board_size"), tuple):
+            settings["board_size"] = list(settings["board_size"])
+
+        undo_history: list[dict] = []
+        for entry in self.move_history:
+            if "snapshot" not in entry:
+                continue
+            undo_history.append({
+                "snapshot": copy.deepcopy(entry["snapshot"]),
+                "state": copy.deepcopy(entry.get("state", {})),
+            })
+
+        return {
+            "format": "assalto_reale_snapshot",
+            "version": 1,
+            "board": self.board.to_dict(),
+            "ui": {
+                "time_left": {
+                    "Black": float(self.time_left.get("Black", 0.0)),
+                    "White": float(self.time_left.get("White", 0.0)),
+                },
+                "untimed": bool(self.untimed),
+                "current_player": int(self.current_player),
+                "moves_this_turn": int(self.moves_this_turn),
+                "king_moved": bool(self.king_moved),
+                "placing": bool(self.placing),
+                "pieces_left": copy.deepcopy(self.pieces_left),
+                "pieces_placed": copy.deepcopy(self.pieces_placed),
+                "turn_sequence": list(self.turn_sequence),
+                "turn_index": int(self.turn_index),
+                "turn_pieces_count": int(self.turn_pieces_count),
+                "turn_counter": int(self.turn_counter),
+                "placement_history": copy.deepcopy(self.placement_history),
+                "undo_history": undo_history,
+                "settings": settings,
+                "vs_ai": bool(self.vs_ai),
+                "ai_side": self.ai_side,
+                "human_side": self.human_side,
+                "timer_index": int(self.timer_index),
+                "opponent_index": int(self.opponent_index),
+                "human_side_index": int(self.human_side_index),
+                "ai_difficulty_index": int(self.ai_difficulty_index),
+                "transform_index": int(self.transform_index),
+                "placement_mode_index": int(self.placement_mode_index),
+                "menu_winner": self.menu_winner,
+            },
+        }
+
+    def _restore_snapshot_dict(self, data: dict) -> None:
+        if data.get("format") != "assalto_reale_snapshot":
+            raise ValueError("Unsupported save format")
+        if int(data.get("version", 0)) != 1:
+            raise ValueError(f"Unsupported save version: {data.get('version')}")
+
+        ui = data.get("ui", {})
+        self._reset_match_state()
+
+        self.board = Board.from_dict(data["board"])
+        self.cfg = self.board.cfg
+        self._apply_responsive_layout(force=True)
+
+        saved_settings = copy.deepcopy(ui.get("settings", {}))
+        if isinstance(saved_settings.get("board_size"), list):
+            saved_settings["board_size"] = tuple(saved_settings["board_size"])
+        self.settings = saved_settings
+
+        self.time_left = {
+            "Black": float(ui.get("time_left", {}).get("Black", 0.0)),
+            "White": float(ui.get("time_left", {}).get("White", 0.0)),
+        }
+        self.untimed = bool(ui.get("untimed", self.time_left["Black"] <= 0 and self.time_left["White"] <= 0))
+        self.current_player = int(ui.get("current_player", 0))
+        self.moves_this_turn = int(ui.get("moves_this_turn", 0))
+        self.king_moved = bool(ui.get("king_moved", False))
+        self.placing = bool(ui.get("placing", False))
+        self.pieces_left = copy.deepcopy(ui.get("pieces_left", self.pieces_left))
+        self.pieces_placed = copy.deepcopy(ui.get("pieces_placed", self.pieces_placed))
+        self.turn_sequence = [int(v) for v in ui.get("turn_sequence", self.turn_sequence)]
+        self.turn_index = int(ui.get("turn_index", 0))
+        self.turn_pieces_count = int(ui.get("turn_pieces_count", 0))
+        self.turn_counter = int(ui.get("turn_counter", 0))
+
+        self.placement_history = [
+            {"player": entry["player"], "type": entry["type"], "pos": tuple(entry["pos"])}
+            for entry in ui.get("placement_history", [])
+        ]
+        self.move_history = [
+            {
+                "snapshot": copy.deepcopy(entry["snapshot"]),
+                "state": copy.deepcopy(entry.get("state", {})),
+            }
+            for entry in ui.get("undo_history", [])
+            if "snapshot" in entry
+        ]
+
+        self.vs_ai = bool(ui.get("vs_ai", False))
+        self.ai_side = str(ui.get("ai_side", "White"))
+        self.human_side = str(ui.get("human_side", "Black"))
+        def clamp_index(value: object, options: list[object], fallback: int) -> int:
+            try:
+                idx = int(value)
+            except Exception:
+                idx = fallback
+            return max(0, min(len(options) - 1, idx))
+
+        self.timer_index = clamp_index(ui.get("timer_index", self.timer_index), self.timer_options, self.timer_index)
+        self.opponent_index = clamp_index(ui.get("opponent_index", self.opponent_index), self.opponent_options, self.opponent_index)
+        self.human_side_index = clamp_index(ui.get("human_side_index", self.human_side_index), self.human_side_options, self.human_side_index)
+        self.ai_difficulty_index = clamp_index(ui.get("ai_difficulty_index", self.ai_difficulty_index), self.ai_difficulty_options, self.ai_difficulty_index)
+        self.transform_index = clamp_index(ui.get("transform_index", self.transform_index), self.transform_options, self.transform_index)
+        self.placement_mode_index = clamp_index(ui.get("placement_mode_index", self.placement_mode_index), self.placement_mode_options, self.placement_mode_index)
+        self._configure_ai_difficulty(self.ai_difficulty_options[self.ai_difficulty_index])
+
+        self.board.update_control()
+        claim = self.board.territory_claim
+        self.candidate_winner = claim.claimant if claim else None
+        self.candidate_turn_index = claim.created_turn if claim else None
+        self._ai_plan = []
+        self._last_tick = pygame.time.get_ticks()
+        self._clear_defended_king_preview()
+        self.selected = None
+
+        winner = ui.get("menu_winner")
+        if winner:
+            self._show_endgame_menu(str(winner))
+        else:
+            self.menu_active = False
+            self.menu_winner = None
+            self.menu_buttons = {}
+
     def _format_game_history(self) -> str:
         lines: list[str] = []
 
@@ -1215,6 +1348,9 @@ class AssaltoRealeApp:
         # 4) MOVES
         lines.append("# MOVES")
         for i, m in enumerate(self.move_history, start=1):
+            if "piece" not in m:
+                lines.append(f"{i}. snapshot-backed undo entry")
+                continue
             piece     = m["piece"]
             fr, to    = m["from"], m["to"]
             start_sq  = f"{chr(ord('A')+fr[1])}{self.cfg.ROWS-fr[0]}"
@@ -1232,15 +1368,15 @@ class AssaltoRealeApp:
 
     
     def _save_moves_to_file(self, filename: str = "moves.txt") -> None:
-        """Persist current game state in a Vercel/pygbag-safe way.
+        """Persist the canonical engine snapshot in a Vercel/pygbag-safe way.
 
         We do an atomic write (temp + replace) so a partial write can’t corrupt
         an existing save if the browser tab is closed mid-write.
         """
-        log = self._format_game_history()
+        snapshot = self._save_snapshot_dict()
         tmp = f"{filename}.tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            f.write(log)
+            json.dump(snapshot, f, ensure_ascii=False, sort_keys=True, indent=2)
         # atomic on POSIX; on Windows it's best-effort but still safer than direct writes
         os.replace(tmp, filename)
 
@@ -1418,6 +1554,15 @@ class AssaltoRealeApp:
             await self._handle_move_click((row, col))
 
     def _load_moves_from_file(self, filename: str = "moves.txt") -> None:
+        with open(filename, "r", encoding="utf-8") as f:
+            payload = f.read()
+        stripped = payload.lstrip()
+        if stripped.startswith("{"):
+            data = json.loads(payload)
+            if data.get("format") == "assalto_reale_snapshot":
+                self._restore_snapshot_dict(data)
+                return
+
         # 1) parse everything
         settings, special_sqs, transform_sqs, placements, moves = self._parse_game_file(filename)
 

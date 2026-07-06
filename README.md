@@ -152,7 +152,7 @@ AI legal moves and simulations are routed through the same engine transitions us
 
 ## Save Format
 
-The engine supports exact JSON serialization through `Board.to_json()` and `Board.from_json()`. The current UI also maintains the legacy `moves.txt` save flow for browser compatibility while the engine snapshot path is used by tests and undo.
+The engine supports exact JSON serialization through `Board.to_json()` and `Board.from_json()`. The active UI Save/Load buttons write `moves.txt` as a versioned `assalto_reale_snapshot` JSON document containing the canonical board state, clocks, placement state, mid-turn action state, territory claim, transform state, mode settings, and snapshot-backed undo history. Legacy text `moves.txt` logs are still accepted as a fallback loader.
 
 ## Run Native
 
@@ -215,6 +215,6 @@ Generated browser output belongs in the deployment repository `andreatrdt/Assalt
 ## Known Limitations
 
 - The current Pygame UI has been partially restructured around the canonical engine, but a full visual redesign and modal system remains ongoing.
-- The legacy `moves.txt` save flow is still present; exact engine JSON serialization exists and should become the UI save backend.
-- Defender choice is supported by the engine, while the current UI defaults to deterministic defender selection until a defender-selection modal is added.
+- Save/Load now uses canonical JSON snapshots, but cloud/browser storage behavior still depends on the runtime environment.
+- Defended-King preview and defender choice are implemented in the active UI; broader animation polish remains ongoing.
 - Browser build/deployment has not been regenerated in this branch yet.
