@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pygame
 
-from assalto_core import Board, GameConfig, Piece, Vec2
+from assalto_core import Board, DefendedKingPreview, GameConfig, Piece, Vec2
 from assalto_assets import AssetLoader
 from assalto_render import draw_board
 
@@ -140,6 +140,10 @@ class AssaltoRealeApp:
         self.king_moved: bool = False
         self.selected: Optional[Vec2] = None
         self.hover_cell: Optional[Vec2] = None  # hover preview (no click)
+        self.defended_king_preview: Optional[DefendedKingPreview] = None
+        self.defended_king_preview_start: Optional[Vec2] = None
+        self.defended_king_preview_target: Optional[Vec2] = None
+        self.defended_king_preview_locked: bool = False
         self.running: bool = True
         # menu/game flow flags
         self.return_to_menu: bool = False
@@ -411,6 +415,7 @@ class AssaltoRealeApp:
         self.moves_this_turn = 0
         self.king_moved = False
         self.selected = None
+        self._clear_defended_king_preview()
         self._victory_played = False
         self.candidate_winner = None
         self.candidate_turn_index = None
@@ -1113,6 +1118,15 @@ class AssaltoRealeApp:
                         # Audio unlock can be triggered by any user gesture
                         self._ensure_audio()
 
+                        if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                            if await self._confirm_defended_king_preview():
+                                continue
+
+                        if ev.key == pygame.K_ESCAPE and self.defended_king_preview_locked:
+                            self._clear_defended_king_preview()
+                            self._set_toast("Defended-King attack cancelled.")
+                            continue
+
                         if ev.key == pygame.K_ESCAPE:
                             # Quick return to main menu (keeps pygame alive)
                             self._go_to_main_menu()
@@ -1348,31 +1362,39 @@ class AssaltoRealeApp:
             # While the AI is making its turn, ignore player clicks (prevents desync).
             # Keep only the emergency exits.
             if self._within(x, y, self.RESET_X, self.RESET_Y, self.RESET_W, self.RESET_H):
+                self._clear_defended_king_preview()
                 self.reset_game()
                 return
             if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
+                self._clear_defended_king_preview()
                 self._go_to_main_menu()
                 return
             return
 
         # --- buttons ---------------------------------------------------
         if self._within(x, y, self.UNDO_X, self.UNDO_Y, self.UNDO_W, self.UNDO_H):
+            self._clear_defended_king_preview()
             self._undo()
             return
         if not self.placing and self._within(x, y, self.BUTTON_X, self.BUTTON_Y, self.BUTTON_W, self.BUTTON_H):
+            self._clear_defended_king_preview()
             self._end_turn()
             return
         if self._within(x, y, self.RESET_X, self.RESET_Y, self.RESET_W, self.RESET_H):
+            self._clear_defended_king_preview()
             self.reset_game()
             return
         if self._within(x, y, self.QUIT_X, self.QUIT_Y, self.QUIT_W, self.QUIT_H):
+            self._clear_defended_king_preview()
             self._go_to_main_menu()
             return
             # in _on_click, after your other button‐checks:
         if self._within(x, y, self.SAVE_X, self.SAVE_Y, self.SAVE_W, self.SAVE_H):
+            self._clear_defended_king_preview()
             self._try_save_game("moves.txt")
             return
         if self._within(x, y, self.LOAD_X, self.LOAD_Y, self.LOAD_W, self.LOAD_H):
+            self._clear_defended_king_preview()
             self._try_load_saved_game("moves.txt")
             return
     
@@ -1381,6 +1403,9 @@ class AssaltoRealeApp:
         # --- board interaction ----------------------------------------
         # Map screen pixels -> board cell, accounting for responsive layout offset
         if not self.board_grid_rect.collidepoint(x, y):
+            if self.defended_king_preview_locked:
+                self._clear_defended_king_preview()
+                self._set_toast("Defended-King attack cancelled.")
             return
         col = (x - self.board_grid_rect.x) // self.cfg.SQ_SIZE
         row = (y - self.board_grid_rect.y) // self.cfg.SQ_SIZE
@@ -1505,6 +1530,73 @@ class AssaltoRealeApp:
         if 0 <= r < self.cfg.ROWS and 0 <= c < self.cfg.COLS:
             return (r, c)
         return None
+
+    def _clear_defended_king_preview(self) -> None:
+        self.defended_king_preview = None
+        self.defended_king_preview_start = None
+        self.defended_king_preview_target = None
+        self.defended_king_preview_locked = False
+
+    def _defended_king_preview_for(self, start: Vec2, end: Vec2) -> Optional[DefendedKingPreview]:
+        if not (self.board.is_in_bounds(start) and self.board.is_in_bounds(end)):
+            return None
+        piece = self.board[start[0]][start[1]]
+        if piece is None or piece.player != AssaltoRealeApp.players[self.current_player]:
+            return None
+        action = self.board.build_action(
+            start,
+            end,
+            moves_this_turn=self.moves_this_turn,
+            king_moved=self.king_moved,
+        )
+        if action.error is not None:
+            return None
+        return action.defended_king
+
+    def _set_defended_king_preview(
+        self,
+        start: Vec2,
+        target: Vec2,
+        preview: DefendedKingPreview,
+        *,
+        locked: bool,
+    ) -> None:
+        self.defended_king_preview = preview
+        self.defended_king_preview_start = start
+        self.defended_king_preview_target = target
+        self.defended_king_preview_locked = locked
+
+    def _current_defended_king_preview(self) -> Optional[DefendedKingPreview]:
+        if self.defended_king_preview_locked:
+            return self.defended_king_preview
+
+        if self.selected and self.hover_cell:
+            preview = self._defended_king_preview_for(self.selected, self.hover_cell)
+            if preview is not None:
+                self._set_defended_king_preview(self.selected, self.hover_cell, preview, locked=False)
+                return preview
+
+        if self.defended_king_preview is not None:
+            self._clear_defended_king_preview()
+        return None
+
+    async def _confirm_defended_king_preview(self) -> bool:
+        if not (
+            self.defended_king_preview_locked
+            and self.defended_king_preview_start is not None
+            and self.defended_king_preview_target is not None
+        ):
+            return False
+
+        start = self.defended_king_preview_start
+        target = self.defended_king_preview_target
+        self._clear_defended_king_preview()
+        await self._attempt_move(start, target)
+        return True
+
+    def _defended_king_toast(self, preview: DefendedKingPreview) -> str:
+        landing = self.board.square_name(preview.landing_position, self.cfg.ROWS)
+        return f"Defended King: lands on {landing}. Click again to confirm."
 
     def _ensure_audio(self) -> None:
         """Best-effort audio unlock (needed on web due to autoplay restrictions).
@@ -1631,6 +1723,7 @@ class AssaltoRealeApp:
         self.return_to_menu = True
         self.menu_active = False
         self.selected = None
+        self._clear_defended_king_preview()
 
 
     # =========================== placement phase ===================== #
@@ -1664,29 +1757,76 @@ class AssaltoRealeApp:
     # =========================== move phase ========================== #
     async def _handle_move_click(self, pos: Vec2) -> None:
         r, c = pos
+        if self.defended_king_preview_locked:
+            if (
+                self.defended_king_preview_start == self.selected
+                and self.defended_king_preview_target == pos
+            ):
+                await self._confirm_defended_king_preview()
+                return
+            self._clear_defended_king_preview()
+            self._set_toast("Defended-King attack cancelled.")
+            return
+
         if self.selected:
+            preview = self._defended_king_preview_for(self.selected, pos)
+            if preview is not None:
+                self._set_defended_king_preview(self.selected, pos, preview, locked=True)
+                self._set_toast(self._defended_king_toast(preview), duration_ms=4500)
+                return
             await self._attempt_move(self.selected, pos)
         else:
             piece = self.board[r][c]
             if piece and piece.player == AssaltoRealeApp.players[self.current_player]:
+                self._clear_defended_king_preview()
                 self.selected = pos
 
-    async def _attempt_move(self, start: Vec2, end: Vec2) -> None:
+    async def _attempt_move(
+        self,
+        start: Vec2,
+        end: Vec2,
+        *,
+        selected_defender: Optional[Vec2] = None,
+    ) -> None:
         piece = self.board[start[0]][start[1]]
         self.last_move = (start, end)
         if not piece:
             self.selected = None
+            self._clear_defended_king_preview()
             return
         action = self.board.build_action(
             start,
             end,
             moves_this_turn=self.moves_this_turn,
             king_moved=self.king_moved,
+            selected_defender=selected_defender,
         )
         if action.error is not None:
             self._set_toast(action.error)
             self.selected = None
+            self._clear_defended_king_preview()
             return
+
+        if action.defended_king is not None and action.selected_defender is None:
+            self._set_defended_king_preview(start, end, action.defended_king, locked=True)
+            chosen_defender = await self._choose_defender_for_defended_king(start, end, action.defended_king)
+            self._clear_defended_king_preview()
+            if chosen_defender is None:
+                self._set_toast("Defended-King attack cancelled.")
+                self.selected = start
+                return
+            action = self.board.build_action(
+                start,
+                end,
+                moves_this_turn=self.moves_this_turn,
+                king_moved=self.king_moved,
+                selected_defender=chosen_defender,
+            )
+            if action.error is not None:
+                self._set_toast(action.error)
+                self.selected = None
+                self._clear_defended_king_preview()
+                return
 
         previous_board = self.board.snapshot()
         captured = copy.deepcopy(self.board[end[0]][end[1]])
@@ -1732,6 +1872,7 @@ class AssaltoRealeApp:
                 self.move_history.pop()
             self._set_toast(result.error)
             self.selected = None
+            self._clear_defended_king_preview()
             return
 
         if action.capture:
@@ -1743,6 +1884,7 @@ class AssaltoRealeApp:
 
         if result.victory is not None:
             self.selected = None
+            self._clear_defended_king_preview()
             self._show_endgame_menu(result.victory.winner)
             return
 
@@ -1753,6 +1895,7 @@ class AssaltoRealeApp:
         else:
             self._switch_player()
         self.selected = None
+        self._clear_defended_king_preview()
 
         if transform_pending:
             if self.vs_ai and piece.player == self.ai_side:
@@ -1764,8 +1907,171 @@ class AssaltoRealeApp:
             if not result.ends_turn:
                 self._switch_player()
 
+    async def _choose_defender_for_defended_king(
+        self,
+        start: Vec2,
+        end: Vec2,
+        preview: DefendedKingPreview,
+    ) -> Optional[Vec2]:
+        king = self.board[end[0]][end[1]]
+        if king is None:
+            return None
+
+        defenders = list(self.board.adjacent_defenders_for_king(end, king.player))
+        if not defenders:
+            return None
+        if len(defenders) == 1:
+            return defenders[0]
+
+        if self.vs_ai and king.player == self.ai_side:
+            return self._ai_choose_defender_for_bounce(
+                self.board,
+                start,
+                end,
+                king.player,
+                defenders,
+                moves_this_turn=self.moves_this_turn,
+                king_moved=self.king_moved,
+            )
+
+        return await self._prompt_defender_selection(preview, defenders, king.player)
+
+    async def _prompt_defender_selection(
+        self,
+        preview: DefendedKingPreview,
+        defenders: List[Vec2],
+        defender_player: str,
+    ) -> Optional[Vec2]:
+        choosing = True
+        cancel_rect: Optional[pygame.Rect] = None
+
+        while choosing and self.running:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    self.running = False
+                    return None
+                if ev.type == pygame.VIDEORESIZE:
+                    try:
+                        self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                    except Exception:
+                        self.screen = pygame.display.set_mode((ev.w, ev.h))
+                    self._apply_responsive_layout(force=True)
+                elif ev.type == pygame.KEYDOWN:
+                    self._ensure_audio()
+                    if ev.key == pygame.K_ESCAPE:
+                        return None
+                    if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                        return defenders[0]
+                elif ev.type == pygame.MOUSEBUTTONDOWN:
+                    self._ensure_audio()
+                    if cancel_rect is not None and cancel_rect.collidepoint(ev.pos):
+                        return None
+                    cell = self._screen_to_cell(ev.pos)
+                    if cell in defenders:
+                        return cell
+
+            self._draw()
+
+            overlay = pygame.Surface((self.SCR_W, self.SCR_H), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 90))
+            self.screen.blit(overlay, (0, 0))
+
+            sq = self.cfg.SQ_SIZE
+            for idx, (r, c) in enumerate(defenders, start=1):
+                rect = pygame.Rect(
+                    self.board_grid_rect.x + c * sq,
+                    self.board_grid_rect.y + r * sq,
+                    sq,
+                    sq,
+                )
+                pygame.draw.rect(self.screen, (255, 255, 255), rect.inflate(-6, -6), 4, border_radius=6)
+                pygame.draw.circle(self.screen, (33, 47, 72), rect.center, max(10, sq // 5), 0)
+                label = self.font.render(str(idx), True, (255, 255, 255))
+                self.screen.blit(label, label.get_rect(center=rect.center))
+
+            landing = self.board.square_name(preview.landing_position, self.cfg.ROWS)
+            lines = [
+                f"{defender_player}: choose Defense Pawn to sacrifice",
+                f"Attack Pawn will land on {landing}. The attacker's turn ends.",
+                "Click a numbered defender, press Enter for the first, or Esc to cancel.",
+            ]
+            panel_font = pygame.font.Font(None, max(18, int(self.cfg.SQ_SIZE * 0.34)))
+            title_font = pygame.font.Font(None, max(22, int(self.cfg.SQ_SIZE * 0.44)))
+            pad = 14
+            text_surfs = [title_font.render(lines[0], True, (255, 255, 255))]
+            text_surfs.extend(panel_font.render(line, True, (230, 230, 230)) for line in lines[1:])
+            panel_w = min(self.SCR_W - 24, max(s.get_width() for s in text_surfs) + 2 * pad)
+            panel_h = sum(s.get_height() for s in text_surfs) + pad * 2 + 30
+            panel_x = max(12, min(self.SCR_W - panel_w - 12, self.board_grid_rect.centerx - panel_w // 2))
+            panel_y = max(12, min(self.SCR_H - panel_h - 12, self.board_grid_rect.bottom + 12))
+            if panel_y + panel_h > self.SCR_H - 12:
+                panel_y = max(12, self.board_grid_rect.y + 12)
+            panel = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+            pygame.draw.rect(self.screen, (24, 27, 32), panel, border_radius=8)
+            pygame.draw.rect(self.screen, (220, 190, 110), panel, 2, border_radius=8)
+
+            y = panel_y + pad
+            for surf in text_surfs:
+                self.screen.blit(surf, (panel_x + pad, y))
+                y += surf.get_height() + 6
+
+            cancel_rect = pygame.Rect(panel.right - 88, panel.bottom - 34, 74, 24)
+            pygame.draw.rect(self.screen, (78, 82, 92), cancel_rect, border_radius=6)
+            pygame.draw.rect(self.screen, (210, 210, 210), cancel_rect, 1, border_radius=6)
+            cancel = panel_font.render("Cancel", True, (255, 255, 255))
+            self.screen.blit(cancel, cancel.get_rect(center=cancel_rect.center))
+
+            pygame.display.flip()
+            self.clock.tick(60)
+            await asyncio.sleep(0)
+
+        return None
+
+    def _ai_choose_defender_for_bounce(
+        self,
+        board: Board,
+        start: Vec2,
+        end: Vec2,
+        defender_player: str,
+        defenders: List[Vec2],
+        *,
+        moves_this_turn: int,
+        king_moved: bool,
+    ) -> Optional[Vec2]:
+        best = defenders[0] if defenders else None
+        best_score = -1e18
+
+        for defender in defenders:
+            candidate_board: Board = copy.deepcopy(board)
+            action = candidate_board.build_action(
+                start,
+                end,
+                moves_this_turn=moves_this_turn,
+                king_moved=king_moved,
+                selected_defender=defender,
+            )
+            if action.error is not None:
+                continue
+            result = candidate_board.apply_action(
+                action,
+                moves_this_turn=moves_this_turn,
+                king_moved=king_moved,
+            )
+            if result.error is not None:
+                continue
+
+            score = self._ai_eval_position(candidate_board, defender_player)
+            if result.victory is not None:
+                score += 1e6 if result.victory.winner == defender_player else -1e6
+            if score > best_score:
+                best_score = score
+                best = defender
+
+        return best
+
     # ============================= bookkeeping ======================= #
     def _switch_player(self) -> None:
+        self._clear_defended_king_preview()
         self.current_player = 1 - self.current_player
         self.turn_index = min(self.turn_index + 1,
                               len(self.turn_sequence) - 1)
@@ -1793,6 +2099,7 @@ class AssaltoRealeApp:
         if self.vs_ai and AssaltoRealeApp.players[self.current_player] == self.ai_side:
             self._ai_next_tick = pygame.time.get_ticks() + int(self.ai_delay_ms_move)
     def _end_turn(self) -> None:
+        self._clear_defended_king_preview()
         self._switch_player()
 
     # ---------------------- move history (undo) ---------------------- #
@@ -1833,6 +2140,7 @@ class AssaltoRealeApp:
         self.move_history.append(entry)
 
     def _undo(self) -> None:          # <-- or  undo_move()  in main.py
+        self._clear_defended_king_preview()
         if not self.move_history:     # (history is called  move_history )
             return
 
@@ -1981,6 +2289,114 @@ class AssaltoRealeApp:
         ex = f.render("!", True, self.cfg.BLACK)
         self.screen.blit(ex, ex.get_rect(center=(cx, cy + 3)))
 
+    def _board_cell_center(self, pos: Vec2) -> Tuple[int, int]:
+        r, c = pos
+        sq = self.cfg.SQ_SIZE
+        return (c * sq + sq // 2, r * sq + sq // 2)
+
+    def _draw_defended_king_preview_overlay(self, preview: DefendedKingPreview) -> None:
+        sq = self.cfg.SQ_SIZE
+        attack_col = (210, 54, 68)
+        bounce_col = (48, 123, 166)
+        landing_col = (248, 216, 126)
+        defender_col = (33, 47, 72)
+
+        def center(pos: Vec2) -> Tuple[int, int]:
+            return self._board_cell_center(pos)
+
+        attack_points = [preview.attacker_origin, *preview.attack_path]
+        if len(attack_points) >= 2:
+            pygame.draw.lines(
+                self.board_surface,
+                attack_col,
+                False,
+                [center(pos) for pos in attack_points],
+                max(3, sq // 12),
+            )
+        for pos in preview.attack_path:
+            pygame.draw.circle(self.board_surface, attack_col, center(pos), max(5, sq // 8), 2)
+
+        bounce_points = [preview.king_position, *preview.bounce_path]
+        if len(bounce_points) >= 2:
+            pygame.draw.lines(
+                self.board_surface,
+                bounce_col,
+                False,
+                [center(pos) for pos in bounce_points],
+                max(3, sq // 10),
+            )
+        for pos in preview.bounce_path:
+            pygame.draw.circle(self.board_surface, bounce_col, center(pos), max(4, sq // 9), 2)
+            x, y = center(pos)
+            pygame.draw.line(self.board_surface, bounce_col, (x - sq // 8, y), (x + sq // 8, y), 2)
+            pygame.draw.line(self.board_surface, bounce_col, (x, y - sq // 8), (x, y + sq // 8), 2)
+
+        landing_rect = pygame.Rect(
+            preview.landing_position[1] * sq,
+            preview.landing_position[0] * sq,
+            sq,
+            sq,
+        )
+        pygame.draw.rect(self.board_surface, landing_col, landing_rect.inflate(-6, -6), 4, border_radius=6)
+
+        attacker = self.board[preview.attacker_origin[0]][preview.attacker_origin[1]]
+        if attacker is not None:
+            ghost = self.assets.piece_images[attacker.player][attacker.type].copy()
+            ghost.set_alpha(115)
+            self.board_surface.blit(ghost, ghost.get_rect(center=center(preview.landing_position)))
+
+        king_rect = pygame.Rect(preview.king_position[1] * sq, preview.king_position[0] * sq, sq, sq)
+        pygame.draw.rect(self.board_surface, attack_col, king_rect.inflate(-4, -4), 3, border_radius=8)
+
+        for piece_id in preview.eligible_defender_ids:
+            pos = self.board.position_for_piece_id(piece_id)
+            if pos is None:
+                continue
+            rect = pygame.Rect(pos[1] * sq, pos[0] * sq, sq, sq)
+            pygame.draw.rect(self.board_surface, defender_col, rect.inflate(-8, -8), 4, border_radius=8)
+            cx, cy = center(pos)
+            pygame.draw.line(self.board_surface, defender_col, (cx - sq // 5, cy), (cx, cy + sq // 5), 3)
+            pygame.draw.line(self.board_surface, defender_col, (cx, cy + sq // 5), (cx + sq // 4, cy - sq // 5), 3)
+
+    def _draw_defended_king_callout(self, preview: DefendedKingPreview, *, locked: bool) -> None:
+        if not hasattr(self, "hud_rect"):
+            return
+
+        landing = self.board.square_name(preview.landing_position, self.cfg.ROWS)
+        lines = [
+            "Defended King",
+            "Defense Pawn will be sacrificed",
+            f"Attack Pawn lands on {landing}",
+            f"Cost {preview.action_cost} AP; turn ends",
+        ]
+        if len(preview.eligible_defender_ids) > 1:
+            lines.append("Defender chooses the sacrifice")
+        if preview.triggers_transform:
+            lines.append(f"Landing on {landing} triggers Transform")
+        lines.append("Click again / Enter to confirm" if locked else "Click target once to lock preview")
+
+        title_font = pygame.font.Font(None, max(20, int(self.cfg.SQ_SIZE * 0.42)))
+        body_font = pygame.font.Font(None, max(16, int(self.cfg.SQ_SIZE * 0.31)))
+        rendered = [title_font.render(lines[0], True, (255, 255, 255))]
+        rendered.extend(body_font.render(line, True, (235, 235, 235)) for line in lines[1:])
+
+        pad = 12
+        w = min(max(220, self.hud_rect.w - 20), max(s.get_width() for s in rendered) + 2 * pad)
+        h = sum(s.get_height() for s in rendered) + 2 * pad + (len(rendered) - 1) * 4
+        x = self.hud_rect.left + 10
+        y = self.hud_rect.bottom - h - 10
+        if y < self.hud_rect.top + 10:
+            y = self.hud_rect.top + 10
+
+        panel = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(self.screen, (24, 27, 32), panel, border_radius=8)
+        pygame.draw.rect(self.screen, (220, 190, 110), panel, 2, border_radius=8)
+
+        ty = y + pad
+        for surf in rendered:
+            self.screen.blit(surf, (x + pad, ty))
+            ty += surf.get_height() + 4
+
 
     def _draw(self) -> None:
         # Keep layout in sync with the current window size
@@ -2006,8 +2422,13 @@ class AssaltoRealeApp:
                     sel = self.hover_cell
                     valid = self._compute_valid_moves(piece, self.hover_cell)
 
+        defended_preview = None if self.placing or self.menu_active else self._current_defended_king_preview()
+
         # Draw board onto offscreen surface (origin at 0,0)
         draw_board(self.board, self.board_surface, self.font, sel, valid, cfg=self.cfg, assets=self.assets)
+
+        if defended_preview is not None:
+            self._draw_defended_king_preview_overlay(defended_preview)
 
         # Last-move highlight (board coords)
         if self.last_move:
@@ -2029,6 +2450,11 @@ class AssaltoRealeApp:
         self.screen.fill(self.cfg.GRAY)
         self.screen.blit(self.board_surface, self.board_surf_rect.topleft)
         self._draw_hud()
+        if defended_preview is not None:
+            self._draw_defended_king_callout(
+                defended_preview,
+                locked=self.defended_king_preview_locked,
+            )
         if self.menu_active:
             self._draw_endgame_menu()
 
@@ -3380,10 +3806,32 @@ class AssaltoRealeApp:
             moves_this_turn=moves_this_turn,
             king_moved=king_moved,
         )
+        if action.defended_king is not None and action.selected_defender is None:
+            target = b2[end[0]][end[1]]
+            if target is not None:
+                defenders = list(b2.adjacent_defenders_for_king(end, target.player))
+                chosen = self._ai_choose_defender_for_bounce(
+                    b2,
+                    start,
+                    end,
+                    target.player,
+                    defenders,
+                    moves_this_turn=moves_this_turn,
+                    king_moved=king_moved,
+                )
+                if chosen is not None:
+                    action = b2.build_action(
+                        start,
+                        end,
+                        moves_this_turn=moves_this_turn,
+                        king_moved=king_moved,
+                        selected_defender=chosen,
+                    )
         meta = {
             "winner": None,
             "captured_type": action.captured_piece_type,
             "defended_king": action.defended_king is not None,
+            "selected_defender": action.selected_defender,
             "end_pos": action.defended_king.landing_position if action.defended_king else end,
             "move_cost": action.cost or 1,
             "king_moved": king_moved,
