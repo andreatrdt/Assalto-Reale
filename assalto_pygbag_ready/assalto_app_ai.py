@@ -2682,26 +2682,23 @@ class AssaltoRealeApp:
                     for idx, r in enumerate(rects):
                         if r.collidepoint(mx, my):
                             new_type = options[idx]
-                            player = piece.player
-
-                            old_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
-
-                            # Apply transformation
-                            self.board.grid[pos[0]][pos[1]] = Piece.create(new_type, player)
-
-                            # Move transform square
-                            self.board.move_transform_square()
-                            new_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
+                            result = self.board.transform_piece(pos, new_type)
+                            if result.error is not None:
+                                self._set_toast(result.error)
+                                selecting = False
+                                break
+                            event = next((ev for ev in result.events if ev.kind == "transform"), None)
+                            payload = event.data if event is not None else {}
 
                             # Attach to last move for undo
                             if self.move_history:
                                 self.move_history[-1]["transformation"] = {
                                     "pos": pos,
-                                    "player": player,
-                                    "old_type": piece.type,
-                                    "new_type": new_type,
-                                    "old_square": old_square,
-                                    "new_square": new_square,
+                                    "player": payload.get("player", piece.player),
+                                    "old_type": payload.get("old_type", piece.type),
+                                    "new_type": payload.get("new_type", new_type),
+                                    "old_square": payload.get("old_square"),
+                                    "new_square": payload.get("new_square"),
                                 }
 
                             selecting = False
@@ -4037,21 +4034,21 @@ class AssaltoRealeApp:
                 best_score = score
                 best_t = opt
 
-        old_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
-
-        # Apply transformation highlights (mirrors the human prompt logic)
-        self.board.grid[pos[0]][pos[1]] = Piece.create(best_t, piece.player)
-        self.board.move_transform_square()
-        new_square = next(iter(self.board.transform_squares), None) if self.board.transform_squares else None
+        result = self.board.transform_piece(pos, best_t)
+        if result.error is not None:
+            self._set_toast(result.error)
+            return
+        event = next((ev for ev in result.events if ev.kind == "transform"), None)
+        payload = event.data if event is not None else {}
 
         if self.move_history:
             self.move_history[-1]["transformation"] = {
                 "pos": pos,
-                "player": piece.player,
-                "old_type": piece.type,
-                "new_type": best_t,
-                "old_square": old_square,
-                "new_square": new_square,
+                "player": payload.get("player", piece.player),
+                "old_type": payload.get("old_type", piece.type),
+                "new_type": payload.get("new_type", best_t),
+                "old_square": payload.get("old_square"),
+                "new_square": payload.get("new_square"),
             }
 
     # ======================================================================= #

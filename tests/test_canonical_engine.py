@@ -261,6 +261,91 @@ def test_special_square_generation_is_complete_deterministic_and_atomic_on_failu
     assert tiny.special_squares == {(1, 1)}
 
 
+def test_transform_is_disabled_by_default_and_generation_is_deterministic():
+    assert not GameConfig().TRANSFORM_ENABLED
+
+    first = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    second = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    for board in (first, second):
+        board.special_squares = {(5, 5)}
+        put(board, (4, 4), "Black", "AttackPawn")
+        put(board, (4, 8), "White", "ConquestPawn")
+
+    assert first._generate_transform_square(seed=9)
+    assert second._generate_transform_square(seed=9)
+    assert first.transform_squares == second.transform_squares
+    square = next(iter(first.transform_squares))
+    assert square not in first.special_squares
+    assert first[square[0]][square[1]] is None
+
+
+def test_transform_available_event_excludes_kings():
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 6)}
+    put(board, (0, 0), "Black", "King")
+    put(board, (11, 11), "White", "King")
+    put(board, (5, 5), "Black", "AttackPawn")
+
+    result = board.apply_action(board.build_action((5, 5), (5, 6)))
+    assert any(ev.kind == "transform_available" for ev in result.events)
+    assert not result.ends_turn
+
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 6)}
+    put(board, (5, 5), "Black", "King")
+    put(board, (11, 11), "White", "King")
+    result = board.apply_action(board.build_action((5, 5), (5, 6)))
+    assert not any(ev.kind == "transform_available" for ev in result.events)
+
+
+def test_transform_piece_is_engine_authored_and_relocates_square():
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 6)}
+    put(board, (5, 6), "Black", "AttackPawn")
+    put(board, (5, 8), "White", "DefensePawn")
+
+    result = board.transform_piece((5, 6), "ConquestPawn", seed=4)
+    assert result.error is None
+    assert result.ends_turn
+    assert board[5][6].type == "ConquestPawn"
+    assert board.transform_squares
+    assert (5, 6) not in board.transform_squares
+    event = result.events[0]
+    assert event.kind == "transform"
+    assert event.data["old_type"] == "AttackPawn"
+    assert event.data["new_type"] == "ConquestPawn"
+
+
+def test_invalid_transform_requests_are_rejected_without_mutation():
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 6)}
+    put(board, (5, 6), "Black", "AttackPawn")
+    assert "different" in board.transform_piece((5, 6), "AttackPawn").error
+    assert board[5][6].type == "AttackPawn"
+
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 6)}
+    put(board, (5, 6), "Black", "King")
+    assert "King" in board.transform_piece((5, 6), "DefensePawn").error
+    assert board[5][6].type == "King"
+
+
+def test_defended_king_bounce_can_trigger_transform_available_event():
+    board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+    board.transform_squares = {(5, 3)}
+    put(board, (0, 0), "Black", "King")
+    put(board, (5, 4), "Black", "AttackPawn")
+    put(board, (5, 5), "White", "King")
+    put(board, (4, 5), "White", "DefensePawn")
+    put(board, (5, 2), "Black", "ConquestPawn")
+
+    action = board.build_action((5, 4), (5, 5))
+    assert action.defended_king.triggers_transform
+    assert action.defended_king.landing_position == (5, 3)
+    result = board.apply_action(action)
+    assert any(ev.kind == "transform_available" and ev.data["at"] == (5, 3) for ev in result.events)
+
+
 def test_territory_uses_strict_majority_claims_and_cancels_on_lost_control():
     board = empty_board()
     board.special_squares = {(1, 1), (1, 4), (4, 1), (4, 4), (7, 7)}

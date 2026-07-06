@@ -373,6 +373,55 @@ class Board:
         self.transform_squares.clear()
         return self._generate_transform_square(seed=seed)
 
+    def transform_piece(
+        self,
+        pos: Vec2,
+        new_type: str,
+        *,
+        seed: Optional[int] = None,
+    ) -> TransitionResult:
+        if not self.is_in_bounds(pos):
+            return TransitionResult(Action("transform", "", start=pos, end=pos), error="outside board")
+        piece = self.grid[pos[0]][pos[1]]
+        if piece is None:
+            return TransitionResult(Action("transform", "", start=pos, end=pos), error="no piece to transform")
+        action = Action("transform", piece.player, start=pos, end=pos, cost=0, ends_turn=True)
+        if pos not in self.transform_squares:
+            return TransitionResult(action, error="piece is not on the Transform Square")
+        if piece.type == "King":
+            return TransitionResult(action, error="King cannot transform")
+        if new_type not in PAWN_TYPES:
+            return TransitionResult(action, error="invalid transform target")
+        if new_type == piece.type:
+            return TransitionResult(action, error="piece must transform into a different pawn type")
+
+        old_type = piece.type
+        old_square = next(iter(self.transform_squares), None) if self.transform_squares else None
+        self.grid[pos[0]][pos[1]] = Piece.create(new_type, piece.player)
+        self.update_control()
+        moved = self.move_transform_square(seed=seed)
+        new_square = next(iter(self.transform_squares), None) if self.transform_squares else None
+        self.update_control()
+
+        event = TransitionEvent("transform", {
+            "player": piece.player,
+            "at": pos,
+            "old_type": old_type,
+            "new_type": new_type,
+            "old_square": old_square,
+            "new_square": new_square,
+            "relocated": moved,
+        })
+        return TransitionResult(
+            action=action,
+            events=(event,),
+            victory=self.evaluate_victory(last_actor=piece.player),
+            special_control=self.get_special_control(),
+            ends_turn=True,
+            next_moves_this_turn=0,
+            next_king_moved=False,
+        )
+
     @staticmethod
     def is_allowed_capture_type(mover: Piece, target: Piece) -> bool:
         if mover.player == target.player:
