@@ -64,20 +64,29 @@ class AssaltoRealeApp:
             pass
 
         # --- menu settings ---------------------------------------------
-        self.timer_options   = [5*60, 10*60, 12*60, 15*60, 20*60]
-        self.timer_index     = 2
-        self.board_sizes     = [(8,8), (10,10), (12,12), (14,14), (16,16), (18,18)]
-        self.board_index     = 2
-        self.special_options = [3, 4, 5, 6, 7]
-        self.special_index   = self.special_options.index(5)
+        self.timer_options   = [0, 5*60, 10*60, 12*60, 15*60, 20*60]
+        self.timer_index     = 3
+        self.board_sizes     = [(12, 12)]
+        self.board_index     = 0
+        self.special_options = [5]
+        self.special_index   = 0
         self.settings: Dict[str, object] = {}
 
         self.opponent_options = ["Human", "Computer"]
         self.opponent_index   = 0
+        self.human_side_options = ["Black", "White", "Random"]
+        self.human_side_index = 0
+        self.ai_difficulty_options = ["Easy", "Medium", "Hard"]
+        self.ai_difficulty_index = 1
+        self.transform_options = ["Off", "On"]
+        self.transform_index = 0
+        self.placement_mode_options = ["Manual", "Quick Balanced"]
+        self.placement_mode_index = 0
         # single-player mode (set per match in the start menu)
         self.vs_ai: bool = False
         self.ai_side: str = "White"   # AI plays White by default
         self.human_side: str = "Black"
+        self.untimed: bool = False
 
 
 
@@ -143,7 +152,6 @@ class AssaltoRealeApp:
         self._rules_img_cache: dict[tuple[str,int,int], pygame.Surface] = {}
         self.candidate_winner: Optional[str] = None
         self.candidate_turn_index: Optional[int] = None
-        self.both_at_four: bool = False
         self.turn_counter: int = 0
         self.last_move: Optional[Tuple[Vec2, Vec2]] = None
 
@@ -406,7 +414,6 @@ class AssaltoRealeApp:
         self._victory_played = False
         self.candidate_winner = None
         self.candidate_turn_index = None
-        self.both_at_four = False
         self.turn_counter = 0
         self.last_move = None
 
@@ -434,6 +441,98 @@ class AssaltoRealeApp:
         self.toast_until_ms = 0
 
         self.return_to_menu = False
+
+    def _configure_ai_difficulty(self, difficulty: str) -> None:
+        if difficulty == "Easy":
+            self.ai_depth_turns = 1
+            self.ai_topk1 = 10
+            self.ai_topk2 = 6
+            self.ai_max_sequences = 18
+            self.ai_time_budget_ms = 90
+        elif difficulty == "Hard":
+            self.ai_depth_turns = 3
+            self.ai_topk1 = 22
+            self.ai_topk2 = 16
+            self.ai_max_sequences = 56
+            self.ai_time_budget_ms = 320
+        else:
+            self.ai_depth_turns = 2
+            self.ai_topk1 = 16
+            self.ai_topk2 = 12
+            self.ai_max_sequences = 36
+            self.ai_time_budget_ms = 200
+
+    def _apply_quick_balanced_setup(self) -> None:
+        self.board.validate_placement_schedule()
+        self.board.grid = [[None for _ in range(self.cfg.COLS)] for _ in range(self.cfg.ROWS)]
+        self.placement_history.clear()
+        self.pieces_left = {
+            "Black": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+            "White": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
+        }
+        self.pieces_placed = {"Black": 0, "White": 0}
+
+        for step in Board.PLACEMENT_SCHEDULE:
+            for _ in range(step.count):
+                ptype = self.board.next_piece_type_for(step.player, self.pieces_left)
+                if ptype is None:
+                    raise RuntimeError(f"No piece left for {step.player}")
+                pos = self._choose_quick_placement_square(step.player, ptype)
+                if pos is None:
+                    raise RuntimeError(f"No legal quick placement for {step.player} {ptype}")
+                self.board.place_piece(pos, step.player, ptype)
+                self.placement_history.append({"player": step.player, "type": ptype, "pos": pos})
+                self.pieces_left[step.player][ptype] -= 1
+                self.pieces_placed[step.player] += 1
+
+        self.placing = False
+        self.current_player = 0
+        self.turn_index = 0
+        self.turn_pieces_count = 0
+        self.moves_this_turn = 0
+        self.king_moved = False
+        self.board.update_control()
+
+    def _choose_quick_placement_square(self, player: str, ptype: str) -> Optional[Vec2]:
+        king_pos = self._find_king_pos(player)
+        center_r = self.cfg.ROWS // 2
+        if ptype == "King":
+            anchor = (center_r, self.cfg.COLS // 4 if player == "Black" else (3 * self.cfg.COLS) // 4)
+        elif ptype == "AttackPawn":
+            anchor = (center_r, 0 if player == "Black" else self.cfg.COLS - 1)
+        elif ptype == "DefensePawn" and king_pos is not None:
+            anchor = king_pos
+        elif ptype == "ConquestPawn" and self.board.special_squares:
+            own_file = 2 if player == "Black" else self.cfg.COLS - 3
+            anchor = (center_r, own_file)
+        else:
+            anchor = (center_r, self.cfg.COLS // 2)
+
+        best: Optional[Vec2] = None
+        best_score = -1e18
+        for r in range(self.cfg.ROWS):
+            for c in range(self.cfg.COLS):
+                pos = (r, c)
+                if not self.board.can_place_piece(pos, player, ptype).ok:
+                    continue
+                score = -2.0 * (abs(r - anchor[0]) + abs(c - anchor[1]))
+                if ptype == "DefensePawn" and king_pos is not None:
+                    d = max(abs(r - king_pos[0]), abs(c - king_pos[1]))
+                    if d == 1:
+                        score += 100
+                    elif d == 2:
+                        score += 30
+                if ptype == "ConquestPawn" and self.board.special_squares:
+                    d = min(max(abs(r - sr), abs(c - sc)) for sr, sc in self.board.special_squares)
+                    score += 60.0 / max(1, d)
+                if player == "White":
+                    score += 0.01 * c
+                else:
+                    score -= 0.01 * c
+                if score > best_score:
+                    best_score = score
+                    best = pos
+        return best
     async def _show_start_menu(self) -> None:
             # Fonts and image codecs can differ between desktop and web.
             # Keep the menu resilient: if a font or a JPEG decode fails, we still render.
@@ -507,7 +606,7 @@ class AssaltoRealeApp:
                     "body": (
                         "Win in either of these ways:\n"
                         "• Capture the opponent’s King.\n"
-                        "• OR control at least 3 Special Squares (green circles) and keep that control for 2 full turns.\n\n"
+                        "• OR control a strict majority of the 5 Special Squares and keep it through the opponent response turn.\n\n"
                         "Control means: your Conquest Pawn ends a move on a Special Square."
                     ),
                     "img": "rules_objective.png",
@@ -515,9 +614,9 @@ class AssaltoRealeApp:
                 {
                     "title": "2) Board & Special Squares",
                     "body": (
-                        "At the start, Special Squares are randomly generated (count = the menu setting).\n"
+                        "At the start, 5 Special Squares are generated with spacing between them.\n"
                         "Special Squares can never contain a piece during placement.\n\n"
-                        "Example idea for an image: highlight 3 green circles and show a Conquest Pawn standing on one."
+                        "A Conquest Pawn standing on one gives its player control of that square."
                     ),
                     "img": "rules_special_squares_example.png",
                 },
@@ -541,9 +640,9 @@ class AssaltoRealeApp:
                     "title": "4) Movement rules (normal moves)",
                     "body": (
                         "All pieces move 1 square for a normal (non-capture) move.\n"
-                        "• Attack Pawn: 1 square orthogonally.\n"
-                        "• Defense Pawn: 1 square (any direction) for non-capture.\n"
-                        "• Conquest Pawn: 1 square (any direction).\n"
+                        "• Attack Pawn: 1 square in any direction.\n"
+                        "• Defense Pawn: 1 square in any direction.\n"
+                        "• Conquest Pawn: 1 square in any direction.\n"
                         "• King: 1 square (any direction)."
                     ),
                     "img": "rules_moves_normal.png",
@@ -563,11 +662,12 @@ class AssaltoRealeApp:
                     "img": "rules_captures_examples.png",
                 },
                 {
-                    "title": "6) The defended King rule (repulsion)",
+                    "title": "6) The defended King rule (bounce)",
                     "body": (
                         "If an Attack Pawn tries to capture a King that is protected by an adjacent friendly Defense Pawn:\n"
                         "• The Defense Pawn is sacrificed (removed).\n"
-                        "• The Attack Pawn is repulsed away from the King along a short path.\n\n"
+                        "• The Attack Pawn bounces directly backward along the attack line, up to 5 squares.\n"
+                        "• The bounce stops before the board edge or any occupied square.\n\n"
                         "If the King is NOT protected, the capture succeeds and the game ends."
                     ),
                     "img": "rules_defended_king.png",
@@ -634,18 +734,20 @@ class AssaltoRealeApp:
 
                             info_rect = pygame.Rect(self.SCR_W - 52, 12, 40, 40)
 
-                            labels = ["Timer (min)", "Board size", "Special Squares", "Opponent"]
+                            labels = ["Timer", "Opponent", "Human side", "AI difficulty", "Transform", "Placement"]
                             get_values = [
-                                lambda: str(self.timer_options[self.timer_index] // 60),
-                                lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
-                                lambda: str(self.special_options[self.special_index]),
+                                lambda: "Untimed" if self.timer_options[self.timer_index] == 0 else f"{self.timer_options[self.timer_index] // 60} min",
                                 lambda: self.opponent_options[self.opponent_index],
+                                lambda: self.human_side_options[self.human_side_index],
+                                lambda: self.ai_difficulty_options[self.ai_difficulty_index],
+                                lambda: self.transform_options[self.transform_index],
+                                lambda: self.placement_mode_options[self.placement_mode_index],
                             ]
                             x_center   = self.SCR_W // 2
-                            top_margin = 200
+                            top_margin = 135
                             n          = len(labels)
-                            total_h    = (self.SCR_H - top_margin) - 300
-                            spacing_y  = max(90, total_h // (n + 1))
+                            total_h    = (self.SCR_H - top_margin) - 260
+                            spacing_y  = max(64, total_h // (n + 1))
 
                             arrow_size = 40
                             gap        = 100
@@ -668,28 +770,40 @@ class AssaltoRealeApp:
                                     if i == 0:
                                         self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
                                     elif i == 1:
-                                        self.board_index   = (self.board_index   - 1) % len(self.board_sizes)
-                                    elif i == 2:
-                                        self.special_index = (self.special_index - 1) % len(self.special_options)
-                                    else:
                                         self.opponent_index = (self.opponent_index - 1) % len(self.opponent_options)
+                                    elif i == 2:
+                                        self.human_side_index = (self.human_side_index - 1) % len(self.human_side_options)
+                                    elif i == 3:
+                                        self.ai_difficulty_index = (self.ai_difficulty_index - 1) % len(self.ai_difficulty_options)
+                                    elif i == 4:
+                                        self.transform_index = (self.transform_index - 1) % len(self.transform_options)
+                                    else:
+                                        self.placement_mode_index = (self.placement_mode_index - 1) % len(self.placement_mode_options)
 
                                 if right.collidepoint(mx, my):
                                     if i == 0:
                                         self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
                                     elif i == 1:
-                                        self.board_index   = (self.board_index   + 1) % len(self.board_sizes)
-                                    elif i == 2:
-                                        self.special_index = (self.special_index + 1) % len(self.special_options)
-                                    else:
                                         self.opponent_index = (self.opponent_index + 1) % len(self.opponent_options)
+                                    elif i == 2:
+                                        self.human_side_index = (self.human_side_index + 1) % len(self.human_side_options)
+                                    elif i == 3:
+                                        self.ai_difficulty_index = (self.ai_difficulty_index + 1) % len(self.ai_difficulty_options)
+                                    elif i == 4:
+                                        self.transform_index = (self.transform_index + 1) % len(self.transform_options)
+                                    else:
+                                        self.placement_mode_index = (self.placement_mode_index + 1) % len(self.placement_mode_options)
 
                             # START NEW GAME
                             if start_btn.collidepoint(mx, my):
                                 self.settings["timer"]         = self.timer_options[self.timer_index]
-                                self.settings["board_size"]    = self.board_sizes[self.board_index]
-                                self.settings["special_count"] = self.special_options[self.special_index]
+                                self.settings["board_size"]    = (12, 12)
+                                self.settings["special_count"] = 5
                                 self.settings["opponent"]     = self.opponent_options[self.opponent_index]
+                                self.settings["human_side"]   = self.human_side_options[self.human_side_index]
+                                self.settings["ai_difficulty"] = self.ai_difficulty_options[self.ai_difficulty_index]
+                                self.settings["transform"]    = self.transform_options[self.transform_index] == "On"
+                                self.settings["placement_mode"] = self.placement_mode_options[self.placement_mode_index]
                                 self.settings["_action"]       = "new"
                                 return
 
@@ -738,18 +852,20 @@ class AssaltoRealeApp:
                     start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
                     load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
 
-                    labels = ["Timer (min)", "Board size", "Special Squares", "Opponent"]
+                    labels = ["Timer", "Opponent", "Human side", "AI difficulty", "Transform", "Placement"]
                     get_values = [
-                        lambda: str(self.timer_options[self.timer_index] // 60),
-                        lambda: f"{self.board_sizes[self.board_index][0]}×{self.board_sizes[self.board_index][1]}",
-                        lambda: str(self.special_options[self.special_index]),
+                        lambda: "Untimed" if self.timer_options[self.timer_index] == 0 else f"{self.timer_options[self.timer_index] // 60} min",
                         lambda: self.opponent_options[self.opponent_index],
+                        lambda: self.human_side_options[self.human_side_index],
+                        lambda: self.ai_difficulty_options[self.ai_difficulty_index],
+                        lambda: self.transform_options[self.transform_index],
+                        lambda: self.placement_mode_options[self.placement_mode_index],
                     ]
                     x_center   = self.SCR_W // 2
-                    top_margin = 200
+                    top_margin = 135
                     n          = len(labels)
-                    total_h    = (self.SCR_H - top_margin) - 300
-                    spacing_y  = max(90, total_h // (n + 1))
+                    total_h    = (self.SCR_H - top_margin) - 260
+                    spacing_y  = max(64, total_h // (n + 1))
                     arrow_size = 40
                     gap        = 100
 
@@ -931,20 +1047,32 @@ class AssaltoRealeApp:
 
             # match mode (Human vs Human / Human vs Computer)
             self.vs_ai = (self.settings.get("opponent", "Human") == "Computer")
-            # For now: AI always plays White, human plays Black.
-            self.ai_side = "White"
-            self.human_side = "Black"
+            requested_side = str(self.settings.get("human_side", "Black"))
+            if self.vs_ai:
+                self.human_side = random.choice(["Black", "White"]) if requested_side == "Random" else requested_side
+                self.ai_side = "White" if self.human_side == "Black" else "Black"
+            else:
+                self.human_side = "Black"
+                self.ai_side = "White"
+            self._configure_ai_difficulty(str(self.settings.get("ai_difficulty", "Medium")))
             if action == "new":
                 # apply menu settings
                 t = float(self.settings["timer"])
                 rows, cols = self.settings["board_size"]
                 special = int(self.settings.get("special_count", 5))
+                transform_enabled = bool(self.settings.get("transform", False))
+                self.untimed = t <= 0
 
                 # reset per-match state (keep pygame alive)
                 self._reset_match_state()
 
-                # rebuild config with chosen board size
-                self.cfg = GameConfig(ROWS=rows, COLS=cols, SPECIAL_COUNT=special)
+                # rebuild canonical 12x12 config
+                self.cfg = GameConfig(
+                    ROWS=rows,
+                    COLS=cols,
+                    SPECIAL_COUNT=special,
+                    TRANSFORM_ENABLED=transform_enabled,
+                )
                 self._apply_responsive_layout(force=True)
                 self.board = Board(self.cfg)
                 self.board._generate_special_squares(special)
@@ -952,6 +1080,8 @@ class AssaltoRealeApp:
                 # per-player clocks
                 self.time_left = {"Black": t, "White": t}
                 self._last_tick = pygame.time.get_ticks()
+                if self.settings.get("placement_mode") == "Quick Balanced":
+                    self._apply_quick_balanced_setup()
 
             elif action == "load":
                 # _show_start_menu already loaded and reconstructed the game state.
@@ -1180,6 +1310,9 @@ class AssaltoRealeApp:
     def _update_clock(self) -> None:
         """Subtract real‑time delta from the *current* player’s clock."""
         now   = pygame.time.get_ticks()
+        if self.untimed:
+            self._last_tick = now
+            return
         delta = (now - self._last_tick) / 1000.0   # to seconds
         self._last_tick = now
         player = AssaltoRealeApp.players[self.current_player]
@@ -1544,117 +1677,92 @@ class AssaltoRealeApp:
         if not piece:
             self.selected = None
             return
-        if piece.type == "King" and self.king_moved:
-            self.selected = None
-            return
-        if not piece.valid_move(self.board, start, end, self.moves_this_turn):
+        action = self.board.build_action(
+            start,
+            end,
+            moves_this_turn=self.moves_this_turn,
+            king_moved=self.king_moved,
+        )
+        if action.error is not None:
+            self._set_toast(action.error)
             self.selected = None
             return
 
+        previous_board = self.board.snapshot()
         captured = copy.deepcopy(self.board[end[0]][end[1]])
+        history_end = end
 
-        if captured:
-            self.board.captured_pieces[captured.player][captured.type] += 1
+        if action.defended_king is not None:
+            preview = action.defended_king
+            defender = action.selected_defender
+            if defender is None:
+                defenders = self.board.adjacent_defenders_for_king(end, captured.player if captured else "")
+                defender = defenders[0] if defenders else None
+            def_piece = copy.deepcopy(self.board[defender[0]][defender[1]]) if defender else None
+            history_end = preview.landing_position
+            captured_for_history = {"defense": (def_piece, defender)} if def_piece and defender else None
+            self._record_move(start, history_end, piece, captured_for_history, snapshot=previous_board)
 
-        if (
-            piece.type == "AttackPawn"
-            and captured
-            and captured.type == "King"
-        ):
-            kr, kc = end
-            defender = self.board.get_defense_adjacent_to_king(kr, kc, captured.player)
-            if defender:
+            await self._animate_king_attack(end)
+            self.assets.shield_sound.play()
+
+            # Keep the old visual hop, but restore before the engine applies the real transition.
+            visual_snapshot = self.board.snapshot()
+            await self._animate_repulsion(self.board.repulse_attack_pawn_path(start, end), piece)
+            self.board.restore(visual_snapshot)
+        else:
+            self._record_move(start, end, piece, captured, snapshot=previous_board)
+            if captured and captured.type == "King":
                 await self._animate_king_attack(end)
-                self.assets.shield_sound.play()
-
-                def_piece = copy.deepcopy(self.board[defender[0]][defender[1]])
-
-                # ── qui aggiorniamo il contatore ──
-                self.board.captured_pieces[def_piece.player]["DefensePawn"] += 1
-
-                path   = self.board.repulse_attack_pawn_path(start, end)
-                newpos = await self._animate_repulsion(path, piece)
-                self.board[defender[0]][defender[1]] = None
-
-                self._record_move(
-                    start, newpos, piece,
-                    {"defense": (def_piece, defender)}
-                )
-
-
-                delta = max(abs(newpos[0] - start[0]), abs(newpos[1] - start[1]))
-                self.moves_this_turn += 1 if delta == 1 else 2
-                if self.moves_this_turn >= 2:
-                    self._switch_player()
-
-                return
-                     # <‑‑‑‑‑‑‑‑ STOP here, do **not** fall through
             else:
-                # ---- sacrifice branch (King dies) ----
-                await self._animate_king_attack(end)
-                self.assets.capture_sound.play() 
-                self._show_endgame_menu(piece.player)
-                return
+                self.board[end[0]][end[1]] = None
+                self.board[start[0]][start[1]] = None
+                dur = int(self.ai_move_anim_ms) if self.vs_ai and piece.player == self.ai_side else 200
+                await self._animate_slide(start, end, piece, duration_ms=dur)
+                self.board.restore(previous_board)
 
-               # game ends inside flash helper
+        result = self.board.apply_action(
+            action,
+            moves_this_turn=self.moves_this_turn,
+            king_moved=self.king_moved,
+        )
+        if result.error is not None:
+            self.board.restore(previous_board)
+            if self.move_history:
+                self.move_history.pop()
+            self._set_toast(result.error)
+            self.selected = None
+            return
 
-
-        self._record_move(start, end, piece, captured)
-
-        if (
-            captured
-            and captured.type == "ConquestPawn"
-            and end in self.board.special_squares
-        ):
-            self.board.controlled_squares[captured.player].discard(end)
-
-        self.board[end[0]][end[1]] = None
-        self.board[start[0]][start[1]] = None
-
-        # animazione slide
-        # animazione slide (slightly slower for AI moves)
-        dur = 200
-        if self.vs_ai and piece.player == self.ai_side:
-            dur = int(self.ai_move_anim_ms)
-        await self._animate_slide(start, end, piece, duration_ms=dur)
-        # piazza il pezzo nella nuova casella
-        self.board[end[0]][end[1]] = piece
-        # ------------------------------------------------------------
-        #   SPECIAL‑SQUARE CONTROL for Conquest‑pawn
-        # ------------------------------------------------------------
-        if piece.type == "ConquestPawn":
-            # if it *left* a special square, drop control
-            if start in self.board.special_squares:
-                self.board.controlled_squares[piece.player].discard(start)
-
-            # if it *arrived* on a special square, gain control
-            if end in self.board.special_squares:
-                self.board.controlled_squares[piece.player].add(end)
-                self._flash_effects[end] = pygame.time.get_ticks()
-                self._check_special_squares()       # update candidate logic
-
-        if captured:                            # any enemy piece was on the square
-            self.assets.capture_sound.play()    # • play “attack”
+        if action.capture:
+            self.assets.capture_sound.play()
         else:
-            self.assets.move_sound.play()       # • otherwise normal move click
+            self.assets.move_sound.play()
+        if piece.type == "ConquestPawn" and history_end in self.board.special_squares:
+            self._flash_effects[history_end] = pygame.time.get_ticks()
 
-        delta = max(abs(end[0] - start[0]), abs(end[1] - start[1]))
-        if piece.type == "King":
-            self.king_moved = True
-            move_cost = 1
+        if result.victory is not None:
+            self.selected = None
+            self._show_endgame_menu(result.victory.winner)
+            return
+
+        transform_pending = any(ev.kind == "transform_available" for ev in result.events)
+        if not result.ends_turn:
+            self.moves_this_turn = result.next_moves_this_turn
+            self.king_moved = result.next_king_moved
         else:
-            move_cost = 1 if (captured is None or delta == 1) else 2
-        self.moves_this_turn += move_cost
-        if self.moves_this_turn >= 2:
             self._switch_player()
         self.selected = None
 
-        # se siamo su una casella di trasformazione
-        if end in self.board.transform_squares and piece.type in ("AttackPawn","DefensePawn","ConquestPawn"):
+        if transform_pending:
             if self.vs_ai and piece.player == self.ai_side:
-                self._ai_auto_transform(end, piece)
+                self._ai_auto_transform(history_end, self.board[history_end[0]][history_end[1]])
             else:
-                await self._prompt_transformation(end, piece)
+                landed = self.board[history_end[0]][history_end[1]]
+                if landed is not None:
+                    await self._prompt_transformation(history_end, landed)
+            if not result.ends_turn:
+                self._switch_player()
 
     # ============================= bookkeeping ======================= #
     def _switch_player(self) -> None:
@@ -1672,9 +1780,12 @@ class AssaltoRealeApp:
         self._ai_plan = []
         # --- turn counter / pending‑win logic -----------------------
         self.turn_counter += 1
-        if self.turn_counter >= 30 and not self.board.transform_squares:
+        if self.cfg.TRANSFORM_ENABLED and self.turn_counter >= self.cfg.TRANSFORM_ROUND * 2 and not self.board.transform_squares:
             self.board._generate_transform_square()
-        self._check_candidate_win()
+        territory_win = self.board.refresh_territory_claim(turn_counter=self.turn_counter)
+        self._check_special_squares()
+        if territory_win is not None:
+            self._show_endgame_menu(territory_win.winner)
 
 
 
@@ -1685,8 +1796,16 @@ class AssaltoRealeApp:
         self._switch_player()
 
     # ---------------------- move history (undo) ---------------------- #
-    def _record_move(self, start: Vec2, end: Vec2, piece: Piece, captured: Optional[Piece]) -> None:
-        self.move_history.append({
+    def _record_move(
+        self,
+        start: Vec2,
+        end: Vec2,
+        piece: Piece,
+        captured: Optional[Piece],
+        *,
+        snapshot: Optional[dict] = None,
+    ) -> None:
+        entry = {
             "from": start,
             "to": end,
             "piece": copy.deepcopy(piece),
@@ -1708,13 +1827,24 @@ class AssaltoRealeApp:
             }
 
 
-        })
+        }
+        if snapshot is not None:
+            entry["snapshot"] = copy.deepcopy(snapshot)
+        self.move_history.append(entry)
 
     def _undo(self) -> None:          # <-- or  undo_move()  in main.py
         if not self.move_history:     # (history is called  move_history )
             return
 
         last = self.move_history.pop()
+        if "snapshot" in last:
+            self.board.restore(last["snapshot"])
+            self.current_player = last["state"]["current_player"]
+            self.moves_this_turn = last["state"]["moves"]
+            self.king_moved = last["state"].get("king_moved", False)
+            self.selected = None
+            return
+
         fr_r, fr_c = last["from"]
         to_r, to_c = last["to"]
 
@@ -2027,8 +2157,8 @@ class AssaltoRealeApp:
         def fmt(t: float) -> str:
             return f"{int(t)//60:02d}:{int(t)%60:02d}"
 
-        black_t = fmt(self.time_left["Black"])
-        white_t = fmt(self.time_left["White"])
+        black_t = "UNTIMED" if self.untimed else fmt(self.time_left["Black"])
+        white_t = "UNTIMED" if self.untimed else fmt(self.time_left["White"])
 
         bx = self.TIMER_X
         by = self.TIMER_Y
@@ -2086,24 +2216,22 @@ class AssaltoRealeApp:
         black_cnt = len(self.board.controlled_squares["Black"])
         white_cnt = len(self.board.controlled_squares["White"])
 
-        # pending-win hold counter (2 full turns) for the player who first reached 3+ specials
+        required = self.board.required_special_majority()
+        claim = self.board.territory_claim
         black_hold = 0
         white_hold = 0
-        if self.candidate_winner == "Black" and self.candidate_turn_index is not None:
-            black_hold = max(0, min(2, self.turn_counter - self.candidate_turn_index))
-        if self.candidate_winner == "White" and self.candidate_turn_index is not None:
-            white_hold = max(0, min(2, self.turn_counter - self.candidate_turn_index))
+        if claim is not None:
+            progress = max(0, min(1, self.turn_counter - claim.created_turn))
+            if claim.claimant == "Black":
+                black_hold = progress
+            if claim.claimant == "White":
+                white_hold = progress
 
         small = pygame.font.Font(None, max(16, int(self.cfg.SQ_SIZE * 0.32)))
-        b_txt = f"Black: {black_cnt}/3  hold {black_hold}/2"
-        w_txt = f"White: {white_cnt}/3  hold {white_hold}/2"
+        b_txt = f"Black: {black_cnt}/{required}  response {black_hold}/1"
+        w_txt = f"White: {white_cnt}/{required}  response {white_hold}/1"
         self.screen.blit(small.render(b_txt, True, cfg.WHITE), (sb_rect.x + 12, sb_rect.y + 8))
         self.screen.blit(small.render(w_txt, True, cfg.BLACK), (sb_rect.x + 12, sb_rect.y + row_h + 8))
-
-        # subtle note if both players reached 3+ at the same time
-        if self.both_at_four:
-            note = small.render("Both reached 3+!", True, cfg.BLACK)
-            self.screen.blit(note, (sb_rect.right - note.get_width() - 10, sb_rect.y + row_h + 8))
 
         # king danger icon on the meter
         threat = self._king_threat_state(AssaltoRealeApp.players[self.current_player])
@@ -2618,7 +2746,13 @@ class AssaltoRealeApp:
             if mover is None:
                 continue
 
-            b2, meta = self._ai_simulate_move(self.board, start, end)
+            b2, meta = self._ai_simulate_move(
+                self.board,
+                start,
+                end,
+                moves_this_turn=self.moves_this_turn,
+                king_moved=self.king_moved,
+            )
             winner = meta["winner"]
             move_cost = meta["move_cost"]
             end_pos = meta["end_pos"]
@@ -2664,45 +2798,17 @@ class AssaltoRealeApp:
     def _ai_generate_legal_moves(
         self, player: str, board: Board, moves_this_turn: int, king_moved: bool
     ) -> List[Tuple[Vec2, Vec2]]:
-        """Generate legal moves efficiently.
-
-        Instead of scanning every square on the board as a destination candidate,
-        we only test a small neighborhood (Chebyshev radius 2), which covers all
-        normal moves (1 step) and all capture patterns (up to 2 steps) used by
-        this game. `Piece.valid_move(...)` remains the source of truth.
-        """
-        moves: List[Tuple[Vec2, Vec2]] = []
-        rows, cols = self.cfg.ROWS, self.cfg.COLS
-
-        for r in range(rows):
-            for c in range(cols):
-                p = board[r][c]
-                if not p or p.player != player:
-                    continue
-                if p.type == "King" and king_moved:
-                    continue
-
-                # candidate deltas: radius 2 neighborhood
-                for dr in (-2, -1, 0, 1, 2):
-                    for dc in (-2, -1, 0, 1, 2):
-                        if dr == 0 and dc == 0:
-                            continue
-                        rr = r + dr
-                        cc = c + dc
-                        if rr < 0 or rr >= rows or cc < 0 or cc >= cols:
-                            continue
-
-                        # small pruning: AttackPawn is orthogonal-only
-                        if p.type == "AttackPawn" and not (dr == 0 or dc == 0):
-                            continue
-                        # King is always 1-step
-                        if p.type == "King" and max(abs(dr), abs(dc)) > 1:
-                            continue
-
-                        if p.valid_move(board, (r, c), (rr, cc), moves_this_turn):
-                            moves.append(((r, c), (rr, cc)))
-
-        return moves
+        """Return engine-authored legal actions as legacy (start, end) pairs."""
+        return [
+            (action.start, action.end)
+            for action in board.legal_actions(
+                player,
+                moves_this_turn=moves_this_turn,
+                king_moved=king_moved,
+                include_pass=False,
+            )
+            if action.start is not None and action.end is not None
+        ]
 
     def _ai_find_king(self, board: Board, player: str) -> Optional[Vec2]:
         for r in range(self.cfg.ROWS):
@@ -2858,16 +2964,17 @@ class AssaltoRealeApp:
 
         ctrl_ai = len(board.controlled_squares[ai])
         ctrl_opp = len(board.controlled_squares[opp])
+        required = board.required_special_majority()
 
         MAT_W = 150.0
         SPEC_W = 420.0
 
         score = MAT_W * (mat_ai - mat_opp) + SPEC_W * (ctrl_ai - ctrl_opp)
 
-        # Big milestone: reaching/denying 3 specials
-        if ctrl_ai >= 3:
+        # Big milestone: reaching/denying strict Special Square majority
+        if ctrl_ai >= required:
             score += 420.0
-        if ctrl_opp >= 3:
+        if ctrl_opp >= required:
             score -= 420.0
 
         # Defend controlled specials: reward having nearby friendly guards (Defense preferred).
@@ -2966,7 +3073,7 @@ class AssaltoRealeApp:
 
         worst = 0.0
         for s, e in legal_opp:
-            b3, meta = self._ai_simulate_move(board_after, s, e)
+            b3, meta = self._ai_simulate_move(board_after, s, e, moves_this_turn=0, king_moved=False)
             if meta["winner"] == opp:
                 return 1e7  # immediate loss for us next turn
 
@@ -2978,7 +3085,7 @@ class AssaltoRealeApp:
             # special control swing for opp
             ctrl_after = len(b3.controlled_squares[opp])
             t += (ctrl_after - base_ctrl) * 180.0
-            if ctrl_after >= 3:
+            if ctrl_after >= board_after.required_special_majority():
                 t += 140.0
 
             # if this reply leaves our king in immediate capture danger, that's very bad
@@ -3032,7 +3139,13 @@ class AssaltoRealeApp:
 
         cand1 = []
         for s, e in first_moves:
-            b1, meta1 = self._ai_simulate_move(board, s, e)
+            b1, meta1 = self._ai_simulate_move(
+                board,
+                s,
+                e,
+                moves_this_turn=moves_this_turn,
+                king_moved=king_moved,
+            )
             win1 = meta1.get("winner")
             score1 = pref_score(b1, meta1, player)
             cand1.append((score1, b1, win1, [(s, e)], meta1))
@@ -3066,7 +3179,13 @@ class AssaltoRealeApp:
 
             cand2 = []
             for s2, e2 in second_moves:
-                b2, meta2 = self._ai_simulate_move(b1, s2, e2)
+                b2, meta2 = self._ai_simulate_move(
+                    b1,
+                    s2,
+                    e2,
+                    moves_this_turn=mt2,
+                    king_moved=km2,
+                )
                 win2 = meta2.get("winner")
                 score2 = pref_score(b2, meta2, player)
                 cand2.append((s1 + 0.85 * score2, b2, win2, seq1 + [(s2, e2)]))
@@ -3244,74 +3363,50 @@ class AssaltoRealeApp:
         return best_seq
 
 
-    def _ai_simulate_move(self, board: Board, start: Vec2, end: Vec2) -> Tuple[Board, dict]:
-        """Simulate a move on a deepcopy of `board` (no animations)."""
+    def _ai_simulate_move(
+        self,
+        board: Board,
+        start: Vec2,
+        end: Vec2,
+        *,
+        moves_this_turn: int = 0,
+        king_moved: bool = False,
+    ) -> Tuple[Board, dict]:
+        """Simulate a move through the authoritative engine (no animations)."""
         b2: Board = copy.deepcopy(board)
-
-        sr, sc = start
-        er, ec = end
-        mover = b2[sr][sc]
-        target = b2[er][ec]
-
+        action = b2.build_action(
+            start,
+            end,
+            moves_this_turn=moves_this_turn,
+            king_moved=king_moved,
+        )
         meta = {
             "winner": None,
-            "captured_type": target.type if target else None,
-            "defended_king": False,
-            "end_pos": end,
-            "move_cost": 1,
+            "captured_type": action.captured_piece_type,
+            "defended_king": action.defended_king is not None,
+            "end_pos": action.defended_king.landing_position if action.defended_king else end,
+            "move_cost": action.cost or 1,
+            "king_moved": king_moved,
         }
-
-        if mover is None:
+        if action.error is not None:
+            meta["illegal"] = action.error
             return b2, meta
 
-        # Special case: AttackPawn capturing King -> defended king rule (repulsion)
-        if target and mover.type == "AttackPawn" and target.type == "King":
-            defender = b2.get_defense_adjacent_to_king(er, ec, target.player)
-            if defender is not None:
-                meta["defended_king"] = True
-                meta["captured_type"] = "DefensePawn"  # sacrificed defender
-                # remove defender
-                b2[defender[0]][defender[1]] = None
-                # repulse attacker away from king
-                path = b2.repulse_attack_pawn_path(start, end)
-                newpos = path[-1] if path else start
-                meta["end_pos"] = newpos
-                # move piece
-                b2[sr][sc] = None
-                b2[newpos[0]][newpos[1]] = mover
-                # cost depends on travel distance
-                delta = max(abs(newpos[0] - sr), abs(newpos[1] - sc))
-                meta["move_cost"] = 1 if delta == 1 else 2
-            else:
-                # king capture succeeds -> win
-                meta["winner"] = mover.player
-                b2[sr][sc] = None
-                b2[er][ec] = mover
-                meta["move_cost"] = 2 if max(abs(er - sr), abs(ec - sc)) == 2 else 1
-                return b2, meta
-        else:
-            # normal move/capture
-            b2[sr][sc] = None
-            b2[er][ec] = mover
-
-            delta = max(abs(er - sr), abs(ec - sc))
-            if mover.type == "King":
-                meta["move_cost"] = 1
-            else:
-                meta["move_cost"] = 1 if (target is None or delta == 1) else 2
-
-        # Update special-square control (ConquestPawn)
-        end_pos = meta["end_pos"]
-        if mover.type == "ConquestPawn":
-            if start in b2.special_squares:
-                b2.controlled_squares[mover.player].discard(start)
-            if end_pos in b2.special_squares:
-                b2.controlled_squares[mover.player].add(end_pos)
-
-        # If we captured a ConquestPawn standing on a special square, remove its control
-        if target and target.type == "ConquestPawn" and end in b2.special_squares:
-            b2.controlled_squares[target.player].discard(end)
-
+        result = b2.apply_action(
+            action,
+            moves_this_turn=moves_this_turn,
+            king_moved=king_moved,
+        )
+        if result.error is not None:
+            meta["illegal"] = result.error
+            return b2, meta
+        if result.victory is not None:
+            meta["winner"] = result.victory.winner
+        meta["move_cost"] = action.cost
+        meta["king_moved"] = king_moved or (
+            b2[meta["end_pos"][0]][meta["end_pos"][1]] is not None
+            and b2[meta["end_pos"][0]][meta["end_pos"][1]].type == "King"
+        )
         return b2, meta
 
     def _ai_auto_transform(self, pos: Vec2, piece: Piece) -> None:
@@ -3368,43 +3463,28 @@ class AssaltoRealeApp:
 
     # ======================================================================= #
     def _compute_valid_moves(self, piece: Piece, pos: Vec2) -> List[Vec2]:
-        if piece.type == "King" and self.king_moved:
-            return []
-        moves: List[Vec2] = []
-        for r in range(self.cfg.ROWS):
-            for c in range(self.cfg.COLS):
-                if piece.valid_move(self.board, pos, (r, c), self.moves_this_turn):
-                    moves.append((r, c))
-        return moves
+        return [
+            action.end
+            for action in self.board.legal_actions(
+                piece.player,
+                moves_this_turn=self.moves_this_turn,
+                king_moved=self.king_moved,
+                include_pass=False,
+            )
+            if action.start == pos and action.end is not None
+        ]
     
     def _check_special_squares(self) -> None:
-        black = len(self.board.controlled_squares["Black"])
-        white = len(self.board.controlled_squares["White"])
-
-        if self.both_at_four:
-            return
-
-        if self.candidate_winner is None:
-            if black >= 3 and white >= 3:
-                self.both_at_four = True
-            elif black >= 3:
-                self.candidate_winner = "Black"
-                self.candidate_turn_index = self.turn_counter
-            elif white >= 3:
-                self.candidate_winner = "White"
-                self.candidate_turn_index = self.turn_counter
-        else:
-            if black >= 3 and white >= 3:
-                self.both_at_four = True
+        self.board.update_control()
+        claim = self.board.territory_claim
+        self.candidate_winner = claim.claimant if claim else None
+        self.candidate_turn_index = claim.created_turn if claim else None
 
     def _check_candidate_win(self) -> None:
-        if (self.candidate_winner is not None and
-                self.turn_counter - (self.candidate_turn_index or 0) >= 2):
-            if len(self.board.controlled_squares[self.candidate_winner]) >= 3:
-                self._show_endgame_menu(self.candidate_winner)
-            else:
-                # lost control → cancel pending win
-                self.candidate_winner = None
+        territory_win = self.board.refresh_territory_claim(turn_counter=self.turn_counter)
+        self._check_special_squares()
+        if territory_win is not None:
+            self._show_endgame_menu(territory_win.winner)
 
     async def _animate_slide(
     self,

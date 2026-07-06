@@ -1,90 +1,220 @@
-**Assalto Reale**
+# Assalto Reale
 
-Assalto Reale is a strategic, turn-based board game designed for 2 to 4 players. This repository contains the complete source code and assets for the game implementation using Python and Pygame.
+Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository is the authoritative source for the native Python/Pygame game and the Pygbag browser build.
 
-**Game Objective**
+The canonical product is:
 
-The primary goal of the game is to strategically control special squares, eliminate opposing pieces, and ultimately dominate the board by either capturing the opponent's King or controlling special areas of the board.
+- 12x12 board
+- Black vs White only
+- Human vs Human and Human vs Computer
+- Manual placement by default
+- Optional Quick Balanced setup
+- Optional Transform variant, disabled by default
 
-**Game Components**
+Four-player mode, 2v2, Red/Blue factions, and 18x18 standard play are not active product modes.
 
-A square board of either 12x12 (for 2-player mode) or 18x18 (for 4-player mode).
+## Current Entry Point
 
-Special squares marked distinctively on the board.
+The active browser/native entry point is:
 
-**Pieces for each player:**
+```bash
+python assalto_pygbag_ready/main.py
+```
 
-> King (1 per player)
+`main.py` loads `assalto_pygbag_ready/assalto_app_ai.py`, which uses the Pygame UI shell and the headless canonical engine in `assalto_pygbag_ready/assalto_core.py`.
 
-> Attack Pawns (4 per player)
+## Architecture
 
-> Defense Pawns (4 per player)
+The rules engine lives in `assalto_pygbag_ready/assalto_core.py` and does not import Pygame. It owns:
 
-> Conquest Pawns (4 per player)
+- board state
+- pieces
+- legal action generation
+- deterministic state transitions
+- defended-King previews and bounce resolution
+- capture costs
+- placement restrictions
+- Special Square control
+- territory claims
+- snapshots, undo support, and JSON serialization
 
-**Game Modes**
+The Pygame layer consumes engine results for live moves, AI simulation, highlights, undo snapshots, and save/load-facing state.
 
-2 Players: Compete one-on-one.
+## Pieces
 
-4 Players: Free-for-all battle involving four players.
+Each player starts with 13 pieces:
 
-2 vs 2: Team-based gameplay.
+| Piece | Count |
+| --- | ---: |
+| King | 1 |
+| Attack Pawn | 4 |
+| Defense Pawn | 4 |
+| Conquest Pawn | 4 |
 
-**Setup**
+## Movement
 
-Each player starts by placing their pieces strategically according to the game's placement rules.
+All pieces may move one adjacent empty square in any of the eight directions.
 
-Special squares are randomly generated on the board at the beginning of the game.
+The King may act at most once per turn. Non-King pieces may act twice in the same turn if action points remain.
 
-**Gameplay Rules**
+## Captures
 
-Players take turns to move their pieces. Each turn, a player can make up to two moves.
+| Attacker | May capture |
+| --- | --- |
+| Attack Pawn | Defense Pawn, King |
+| Defense Pawn | Conquest Pawn |
+| Conquest Pawn | Attack Pawn |
+| King | Attack Pawn, Defense Pawn, Conquest Pawn |
 
-Pieces have unique movement and capturing abilities:
+Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. Two-square captures cost both action points, require a clear intermediate square, and must be the first action of the turn.
 
-> King: Central piece; must be protected from capture.
+Conquest Pawns and Kings capture adjacent targets only. A King cannot capture another King.
 
-> Attack Pawn: Specialized in capturing enemy pieces and attacking opposing Kings.
+## Turns
 
-> Defense Pawn: Protects other pieces, especially Kings.
+Each turn starts with two action points.
 
-> Conquest Pawn: Controls and captures special squares.
+| Action | Cost |
+| --- | ---: |
+| One-square movement | 1 |
+| One-square capture | 1 |
+| Two-square capture | 2 |
+| Pass | Ends turn |
 
-Capture enemy pieces by moving onto their occupied square.
+## Defended King
 
-Special squares can be controlled using Conquest Pawns, granting strategic advantages.
+A King is defended when at least one friendly Defense Pawn occupies any adjacent square. If an Attack Pawn attacks a defended King:
 
-Capturing the opposing player's King or controlling designated special squares results in victory.
+- one eligible Defense Pawn is sacrificed
+- the King remains alive
+- the Attack Pawn survives
+- the Attack Pawn bounces directly backward along the attack line
+- the bounce travels up to five squares from the King
+- the bounce stops before the board edge or an occupied square
+- the attacker's origin is treated as empty during bounce calculation
+- the turn ends immediately
 
-**Controls**
+The engine returns a `DefendedKingPreview` before resolution. The preview includes attack path, bounce path, landing square, eligible defenders, action cost, and whether the landing square triggers Transform.
 
-Click on a piece to select it.
+## Placement
 
-Click on a valid destination square to move the selected piece.
+Manual placement is the default. Players place pieces in this order:
 
-**UI buttons:**
+1. King
+2. Four Attack Pawns
+3. Four Defense Pawns
+4. Four Conquest Pawns
 
-PASS: Ends your turn.
+The placement schedule is explicit snake order:
 
-UNDO: Reverts the last move.
+```text
+Black 1, White 2, Black 2, White 2, ... Black 2, White 1
+```
 
-RESET: Restarts the placement phase.
+Restrictions:
 
-QUIT: Exits the game.
+- no occupied squares
+- no Special Squares
+- no Transform Squares
+- Black King in the left half
+- White King in the right half
+- Black Attack Pawns in the first two columns
+- White Attack Pawns in the final two columns
+- Conquest Pawns at Chebyshev distance at least three from every Special Square
 
-**Assets and Sounds**
+Quick Balanced setup uses the same legality checks and deterministic scoring.
 
-All game piece images and sounds are stored in the assets/ folder.
+## Territory Victory
 
-**Running the Game**
+Special control is derived from Conquest Pawn positions on Special Squares. A player must hold a strict majority of Special Squares. A claim is created at the end of a turn, the opponent receives a complete response turn, and the claim matures on the claimant's next turn only if continuous majority control is retained.
 
-Make sure Python and Pygame are installed. Execute the game with:
+King capture takes precedence over territory and timeout outcomes.
 
-python joint_main.py
+## Transform Variant
 
-**Contributions**
+Transform is optional and disabled by default. When enabled, the engine can generate a Transform Square after the configured movement-round threshold. A pawn landing on it may transform into a different pawn type; Kings cannot transform.
 
-Andrea Berti
+## AI
 
-Enjoy playing Assalto Reale!
+Human vs Computer supports human side selection:
 
+- Black
+- White
+- Random
+
+AI difficulty levels:
+
+- Easy: shallow, fast search
+- Medium: balanced turn search
+- Hard: deeper turn search with higher candidate limits and a browser time budget
+
+AI legal moves and simulations are routed through the same engine transitions used by human moves.
+
+## Save Format
+
+The engine supports exact JSON serialization through `Board.to_json()` and `Board.from_json()`. The current UI also maintains the legacy `moves.txt` save flow for browser compatibility while the engine snapshot path is used by tests and undo.
+
+## Run Native
+
+Install dependencies:
+
+```bash
+python -m pip install -r PY_Assalto_reale/requirements.txt
+```
+
+Run:
+
+```bash
+python assalto_pygbag_ready/main.py
+```
+
+## Run Tests
+
+```bash
+python -m pytest -q
+```
+
+The core tests are headless and do not open a Pygame window.
+
+## Headless Benchmarks
+
+Run seeded engine simulations without Pygame:
+
+```bash
+python assalto_pygbag_ready/assalto_benchmarks.py --games 4 --seed 1234 --max-turns 160
+```
+
+The benchmark reports win counts, victory reasons, average and median game length, captures, Defense Pawn sacrifices, bounces, average bounce distance, and illegal-action count.
+
+## Pygbag Build
+
+Install browser build dependencies:
+
+```bash
+python -m pip install -r PY_Assalto_reale/requirements_web.txt
+```
+
+Build:
+
+```bash
+python -m pygbag assalto_pygbag_ready
+```
+
+Generated browser output belongs in the deployment repository `andreatrdt/AssaltoRealeWeb`. Do not manually patch gameplay logic in compiled Pygbag output.
+
+## Deployment Workflow
+
+1. Finish and test source changes in `andreatrdt/Assalto-Reale`.
+2. Run `python -m pytest -q`.
+3. Smoke-test the native app.
+4. Build with Pygbag.
+5. Test the local browser build where possible.
+6. Copy generated deployable output to `andreatrdt/AssaltoRealeWeb`.
+7. Record the source commit and exact build command.
+
+## Known Limitations
+
+- The current Pygame UI has been partially restructured around the canonical engine, but a full visual redesign and modal system remains ongoing.
+- The legacy `moves.txt` save flow is still present; exact engine JSON serialization exists and should become the UI save backend.
+- Defender choice is supported by the engine, while the current UI defaults to deterministic defender selection until a defender-selection modal is added.
+- Browser build/deployment has not been regenerated in this branch yet.
