@@ -1075,8 +1075,13 @@ def apply_action(state: Board, action: Action, *, moves_this_turn: int = 0, king
     return state.apply_action(action, moves_this_turn=moves_this_turn, king_moved=king_moved)
 
 
-def evaluate_victory(state: Board) -> Optional[VictoryResult]:
-    return state.evaluate_victory()
+def evaluate_victory(
+    state: Board,
+    *,
+    last_actor: Optional[str] = None,
+    turn_counter: Optional[int] = None,
+) -> Optional[VictoryResult]:
+    return state.evaluate_victory(last_actor=last_actor, turn_counter=turn_counter)
 
 
 def get_special_control(state: Board) -> SpecialControl:

@@ -12,6 +12,7 @@ from assalto_core import (  # noqa: E402
     Piece,
     RuleError,
     SpecialSquareGenerationError,
+    evaluate_victory,
     validate_placement_schedule,
 )
 
@@ -367,6 +368,27 @@ def test_territory_uses_strict_majority_claims_and_cancels_on_lost_control():
     board[4][1] = None
     assert board.refresh_territory_claim(turn_counter=2) is None
     assert board.territory_claim is None
+
+
+def test_public_victory_helper_accepts_context():
+    board = empty_board()
+    put(board, (5, 5), "White", "King")
+    result = evaluate_victory(board, last_actor="White")
+    assert result.winner == "White"
+    assert result.reason == "king_capture"
+    assert result.loser == "Black"
+
+    board = empty_board()
+    board.special_squares = {(1, 1), (1, 4), (4, 1), (4, 4), (7, 7)}
+    put(board, (10, 1), "Black", "King")
+    put(board, (10, 10), "White", "King")
+    put(board, (1, 1), "Black", "ConquestPawn")
+    put(board, (1, 4), "Black", "ConquestPawn")
+    put(board, (4, 1), "Black", "ConquestPawn")
+    assert evaluate_victory(board, turn_counter=1) is None
+    result = evaluate_victory(board, turn_counter=3)
+    assert result.winner == "Black"
+    assert result.reason == "territory"
 
 
 def test_legal_actions_are_self_consistent_and_never_apply_illegal_actions():
