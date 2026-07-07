@@ -19,3 +19,4 @@ dist/
 *.tmp
 *.log
 outputs/
+moves.txt
