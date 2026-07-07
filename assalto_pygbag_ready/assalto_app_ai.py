@@ -1354,7 +1354,7 @@ class AssaltoRealeApp:
             end_sq    = f"{chr(ord('A')+to[1])}{self.cfg.ROWS-to[0]}"
             captured  = m["captured"]
             if isinstance(captured, dict) and "defense" in captured:
-                cap_desc = " (repelled defense pawn)"
+                cap_desc = " (defended King bounce; Defense Pawn sacrificed)"
             elif captured:
                 cap_desc = f" captured {captured.type}"
             else:
@@ -2029,9 +2029,9 @@ class AssaltoRealeApp:
             await self._animate_king_attack(end)
             self.assets.shield_sound.play()
 
-            # Keep the old visual hop, but restore before the engine applies the real transition.
+            # Animate the previewed bounce, then restore before the engine applies the transition.
             visual_snapshot = self.board.snapshot()
-            await self._animate_repulsion(self.board.repulse_attack_pawn_path(start, end), piece)
+            await self._animate_bounce(self.board.bounce_attack_pawn_path(start, end), piece)
             self.board.restore(visual_snapshot)
         else:
             self._record_move(start, end, piece, captured, snapshot=previous_board)
@@ -2360,7 +2360,7 @@ class AssaltoRealeApp:
 
         # 2) restore what was on the landing square
         if isinstance(captured, dict) and "defense" in captured:
-            # This was a repulsion: bring the Defence‑Pawn back
+            # This was a defended-King bounce: bring the Defense Pawn back
             def_piece, def_pos = captured["defense"]
             dp_r, dp_c = def_pos
             self.board[dp_r][dp_c] = def_piece
@@ -3028,7 +3028,7 @@ class AssaltoRealeApp:
         # Finally blit panel to screen
         self.screen.blit(panel, (x0, y0))
 
-    async def _animate_repulsion(
+    async def _animate_bounce(
             self,
             path: list[Vec2],           # positions from start to landing
             piece: Piece,
@@ -3434,7 +3434,7 @@ class AssaltoRealeApp:
             return True
 
         kr, kc = kpos
-        # defended king -> not immediately capturable under your rules (repulsion)
+        # Defended King -> not immediately capturable under the bounce rule.
         if board.get_defense_adjacent_to_king(kr, kc, player) is not None:
             return False
 

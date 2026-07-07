@@ -29,6 +29,10 @@ class MatchStats:
     defense_sacrifices: int
     bounces: int
     total_bounce_distance: int
+    transform_available: int
+    transformations: int
+    black_special_control_turns: int
+    white_special_control_turns: int
 
 
 def choose_quick_square(board: Board, player: str, ptype: str, rng: random.Random) -> Optional[Vec2]:
@@ -73,9 +77,9 @@ def choose_quick_square(board: Board, player: str, ptype: str, rng: random.Rando
     return legal[0][1]
 
 
-def quick_setup(seed: int) -> Board:
+def quick_setup(seed: int, *, transform_enabled: bool = False) -> Board:
     rng = random.Random(seed)
-    board = Board(GameConfig(), seed=seed)
+    board = Board(GameConfig(TRANSFORM_ENABLED=transform_enabled), seed=seed)
     pieces_left = {
         "Black": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
         "White": {"AttackPawn": 4, "DefensePawn": 4, "ConquestPawn": 4, "King": 1},
@@ -160,9 +164,33 @@ def choose_action(board: Board, player: str, level: str, moves_this_turn: int, k
     return scored[0][1]
 
 
-def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int) -> MatchStats:
+def choose_transform_type(board: Board, pos: Vec2, player: str) -> Optional[str]:
+    piece = board[pos[0]][pos[1]]
+    if piece is None or piece.type == "King":
+        return None
+    options = [ptype for ptype in ("AttackPawn", "DefensePawn", "ConquestPawn") if ptype != piece.type]
+    if not options:
+        return None
+    scored: List[Tuple[float, str]] = []
+    for ptype in options:
+        clone = board.clone()
+        clone.grid[pos[0]][pos[1]] = Piece.create(ptype, player)
+        clone.update_control()
+        scored.append((evaluate(clone, player), ptype))
+    scored.sort(reverse=True)
+    return scored[0][1]
+
+
+def simulate_match(
+    black_level: str,
+    white_level: str,
+    seed: int,
+    max_turns: int,
+    *,
+    transform_enabled: bool = False,
+) -> MatchStats:
     rng = random.Random(seed)
-    board = quick_setup(seed)
+    board = quick_setup(seed, transform_enabled=transform_enabled)
     current = "Black"
     turns = 0
     illegal = 0
@@ -170,6 +198,10 @@ def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int
     defense_sacrifices = 0
     bounces = 0
     total_bounce_distance = 0
+    transform_available = 0
+    transformations = 0
+    black_special_control_turns = 0
+    white_special_control_turns = 0
 
     while turns < max_turns:
         level = black_level if current == "Black" else white_level
@@ -188,6 +220,14 @@ def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int
                 if event.kind == "bounce":
                     bounces += 1
                     total_bounce_distance += len(event.data.get("path", ()))
+                if event.kind == "transform_available":
+                    transform_available += 1
+                    pos = event.data["at"]
+                    new_type = choose_transform_type(board, pos, current)
+                    if new_type is not None:
+                        transform = board.transform_piece(pos, new_type, seed=seed + turns + transformations)
+                        if transform.error is None:
+                            transformations += 1
             if result.victory is not None:
                 return MatchStats(
                     result.victory.winner,
@@ -198,6 +238,10 @@ def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int
                     defense_sacrifices,
                     bounces,
                     total_bounce_distance,
+                    transform_available,
+                    transformations,
+                    black_special_control_turns,
+                    white_special_control_turns,
                 )
             if result.ends_turn:
                 break
@@ -207,6 +251,11 @@ def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int
                 break
 
         turns += 1
+        board.update_control()
+        black_special_control_turns += len(board.controlled_squares["Black"])
+        white_special_control_turns += len(board.controlled_squares["White"])
+        if transform_enabled and turns >= board.cfg.TRANSFORM_ROUND * 2 and not board.transform_squares:
+            board._generate_transform_square(seed=seed + turns)
         territory = board.refresh_territory_claim(turn_counter=turns)
         if territory is not None:
             return MatchStats(
@@ -218,12 +267,29 @@ def simulate_match(black_level: str, white_level: str, seed: int, max_turns: int
                 defense_sacrifices,
                 bounces,
                 total_bounce_distance,
+                transform_available,
+                transformations,
+                black_special_control_turns,
+                white_special_control_turns,
             )
         current = "White" if current == "Black" else "Black"
 
     board.update_control()
     winner = "Black" if evaluate(board, "Black") >= evaluate(board, "White") else "White"
-    return MatchStats(winner, "turn_limit", turns, illegal, captures, defense_sacrifices, bounces, total_bounce_distance)
+    return MatchStats(
+        winner,
+        "turn_limit",
+        turns,
+        illegal,
+        captures,
+        defense_sacrifices,
+        bounces,
+        total_bounce_distance,
+        transform_available,
+        transformations,
+        black_special_control_turns,
+        white_special_control_turns,
+    )
 
 
 def summarize(label: str, stats: List[MatchStats]) -> str:
@@ -235,6 +301,10 @@ def summarize(label: str, stats: List[MatchStats]) -> str:
     sacrifices = sum(item.defense_sacrifices for item in stats)
     bounces = sum(item.bounces for item in stats)
     avg_bounce = (sum(item.total_bounce_distance for item in stats) / bounces) if bounces else 0.0
+    transform_available = sum(item.transform_available for item in stats)
+    transformations = sum(item.transformations for item in stats)
+    black_control = sum(item.black_special_control_turns for item in stats)
+    white_control = sum(item.white_special_control_turns for item in stats)
     reasons: Dict[str, int] = {}
     for item in stats:
         reasons[item.reason] = reasons.get(item.reason, 0) + 1
@@ -242,11 +312,13 @@ def summarize(label: str, stats: List[MatchStats]) -> str:
         f"{label}: games={len(stats)} black_wins={black_wins} white_wins={white_wins} "
         f"avg_len={statistics.mean(lengths):.1f} median_len={statistics.median(lengths):.1f} "
         f"reasons={reasons} captures={captures} defense_sacrifices={sacrifices} "
-        f"bounces={bounces} avg_bounce_distance={avg_bounce:.2f} illegal_actions={illegal}"
+        f"bounces={bounces} avg_bounce_distance={avg_bounce:.2f} "
+        f"transform_available={transform_available} transformations={transformations} "
+        f"special_control_turns=Black:{black_control},White:{white_control} illegal_actions={illegal}"
     )
 
 
-def run_suite(games: int, seed: int, max_turns: int) -> List[str]:
+def run_suite(games: int, seed: int, max_turns: int, *, transform_enabled: bool = False) -> List[str]:
     pairs = [
         ("Random", "Easy"),
         ("Easy", "Medium"),
@@ -257,7 +329,13 @@ def run_suite(games: int, seed: int, max_turns: int) -> List[str]:
     lines: List[str] = []
     for index, (black, white) in enumerate(pairs):
         stats = [
-            simulate_match(black, white, seed + index * 10_000 + game, max_turns)
+            simulate_match(
+                black,
+                white,
+                seed + index * 10_000 + game,
+                max_turns,
+                transform_enabled=transform_enabled,
+            )
             for game in range(games)
         ]
         lines.append(summarize(f"{black} vs {white}", stats))
@@ -269,8 +347,9 @@ def main() -> None:
     parser.add_argument("--games", type=int, default=4)
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--max-turns", type=int, default=160)
+    parser.add_argument("--transform", action="store_true", help="Enable the optional Transform variant in simulations.")
     args = parser.parse_args()
-    for line in run_suite(args.games, args.seed, args.max_turns):
+    for line in run_suite(args.games, args.seed, args.max_turns, transform_enabled=args.transform):
         print(line)
 
 

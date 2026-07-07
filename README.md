@@ -184,7 +184,7 @@ Run seeded engine simulations without Pygame:
 python assalto_pygbag_ready/assalto_benchmarks.py --games 4 --seed 1234 --max-turns 160
 ```
 
-The benchmark reports win counts, victory reasons, average and median game length, captures, Defense Pawn sacrifices, bounces, average bounce distance, and illegal-action count.
+The benchmark reports win counts, victory reasons, average and median game length, captures, Defense Pawn sacrifices, bounces, average bounce distance, transform availability/use, Special Square control-turn totals, and illegal-action count. Add `--transform` to enable the optional Transform variant during simulations.
 
 ## Pygbag Build
 

@@ -605,8 +605,8 @@ class Board:
             return None
         return self.get_defended_king_preview_from_positions(attacker_pos, king_pos)
 
-    def repulse_attack_pawn_path(self, start: Vec2, king: Vec2, steps: int = 5) -> List[Vec2]:
-        """Legacy animation helper backed by the deterministic engine preview.
+    def bounce_attack_pawn_path(self, start: Vec2, king: Vec2, steps: int = 5) -> List[Vec2]:
+        """Animation helper backed by the deterministic engine preview.
 
         The returned path begins at the attacker's original square because the
         current Pygame animation starts there. The canonical preview's
