@@ -202,6 +202,24 @@ python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 
 Generated browser output belongs in the deployment repository `andreatrdt/AssaltoRealeWeb`. Do not manually patch gameplay logic in compiled Pygbag output.
 
+## Modern Web Client
+
+A staged React/TypeScript migration lives in `web/`. The Python engine remains the canonical reference until TypeScript parity is complete.
+
+```bash
+cd web
+npm install
+npm run test
+npm run build
+npm run dev
+```
+
+Parity fixtures are generated from the Python engine with:
+
+```bash
+python web/scripts/generate_engine_fixtures.py
+```
+
 ## Deployment Workflow
 
 1. Finish and test source changes in `andreatrdt/Assalto-Reale`.
