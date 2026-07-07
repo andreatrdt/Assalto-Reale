@@ -606,6 +606,36 @@ class AssaltoRealeApp:
                     lines.append(cur)
                 return lines
 
+            def _menu_selector_rows():
+                rows = [
+                    ("timer", "Timer", lambda: "Untimed" if self.timer_options[self.timer_index] == 0 else f"{self.timer_options[self.timer_index] // 60} min"),
+                    ("opponent", "Opponent", lambda: self.opponent_options[self.opponent_index]),
+                ]
+                if self.opponent_options[self.opponent_index] == "Computer":
+                    rows.extend([
+                        ("human_side", "Human side", lambda: self.human_side_options[self.human_side_index]),
+                        ("ai_difficulty", "AI difficulty", lambda: self.ai_difficulty_options[self.ai_difficulty_index]),
+                    ])
+                rows.extend([
+                    ("transform", "Transform", lambda: self.transform_options[self.transform_index]),
+                    ("placement", "Placement", lambda: self.placement_mode_options[self.placement_mode_index]),
+                ])
+                return rows
+
+            def _cycle_menu_option(key: str, delta: int) -> None:
+                if key == "timer":
+                    self.timer_index = (self.timer_index + delta) % len(self.timer_options)
+                elif key == "opponent":
+                    self.opponent_index = (self.opponent_index + delta) % len(self.opponent_options)
+                elif key == "human_side":
+                    self.human_side_index = (self.human_side_index + delta) % len(self.human_side_options)
+                elif key == "ai_difficulty":
+                    self.ai_difficulty_index = (self.ai_difficulty_index + delta) % len(self.ai_difficulty_options)
+                elif key == "transform":
+                    self.transform_index = (self.transform_index + delta) % len(self.transform_options)
+                elif key == "placement":
+                    self.placement_mode_index = (self.placement_mode_index + delta) % len(self.placement_mode_options)
+
             # Rules content (images are optional; you can add them later in /assets)
             rules_sections = [
                 {
@@ -741,18 +771,10 @@ class AssaltoRealeApp:
 
                             info_rect = pygame.Rect(self.SCR_W - 52, 12, 40, 40)
 
-                            labels = ["Timer", "Opponent", "Human side", "AI difficulty", "Transform", "Placement"]
-                            get_values = [
-                                lambda: "Untimed" if self.timer_options[self.timer_index] == 0 else f"{self.timer_options[self.timer_index] // 60} min",
-                                lambda: self.opponent_options[self.opponent_index],
-                                lambda: self.human_side_options[self.human_side_index],
-                                lambda: self.ai_difficulty_options[self.ai_difficulty_index],
-                                lambda: self.transform_options[self.transform_index],
-                                lambda: self.placement_mode_options[self.placement_mode_index],
-                            ]
+                            rows = _menu_selector_rows()
                             x_center   = self.SCR_W // 2
                             top_margin = 135
-                            n          = len(labels)
+                            n          = len(rows)
                             total_h    = (self.SCR_H - top_margin) - 260
                             spacing_y  = max(64, total_h // (n + 1))
 
@@ -767,39 +789,17 @@ class AssaltoRealeApp:
                                 continue
 
                             # arrow clicks
-                            for i in range(n):
+                            for i, (key, _label, _get_value) in enumerate(rows):
                                 y_label = top_margin + i * spacing_y
                                 y_val   = y_label + 40
                                 left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
                                 right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
 
                                 if left.collidepoint(mx, my):
-                                    if i == 0:
-                                        self.timer_index   = (self.timer_index   - 1) % len(self.timer_options)
-                                    elif i == 1:
-                                        self.opponent_index = (self.opponent_index - 1) % len(self.opponent_options)
-                                    elif i == 2:
-                                        self.human_side_index = (self.human_side_index - 1) % len(self.human_side_options)
-                                    elif i == 3:
-                                        self.ai_difficulty_index = (self.ai_difficulty_index - 1) % len(self.ai_difficulty_options)
-                                    elif i == 4:
-                                        self.transform_index = (self.transform_index - 1) % len(self.transform_options)
-                                    else:
-                                        self.placement_mode_index = (self.placement_mode_index - 1) % len(self.placement_mode_options)
+                                    _cycle_menu_option(key, -1)
 
                                 if right.collidepoint(mx, my):
-                                    if i == 0:
-                                        self.timer_index   = (self.timer_index   + 1) % len(self.timer_options)
-                                    elif i == 1:
-                                        self.opponent_index = (self.opponent_index + 1) % len(self.opponent_options)
-                                    elif i == 2:
-                                        self.human_side_index = (self.human_side_index + 1) % len(self.human_side_options)
-                                    elif i == 3:
-                                        self.ai_difficulty_index = (self.ai_difficulty_index + 1) % len(self.ai_difficulty_options)
-                                    elif i == 4:
-                                        self.transform_index = (self.transform_index + 1) % len(self.transform_options)
-                                    else:
-                                        self.placement_mode_index = (self.placement_mode_index + 1) % len(self.placement_mode_options)
+                                    _cycle_menu_option(key, 1)
 
                             # START NEW GAME
                             if start_btn.collidepoint(mx, my):
@@ -859,18 +859,10 @@ class AssaltoRealeApp:
                     start_btn = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 170, btn_w, btn_h)
                     load_btn  = pygame.Rect((self.SCR_W - btn_w) // 2, self.SCR_H - 100, btn_w, btn_h)
 
-                    labels = ["Timer", "Opponent", "Human side", "AI difficulty", "Transform", "Placement"]
-                    get_values = [
-                        lambda: "Untimed" if self.timer_options[self.timer_index] == 0 else f"{self.timer_options[self.timer_index] // 60} min",
-                        lambda: self.opponent_options[self.opponent_index],
-                        lambda: self.human_side_options[self.human_side_index],
-                        lambda: self.ai_difficulty_options[self.ai_difficulty_index],
-                        lambda: self.transform_options[self.transform_index],
-                        lambda: self.placement_mode_options[self.placement_mode_index],
-                    ]
+                    rows = _menu_selector_rows()
                     x_center   = self.SCR_W // 2
                     top_margin = 135
-                    n          = len(labels)
+                    n          = len(rows)
                     total_h    = (self.SCR_H - top_margin) - 260
                     spacing_y  = max(64, total_h // (n + 1))
                     arrow_size = 40
@@ -888,12 +880,12 @@ class AssaltoRealeApp:
                     self.screen.blit(t_surf, t_surf.get_rect(center=(x_center, 100)))
 
                     # selectors
-                    for i, label in enumerate(labels):
+                    for i, (_key, label, get_value) in enumerate(rows):
                         y_label = top_margin + i * spacing_y
                         lbl = sub_f.render(label, True, (200,200,200))
                         self.screen.blit(lbl, lbl.get_rect(center=(x_center, y_label)))
                         y_val = y_label + 40
-                        val = sub_f.render(get_values[i](), True, (255,255,255))
+                        val = sub_f.render(get_value(), True, (255,255,255))
                         self.screen.blit(val, val.get_rect(center=(x_center, y_val)))
                         left  = pygame.Rect(x_center - gap - arrow_size, y_val - arrow_size//2, arrow_size, arrow_size)
                         right = pygame.Rect(x_center + gap,              y_val - arrow_size//2, arrow_size, arrow_size)
