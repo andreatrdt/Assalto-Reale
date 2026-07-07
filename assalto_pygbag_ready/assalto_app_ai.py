@@ -1455,17 +1455,20 @@ class AssaltoRealeApp:
 
 
     def _update_clock(self) -> None:
-        """Subtract real‑time delta from the *current* player’s clock."""
+        """Charge only active human decision time."""
         now   = pygame.time.get_ticks()
-        if self.untimed:
+        player = AssaltoRealeApp.players[self.current_player]
+        ai_decision = self.vs_ai and player == self.ai_side
+        if self.untimed or self.placing or self.menu_active or self.return_to_menu or ai_decision:
             self._last_tick = now
             return
         delta = (now - self._last_tick) / 1000.0   # to seconds
         self._last_tick = now
-        player = AssaltoRealeApp.players[self.current_player]
         self.time_left[player] = max(0.0, self.time_left[player] - delta)
 
         # flag victory if someone runs out
+        if self.menu_active:
+            return
         if self.time_left["Black"] == 0.0:
             self._show_endgame_menu("White")
         elif self.time_left["White"] == 0.0:
