@@ -29,7 +29,6 @@ export function App() {
   const activateSquare = useGameStore((state) => state.activateSquare);
   const cancelDefenderSelection = useGameStore((state) => state.cancelDefenderSelection);
   const chooseTransform = useGameStore((state) => state.chooseTransform);
-  const skipTransform = useGameStore((state) => state.skipTransform);
   const passTurn = useGameStore((state) => state.passTurn);
   const undo = useGameStore((state) => state.undo);
   const saveGame = useGameStore((state) => state.saveGame);
@@ -141,9 +140,6 @@ export function App() {
                 </button>
               ))}
             </div>
-            <button type="button" onClick={skipTransform}>
-              Skip Transform
-            </button>
           </div>
         ) : phase === "placement" && currentPlacement ? (
           <div className="matchPanel">

@@ -102,7 +102,6 @@ interface GameStore {
   chooseDefender: (pos: Vec2) => void;
   cancelDefenderSelection: () => void;
   chooseTransform: (newType: PawnType) => void;
-  skipTransform: () => void;
   passTurn: () => void;
   undo: () => void;
   runAiTurn: () => void;
@@ -619,33 +618,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         pendingTransform: null,
         phase: victory ? { phase: "gameOver", previousPhase: "transformSelection" } : { phase: "playing", previousPhase: "transformSelection" },
         lastAction: `${pending.player} transformed into ${describePiece(newType)} on ${squareName(pending.pos)}.`,
-        message: victory ? `${victory.winner} wins by ${victory.reason}.` : `${currentPlayer} to move.`,
-      });
-    },
-
-    skipTransform: () => {
-      const state = get();
-      const pending = state.pendingTransform;
-      if (!pending) return;
-      const board = cloneBoard(state.board);
-      let currentPlayer = state.currentPlayer;
-      let turnCounter = state.turnCounter;
-      let victory = null;
-      if (pending.forceTurnSwitch) {
-        const advanced = advanceHalfTurn(board, state);
-        currentPlayer = advanced.currentPlayer;
-        turnCounter = advanced.turnCounter;
-        victory = advanced.victory;
-      }
-      set({
-        board,
-        currentPlayer,
-        movesThisTurn: 0,
-        kingMoved: false,
-        turnCounter,
-        pendingTransform: null,
-        phase: victory ? { phase: "gameOver", previousPhase: "transformSelection" } : { phase: "playing", previousPhase: "transformSelection" },
-        lastAction: `${pending.player} skipped Transform on ${squareName(pending.pos)}.`,
         message: victory ? `${victory.winner} wins by ${victory.reason}.` : `${currentPlayer} to move.`,
       });
     },
