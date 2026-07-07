@@ -197,7 +197,7 @@ python -m pip install -r PY_Assalto_reale/requirements_web.txt
 Build:
 
 ```bash
-python -m pygbag assalto_pygbag_ready
+python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 ```
 
 Generated browser output belongs in the deployment repository `andreatrdt/AssaltoRealeWeb`. Do not manually patch gameplay logic in compiled Pygbag output.
@@ -217,4 +217,4 @@ Generated browser output belongs in the deployment repository `andreatrdt/Assalt
 - The current Pygame UI has been partially restructured around the canonical engine, but a full visual redesign and modal system remains ongoing.
 - Save/Load now uses canonical JSON snapshots, but cloud/browser storage behavior still depends on the runtime environment.
 - Defended-King preview and defender choice are implemented in the active UI; broader animation polish remains ongoing.
-- Browser build/deployment has not been regenerated in this branch yet.
+- A local Pygbag build has been verified from this branch; deployment output has not yet been copied to `andreatrdt/AssaltoRealeWeb`.
