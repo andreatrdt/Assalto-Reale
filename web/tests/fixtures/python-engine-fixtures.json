@@ -1,0 +1,2258 @@
+{
+  "cases": [
+    {
+      "action": {
+        "capture": false,
+        "captured_piece_type": null,
+        "captured_player": null,
+        "cost": 1,
+        "defended_king": null,
+        "end": [
+          5,
+          6
+        ],
+        "ends_turn": false,
+        "error": null,
+        "kind": "move",
+        "player": "Black",
+        "selected_defender": null,
+        "start": [
+          5,
+          5
+        ],
+        "target_piece_type": null
+      },
+      "final": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "input": {
+        "end": [
+          5,
+          6
+        ],
+        "king_moved": false,
+        "moves_this_turn": 0,
+        "start": [
+          5,
+          5
+        ]
+      },
+      "name": "simple_move",
+      "result": {
+        "action": {
+          "capture": false,
+          "captured_piece_type": null,
+          "captured_player": null,
+          "cost": 1,
+          "defended_king": null,
+          "end": [
+            5,
+            6
+          ],
+          "ends_turn": false,
+          "error": null,
+          "kind": "move",
+          "player": "Black",
+          "selected_defender": null,
+          "start": [
+            5,
+            5
+          ],
+          "target_piece_type": null
+        },
+        "ends_turn": false,
+        "error": null,
+        "events": [
+          {
+            "data": {
+              "from": [
+                5,
+                5
+              ],
+              "to": [
+                5,
+                6
+              ]
+            },
+            "kind": "move"
+          }
+        ],
+        "next_king_moved": false,
+        "next_moves_this_turn": 1,
+        "special_control": {
+          "claim": null,
+          "controlled": {
+            "Black": [],
+            "White": []
+          },
+          "required_majority": 1
+        },
+        "victory": {
+          "loser": "Black",
+          "reason": "king_capture",
+          "winner": "Black"
+        }
+      }
+    },
+    {
+      "action": {
+        "capture": true,
+        "captured_piece_type": "DefensePawn",
+        "captured_player": "White",
+        "cost": 2,
+        "defended_king": null,
+        "end": [
+          5,
+          7
+        ],
+        "ends_turn": true,
+        "error": null,
+        "kind": "capture",
+        "player": "Black",
+        "selected_defender": null,
+        "start": [
+          5,
+          5
+        ],
+        "target_piece_type": "DefensePawn"
+      },
+      "final": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 1,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            {
+              "player": "White",
+              "type": "DefensePawn"
+            },
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "input": {
+        "end": [
+          5,
+          7
+        ],
+        "king_moved": false,
+        "moves_this_turn": 0,
+        "start": [
+          5,
+          5
+        ]
+      },
+      "name": "two_square_capture",
+      "result": {
+        "action": {
+          "capture": true,
+          "captured_piece_type": "DefensePawn",
+          "captured_player": "White",
+          "cost": 2,
+          "defended_king": null,
+          "end": [
+            5,
+            7
+          ],
+          "ends_turn": true,
+          "error": null,
+          "kind": "capture",
+          "player": "Black",
+          "selected_defender": null,
+          "start": [
+            5,
+            5
+          ],
+          "target_piece_type": "DefensePawn"
+        },
+        "ends_turn": true,
+        "error": null,
+        "events": [
+          {
+            "data": {
+              "at": [
+                5,
+                7
+              ],
+              "captured_piece_type": "DefensePawn",
+              "captured_player": "White"
+            },
+            "kind": "capture"
+          }
+        ],
+        "next_king_moved": false,
+        "next_moves_this_turn": 0,
+        "special_control": {
+          "claim": null,
+          "controlled": {
+            "Black": [],
+            "White": []
+          },
+          "required_majority": 1
+        },
+        "victory": {
+          "loser": "Black",
+          "reason": "king_capture",
+          "winner": "Black"
+        }
+      }
+    },
+    {
+      "action": {
+        "capture": true,
+        "captured_piece_type": "DefensePawn",
+        "captured_player": "White",
+        "cost": 1,
+        "defended_king": {
+          "action_cost": 1,
+          "attack_direction": [
+            0,
+            1
+          ],
+          "attack_path": [
+            [
+              5,
+              3
+            ]
+          ],
+          "attacker_id": "Black:AttackPawn@C7",
+          "attacker_origin": [
+            5,
+            2
+          ],
+          "bounce_direction": [
+            0,
+            -1
+          ],
+          "bounce_path": [
+            [
+              5,
+              2
+            ],
+            [
+              5,
+              1
+            ],
+            [
+              5,
+              0
+            ]
+          ],
+          "eligible_defender_ids": [
+            "White:DefensePawn@D8"
+          ],
+          "ends_turn": true,
+          "king_id": "White:King@D7",
+          "king_position": [
+            5,
+            3
+          ],
+          "landing_position": [
+            5,
+            0
+          ],
+          "triggers_transform": false
+        },
+        "end": [
+          5,
+          3
+        ],
+        "ends_turn": true,
+        "error": null,
+        "kind": "capture",
+        "player": "Black",
+        "selected_defender": [
+          4,
+          3
+        ],
+        "start": [
+          5,
+          2
+        ],
+        "target_piece_type": "King"
+      },
+      "final": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 1,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "King"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": [
+          [
+            5,
+            1
+          ]
+        ]
+      },
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "DefensePawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            {
+              "player": "White",
+              "type": "King"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": [
+          [
+            5,
+            1
+          ]
+        ]
+      },
+      "input": {
+        "end": [
+          5,
+          3
+        ],
+        "king_moved": false,
+        "moves_this_turn": 0,
+        "selected_defender": [
+          4,
+          3
+        ],
+        "start": [
+          5,
+          2
+        ]
+      },
+      "name": "defended_king",
+      "preview": {
+        "action_cost": 1,
+        "attack_direction": [
+          0,
+          1
+        ],
+        "attack_path": [
+          [
+            5,
+            3
+          ]
+        ],
+        "attacker_id": "Black:AttackPawn@C7",
+        "attacker_origin": [
+          5,
+          2
+        ],
+        "bounce_direction": [
+          0,
+          -1
+        ],
+        "bounce_path": [
+          [
+            5,
+            2
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            5,
+            0
+          ]
+        ],
+        "eligible_defender_ids": [
+          "White:DefensePawn@D8"
+        ],
+        "ends_turn": true,
+        "king_id": "White:King@D7",
+        "king_position": [
+          5,
+          3
+        ],
+        "landing_position": [
+          5,
+          0
+        ],
+        "triggers_transform": false
+      },
+      "result": {
+        "action": {
+          "capture": true,
+          "captured_piece_type": "DefensePawn",
+          "captured_player": "White",
+          "cost": 1,
+          "defended_king": {
+            "action_cost": 1,
+            "attack_direction": [
+              0,
+              1
+            ],
+            "attack_path": [
+              [
+                5,
+                3
+              ]
+            ],
+            "attacker_id": "Black:AttackPawn@C7",
+            "attacker_origin": [
+              5,
+              2
+            ],
+            "bounce_direction": [
+              0,
+              -1
+            ],
+            "bounce_path": [
+              [
+                5,
+                2
+              ],
+              [
+                5,
+                1
+              ],
+              [
+                5,
+                0
+              ]
+            ],
+            "eligible_defender_ids": [
+              "White:DefensePawn@D8"
+            ],
+            "ends_turn": true,
+            "king_id": "White:King@D7",
+            "king_position": [
+              5,
+              3
+            ],
+            "landing_position": [
+              5,
+              0
+            ],
+            "triggers_transform": false
+          },
+          "end": [
+            5,
+            3
+          ],
+          "ends_turn": true,
+          "error": null,
+          "kind": "capture",
+          "player": "Black",
+          "selected_defender": [
+            4,
+            3
+          ],
+          "start": [
+            5,
+            2
+          ],
+          "target_piece_type": "King"
+        },
+        "ends_turn": true,
+        "error": null,
+        "events": [
+          {
+            "data": {
+              "defender": [
+                4,
+                3
+              ],
+              "king": [
+                5,
+                3
+              ],
+              "landing": [
+                5,
+                0
+              ]
+            },
+            "kind": "defended_king"
+          },
+          {
+            "data": {
+              "at": [
+                4,
+                3
+              ],
+              "captured_piece_type": "DefensePawn",
+              "captured_player": "White"
+            },
+            "kind": "capture"
+          },
+          {
+            "data": {
+              "landing": [
+                5,
+                0
+              ],
+              "path": [
+                [
+                  5,
+                  2
+                ],
+                [
+                  5,
+                  1
+                ],
+                [
+                  5,
+                  0
+                ]
+              ]
+            },
+            "kind": "bounce"
+          }
+        ],
+        "next_king_moved": false,
+        "next_moves_this_turn": 0,
+        "special_control": {
+          "claim": null,
+          "controlled": {
+            "Black": [],
+            "White": []
+          },
+          "required_majority": 1
+        },
+        "victory": {
+          "loser": "Black",
+          "reason": "king_capture",
+          "winner": "Black"
+        }
+      }
+    },
+    {
+      "checks": [
+        {
+          "player": "Black",
+          "pos": [
+            5,
+            1
+          ],
+          "ptype": "King",
+          "result": {
+            "ok": true,
+            "reason": null
+          }
+        },
+        {
+          "player": "Black",
+          "pos": [
+            5,
+            8
+          ],
+          "ptype": "King",
+          "result": {
+            "ok": false,
+            "reason": "Black King must be in the left half"
+          }
+        },
+        {
+          "player": "Black",
+          "pos": [
+            5,
+            2
+          ],
+          "ptype": "AttackPawn",
+          "result": {
+            "ok": false,
+            "reason": "Black Attack Pawns must be in the first two columns"
+          }
+        },
+        {
+          "player": "Black",
+          "pos": [
+            4,
+            4
+          ],
+          "ptype": "ConquestPawn",
+          "result": {
+            "ok": false,
+            "reason": "Special Square"
+          }
+        }
+      ],
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [
+          [
+            4,
+            4
+          ]
+        ],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "placement_restrictions"
+    },
+    {
+      "control": {
+        "claim": {
+          "claimant": "Black",
+          "created_turn": 1,
+          "mature_turn": 3
+        },
+        "controlled": {
+          "Black": [
+            [
+              1,
+              1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          "White": []
+        },
+        "required_majority": 3
+      },
+      "final": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [
+            [
+              1,
+              1
+            ],
+            [
+              1,
+              4
+            ],
+            [
+              4,
+              1
+            ]
+          ],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "player": "Black",
+              "type": "ConquestPawn"
+            },
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "ConquestPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "player": "Black",
+              "type": "ConquestPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            {
+              "player": "Black",
+              "type": "King"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "King"
+            },
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            4,
+            4
+          ],
+          [
+            7,
+            7
+          ]
+        ],
+        "territory_claim": {
+          "claimant": "Black",
+          "created_turn": 1,
+          "mature_turn": 3
+        },
+        "transform_squares": []
+      },
+      "first": null,
+      "name": "territory_claim",
+      "second": {
+        "loser": null,
+        "reason": "territory",
+        "winner": "Black"
+      }
+    }
+  ],
+  "generated_by": "web/scripts/generate_engine_fixtures.py",
+  "schema": 1
+}
