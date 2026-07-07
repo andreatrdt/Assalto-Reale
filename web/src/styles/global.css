@@ -205,6 +205,11 @@ h3 {
   grid-template-columns: 1fr 1fr;
 }
 
+.choiceGrid {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .boardStage {
   align-self: center;
   min-width: 0;
