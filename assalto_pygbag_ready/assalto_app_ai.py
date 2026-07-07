@@ -300,6 +300,10 @@ class AssaltoRealeApp:
         self.PLACEMENT_ICON_W, self.PLACEMENT_ICON_H = full_w, 64
         self.PLACEMENT_ICON_X = x0
         self.PLACEMENT_ICON_Y = y
+        self.ACTION_CONTEXT_X = self.PLACEMENT_ICON_X
+        self.ACTION_CONTEXT_Y = self.PLACEMENT_ICON_Y
+        self.ACTION_CONTEXT_W = self.PLACEMENT_ICON_W
+        self.ACTION_CONTEXT_H = self.PLACEMENT_ICON_H
         y += self.PLACEMENT_ICON_H + 16
 
         # ─── Timer panel ──────────────────────────────────────────────
@@ -2760,6 +2764,138 @@ class AssaltoRealeApp:
 
     # ------------------------------------------------------------------ #
 
+    def _piece_label(self, ptype: str) -> str:
+        return {
+            "AttackPawn": "Attack Pawn",
+            "DefensePawn": "Defense Pawn",
+            "ConquestPawn": "Conquest Pawn",
+            "King": "King",
+        }.get(ptype, ptype)
+
+    def _draw_fit_text(
+        self,
+        surface: pygame.Surface,
+        font: pygame.font.Font,
+        text: str,
+        colour: Tuple[int, int, int],
+        pos: Tuple[int, int],
+        max_w: int,
+    ) -> None:
+        fitted = text
+        if font.size(fitted)[0] > max_w:
+            ellipsis = "..."
+            while fitted and font.size(fitted + ellipsis)[0] > max_w:
+                fitted = fitted[:-1]
+            fitted = (fitted + ellipsis) if fitted else ellipsis
+        surface.blit(font.render(fitted, True, colour), pos)
+
+    def _selected_action_context(self, player: str) -> Tuple[List[str], Optional[Piece]]:
+        selected = self.selected
+        if not selected:
+            return ["Select a piece", "Pass ends turn"], None
+
+        r, c = selected
+        if not self.board.is_in_bounds(selected):
+            return ["Select a piece", "Pass ends turn"], None
+
+        piece = self.board[r][c]
+        if piece is None:
+            return ["Select a piece", "Pass ends turn"], None
+        if piece.player != player:
+            return [f"{self._piece_label(piece.type)} is enemy", "Select your own piece"], None
+
+        actions = [
+            action
+            for action in self.board.legal_actions(
+                player,
+                moves_this_turn=self.moves_this_turn,
+                king_moved=self.king_moved,
+                include_pass=False,
+            )
+            if action.start == selected
+        ]
+        captures = [action for action in actions if action.capture]
+        two_ap_capture = any(action.cost == 2 for action in captures)
+        lines = [
+            f"{self._piece_label(piece.type)} selected",
+            f"Legal {len(actions)} | Captures {len(captures)}",
+            f"2 AP capture: {'yes' if two_ap_capture else 'no'}",
+        ]
+        return lines, piece
+
+    def _draw_action_context_panel(self) -> None:
+        if not hasattr(self, "ACTION_CONTEXT_X"):
+            return
+
+        cfg = self.cfg
+        rect = pygame.Rect(
+            self.ACTION_CONTEXT_X,
+            self.ACTION_CONTEXT_Y,
+            self.ACTION_CONTEXT_W,
+            self.ACTION_CONTEXT_H,
+        )
+        pygame.draw.rect(self.screen, (34, 34, 34), rect, border_radius=8)
+        pygame.draw.rect(self.screen, cfg.BLACK, rect, 2, border_radius=8)
+
+        title_font = pygame.font.Font(None, max(15, int(self.cfg.SQ_SIZE * 0.29)))
+        body_font = pygame.font.Font(None, max(14, int(self.cfg.SQ_SIZE * 0.25)))
+        tiny_font = pygame.font.Font(None, max(13, int(self.cfg.SQ_SIZE * 0.22)))
+
+        player = AssaltoRealeApp.players[self.current_player]
+        pad = 8
+        icon_sz = min(42, max(28, rect.h - 18))
+        text_x = rect.x + pad
+        text_w = rect.w - 2 * pad
+        context_piece: Optional[Piece] = None
+
+        if self.placing:
+            next_ptype = self.board.next_piece_type_for(player, self.pieces_left)
+            total_placed = len(self.placement_history)
+            lines = [
+                f"Placement: {player}",
+                f"Next: {self._piece_label(next_ptype) if next_ptype else 'done'}",
+                f"Placed {total_placed}/26",
+            ]
+            if next_ptype:
+                icon = pygame.transform.smoothscale(self.assets.piece_images[player][next_ptype], (icon_sz, icon_sz))
+                self.screen.blit(icon, (rect.x + pad, rect.y + (rect.h - icon_sz) // 2))
+                text_x += icon_sz + 8
+                text_w -= icon_sz + 8
+        else:
+            remaining = max(0, 2 - int(self.moves_this_turn))
+            title = f"{player} turn"
+            self._draw_fit_text(self.screen, title_font, title, cfg.WHITE, (text_x, rect.y + 6), text_w - 82)
+
+            ap_label = f"AP {remaining}/2"
+            ap_x = rect.right - pad - 62
+            self.screen.blit(tiny_font.render(ap_label, True, cfg.WHITE), (ap_x, rect.y + 7))
+            dot_y = rect.y + 28
+            for i in range(2):
+                cx = ap_x + 16 + i * 18
+                available = i >= self.moves_this_turn
+                fill = (88, 178, 106) if available else (86, 86, 86)
+                pygame.draw.circle(self.screen, fill, (cx, dot_y), 6)
+                pygame.draw.circle(self.screen, cfg.BLACK, (cx, dot_y), 6, 1)
+
+            lines, context_piece = self._selected_action_context(player)
+            if context_piece and self.selected and context_piece.player == player:
+                icon = pygame.transform.smoothscale(
+                    self.assets.piece_images[player][context_piece.type],
+                    (icon_sz, icon_sz),
+                )
+                self.screen.blit(icon, (rect.x + pad, rect.y + 20))
+                text_x += icon_sz + 8
+                text_w -= icon_sz + 8
+            king_line = "King acted" if self.king_moved else "King ready"
+            lines = lines[:2] + [king_line if context_piece is None else lines[2]]
+
+        y = rect.y + (6 if self.placing else 24)
+        for idx, line in enumerate(lines[:3]):
+            font = title_font if idx == 0 and self.placing else body_font
+            colour = cfg.WHITE if idx == 0 else (225, 225, 225)
+            self._draw_fit_text(self.screen, font, line, colour, (text_x, y), max(20, text_w))
+            y += font.get_height() + 2
+
     def _draw_hud(self) -> None:
         cfg = self.cfg
 
@@ -2862,15 +2998,8 @@ class AssaltoRealeApp:
             text_rect = self.font.render(label, True, cfg.WHITE)
             self.screen.blit(text_rect, (x + (self.RESET_W - text_rect.get_width()) // 2, y + 13))
 
-        # --- placement icon ------------------------------------------
-        if self.placing:
-            next_ptype = self.board.next_piece_type_for(AssaltoRealeApp.players[self.current_player], self.pieces_left)
-            if next_ptype:
-                icon = self.assets.piece_images[AssaltoRealeApp.players[self.current_player]][next_ptype]
-                icon = pygame.transform.scale(icon, (self.PLACEMENT_ICON_W  //3, self.PLACEMENT_ICON_H*2//3))
-                ix = self.PLACEMENT_ICON_X + (self.PLACEMENT_ICON_W - icon.get_width() + 10) // 2
-                iy = self.PLACEMENT_ICON_Y + (self.PLACEMENT_ICON_H - icon.get_height()) // 2
-                self.screen.blit(icon, (ix, iy))
+        # --- action / placement context -------------------------------
+        self._draw_action_context_panel()
 
         # --- capture counter (very compact) ---------------------------
 
