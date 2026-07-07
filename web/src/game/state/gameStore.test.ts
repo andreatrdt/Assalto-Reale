@@ -1,0 +1,78 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { buildAction, getPiece, type Vec2 } from "../engine";
+import { useGameStore } from "./gameStore";
+
+function findFirstLegalMove(): { start: Vec2; end: Vec2 } {
+  const state = useGameStore.getState();
+  for (let row = 0; row < state.board.config.rows; row += 1) {
+    for (let col = 0; col < state.board.config.cols; col += 1) {
+      const piece = state.board.grid[row][col];
+      if (!piece || piece.player !== state.currentPlayer) {
+        continue;
+      }
+      const start: Vec2 = [row, col];
+      for (let dr = -2; dr <= 2; dr += 1) {
+        for (let dc = -2; dc <= 2; dc += 1) {
+          if (dr === 0 && dc === 0) continue;
+          const end: Vec2 = [row + dr, col + dc];
+          if (!buildAction(state.board, start, end, { movesThisTurn: state.movesThisTurn, kingMoved: state.kingMoved }).error) {
+            return { start, end };
+          }
+        }
+      }
+    }
+  }
+  throw new Error("No legal move found");
+}
+
+describe("game store wiring", () => {
+  beforeEach(() => {
+    useGameStore.getState().startQuickMatch();
+  });
+
+  it("starts a quick match with a full deployment and applies an engine move", () => {
+    const state = useGameStore.getState();
+    expect(state.phase.phase).toBe("playing");
+    expect(state.board.grid.flat().filter(Boolean)).toHaveLength(26);
+
+    const { start, end } = findFirstLegalMove();
+    const movingPiece = getPiece(state.board, start);
+    useGameStore.getState().activateSquare(start);
+    expect(useGameStore.getState().selected).toEqual(start);
+    expect(useGameStore.getState().legalTargets.length).toBeGreaterThan(0);
+
+    useGameStore.getState().activateSquare(end);
+    const after = useGameStore.getState();
+    expect(getPiece(after.board, end)).toEqual(movingPiece);
+    expect(after.selected).toBeNull();
+    expect(after.history).toHaveLength(1);
+  });
+
+  it("undo restores the previous board and turn state", () => {
+    const before = useGameStore.getState();
+    const { start, end } = findFirstLegalMove();
+    useGameStore.getState().activateSquare(start);
+    useGameStore.getState().activateSquare(end);
+    useGameStore.getState().undo();
+    const afterUndo = useGameStore.getState();
+    expect(afterUndo.currentPlayer).toBe(before.currentPlayer);
+    expect(afterUndo.movesThisTurn).toBe(before.movesThisTurn);
+    expect(getPiece(afterUndo.board, start)).toEqual(getPiece(before.board, start));
+  });
+
+  it("manual placement uses the canonical placement queue and validates squares", () => {
+    useGameStore.getState().startManualPlacement();
+    let state = useGameStore.getState();
+    expect(state.phase.phase).toBe("placement");
+    expect(state.currentPlacement).toEqual({ player: "Black", pieceType: "King" });
+
+    useGameStore.getState().activateSquare([5, 8]);
+    expect(useGameStore.getState().message).toContain("left half");
+
+    useGameStore.getState().activateSquare([5, 2]);
+    state = useGameStore.getState();
+    expect(getPiece(state.board, [5, 2])).toEqual({ player: "Black", type: "King" });
+    expect(state.currentPlacement).toEqual({ player: "White", pieceType: "King" });
+    expect(state.history).toHaveLength(1);
+  });
+});

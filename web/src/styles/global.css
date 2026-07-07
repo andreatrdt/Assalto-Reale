@@ -43,6 +43,12 @@ button:focus-visible {
   outline-offset: 3px;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
 .appShell {
   display: grid;
   grid-template-columns: minmax(18rem, 0.72fr) minmax(24rem, 1.2fr) minmax(18rem, 0.58fr);
@@ -62,9 +68,8 @@ button:focus-visible {
 }
 
 .wordmark {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  display: grid;
+  gap: 0.9rem;
 }
 
 .crest {
@@ -75,6 +80,10 @@ button:focus-visible {
   border: 2px solid var(--color-gold);
   border-radius: 50%;
   box-shadow: var(--glow-gold);
+}
+
+.titleBlock {
+  min-width: 0;
 }
 
 .crest::before {
@@ -102,9 +111,10 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(2.6rem, 7vw, 5.4rem);
+  font-size: clamp(2.8rem, 5.4vw, 4.35rem);
   line-height: 0.92;
   margin: 0;
+  max-width: 100%;
 }
 
 h2 {
@@ -140,6 +150,59 @@ h3 {
 .buildInfo {
   font-size: 0.85rem;
   margin-top: 1.25rem;
+}
+
+.matchPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.statusLine {
+  color: var(--color-ivory);
+  font-weight: 700;
+  margin: 0;
+}
+
+.statGrid {
+  display: grid;
+  gap: 0.65rem 1rem;
+  grid-template-columns: minmax(6.5rem, 0.85fr) 1fr;
+}
+
+.statGrid span {
+  color: var(--color-ivory-muted);
+}
+
+.statGrid strong {
+  color: var(--color-ivory);
+  font-weight: 800;
+}
+
+.apTrack {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.apTrack span {
+  display: block;
+  width: 2.8rem;
+  height: 0.55rem;
+  border-radius: 999px;
+}
+
+.apReady {
+  background: linear-gradient(90deg, var(--color-gold-bright), var(--color-gold));
+  box-shadow: var(--glow-gold);
+}
+
+.apSpent {
+  background: rgb(239 230 208 / 0.16);
+}
+
+.panelActions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
 }
 
 .boardStage {
