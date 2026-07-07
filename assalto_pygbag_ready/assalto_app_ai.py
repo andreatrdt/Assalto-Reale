@@ -1916,13 +1916,14 @@ class AssaltoRealeApp:
 
     def _handle_placement_click(self, pos: Vec2) -> None:
         r, c = pos
-        if self.board[r][c] is not None:
-            return
         player = AssaltoRealeApp.players[self.current_player]
         ptype = self.board.next_piece_type_for(player, self.pieces_left)
         if ptype is None:
             return
-        if self.board.square_disallowed_for_placement(r, c, player, ptype):
+        placement = self.board.can_place_piece(pos, player, ptype)
+        if not placement.ok:
+            reason = placement.reason or "Invalid placement"
+            self._set_toast(reason)
             return
 
         # place piece ---------------------------------------------------
