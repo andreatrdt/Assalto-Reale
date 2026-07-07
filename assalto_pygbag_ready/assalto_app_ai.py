@@ -491,10 +491,7 @@ class AssaltoRealeApp:
                 self.pieces_left[step.player][ptype] -= 1
                 self.pieces_placed[step.player] += 1
 
-        self.placing = False
-        self.current_player = 0
-        self.turn_index = 0
-        self.turn_pieces_count = 0
+        self._set_placement_progress_from_count(len(self.placement_history))
         self.moves_this_turn = 0
         self.king_moved = False
         self.board.update_control()
@@ -1872,6 +1869,48 @@ class AssaltoRealeApp:
 
 
     # =========================== placement phase ===================== #
+    def _set_placement_progress_from_count(self, placed_count: int) -> None:
+        total = sum(step.count for step in Board.PLACEMENT_SCHEDULE)
+        if placed_count >= total:
+            self.placing = False
+            self.current_player = 0
+            self.turn_index = len(self.turn_sequence) - 1
+            self.turn_pieces_count = 0
+            return
+
+        remaining = max(0, placed_count)
+        for index, step in enumerate(Board.PLACEMENT_SCHEDULE):
+            if remaining < step.count:
+                self.placing = True
+                self.current_player = AssaltoRealeApp.players.index(step.player)
+                self.turn_index = index
+                self.turn_pieces_count = remaining
+                return
+            remaining -= step.count
+
+        self.placing = False
+        self.current_player = 0
+        self.turn_index = len(self.turn_sequence) - 1
+        self.turn_pieces_count = 0
+
+    def _undo_placement(self) -> bool:
+        if not self.placement_history:
+            return False
+
+        last = self.placement_history.pop()
+        r, c = last["pos"]
+        if self.board.is_in_bounds((r, c)):
+            self.board[r][c] = None
+
+        player = last["player"]
+        ptype = last["type"]
+        self.pieces_left[player][ptype] += 1
+        self.pieces_placed[player] = max(0, self.pieces_placed[player] - 1)
+        self._set_placement_progress_from_count(len(self.placement_history))
+        self.selected = None
+        self._set_toast(f"Undid {player} {ptype} placement.")
+        return True
+
     def _handle_placement_click(self, pos: Vec2) -> None:
         r, c = pos
         if self.board[r][c] is not None:
@@ -1893,11 +1932,7 @@ class AssaltoRealeApp:
         self.pieces_left[player][ptype] -= 1
         self.pieces_placed[player] += 1
         self.turn_pieces_count += 1
-
-        if self.turn_pieces_count >= self.turn_sequence[self.turn_index]:
-            self._switch_player()
-        if sum(self.pieces_placed.values()) == 26:
-            self.placing = False
+        self._set_placement_progress_from_count(len(self.placement_history))
 
     # =========================== move phase ========================== #
     async def _handle_move_click(self, pos: Vec2) -> None:
@@ -2286,6 +2321,9 @@ class AssaltoRealeApp:
 
     def _undo(self) -> None:          # <-- or  undo_move()  in main.py
         self._clear_defended_king_preview()
+        if self.placing or (not self.move_history and self.placement_history):
+            if self._undo_placement():
+                return
         if not self.move_history:     # (history is called  move_history )
             return
 
