@@ -4,6 +4,10 @@ import "./GameBoard.css";
 
 interface GameBoardProps {
   board: BoardState;
+  selected?: Vec2 | null;
+  legalTargets?: Vec2[];
+  placementValid?: Vec2[];
+  onSquareActivate?: (pos: Vec2) => void;
 }
 
 function pieceLabel(piece: Piece): string {
@@ -32,7 +36,7 @@ function squareLabel(pos: Vec2, rows: number): string {
   return `${String.fromCharCode("A".charCodeAt(0) + pos[1])}${rows - pos[0]}`;
 }
 
-export function GameBoard({ board }: GameBoardProps) {
+export function GameBoard({ board, selected = null, legalTargets = [], placementValid = [], onSquareActivate }: GameBoardProps) {
   const size = 1200;
   const cell = size / board.config.rows;
 
@@ -63,6 +67,10 @@ export function GameBoard({ board }: GameBoardProps) {
             const y = rowIndex * cell;
             const isSpecial = hasPos(board.specialSquares, pos);
             const isTransform = hasPos(board.transformSquares, pos);
+            const isSelected = selected ? selected[0] === rowIndex && selected[1] === colIndex : false;
+            const isLegalTarget = hasPos(legalTargets, pos);
+            const isPlacementValid = hasPos(placementValid, pos);
+            const isCaptureTarget = isLegalTarget && piece !== null;
             const controlledBy = board.controlledSquares.Black.some((item) => item[0] === rowIndex && item[1] === colIndex)
               ? "Black"
               : board.controlledSquares.White.some((item) => item[0] === rowIndex && item[1] === colIndex)
@@ -71,7 +79,20 @@ export function GameBoard({ board }: GameBoardProps) {
             const label = `${squareLabel(pos, board.config.rows)}${piece ? `, ${piece.player} ${pieceLabel(piece)}` : ""}`;
 
             return (
-              <g key={`${rowIndex}-${colIndex}`} role="gridcell" aria-label={label}>
+              <g
+                key={`${rowIndex}-${colIndex}`}
+                role="gridcell"
+                aria-label={`${label}${isSelected ? ", selected" : ""}${isLegalTarget ? ", legal action" : ""}`}
+                tabIndex={0}
+                className="boardCell"
+                onClick={() => onSquareActivate?.(pos)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSquareActivate?.(pos);
+                  }
+                }}
+              >
                 <rect
                   x={x + 2}
                   y={y + 2}
@@ -80,6 +101,9 @@ export function GameBoard({ board }: GameBoardProps) {
                   rx="8"
                   className={(rowIndex + colIndex) % 2 === 0 ? "tileDark" : "tileLight"}
                 />
+                {isPlacementValid && (
+                  <rect x={x + 10} y={y + 10} width={cell - 20} height={cell - 20} rx="12" className="placementValid" />
+                )}
                 {isSpecial && (
                   <g className={`specialMark ${controlledBy ? `controlled${controlledBy}` : ""}`}>
                     <circle cx={x + cell / 2} cy={y + cell / 2} r={cell * 0.26} />
@@ -97,6 +121,13 @@ export function GameBoard({ board }: GameBoardProps) {
                   <svg x={x + cell * 0.16} y={y + cell * 0.1} width={cell * 0.68} height={cell * 0.78} viewBox="0 0 100 100">
                     <PieceGlyph piece={piece} />
                   </svg>
+                )}
+                {isSelected && <rect x={x + 8} y={y + 8} width={cell - 16} height={cell - 16} rx="12" className="selectedRing" />}
+                {isLegalTarget && (
+                  <g className={isCaptureTarget ? "captureIndicator" : "moveIndicator"}>
+                    <circle cx={x + cell / 2} cy={y + cell / 2} r={isCaptureTarget ? cell * 0.32 : cell * 0.13} />
+                    {isCaptureTarget && <circle cx={x + cell / 2} cy={y + cell / 2} r={cell * 0.23} />}
+                  </g>
                 )}
               </g>
             );

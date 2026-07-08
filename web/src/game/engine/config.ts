@@ -43,3 +43,25 @@ export const PIECE_ORDER: PieceType[] = [
   "ConquestPawn",
   "ConquestPawn",
 ];
+
+export interface PlacementStep {
+  player: Player;
+  count: number;
+}
+
+export const PLACEMENT_SCHEDULE: PlacementStep[] = [
+  { player: "Black", count: 1 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 2 },
+  { player: "Black", count: 2 },
+  { player: "White", count: 1 },
+];

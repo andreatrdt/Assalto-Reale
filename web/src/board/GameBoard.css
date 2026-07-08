@@ -29,6 +29,52 @@
   stroke: rgb(239 230 208 / 0.08);
 }
 
+.boardCell {
+  cursor: pointer;
+}
+
+.boardCell:focus {
+  outline: none;
+}
+
+.boardCell:focus .tileDark,
+.boardCell:focus .tileLight {
+  stroke: var(--color-gold-bright);
+  stroke-width: 4;
+}
+
+.placementValid {
+  fill: rgb(31 106 85 / 0.1);
+  stroke: rgb(31 106 85 / 0.55);
+  stroke-dasharray: 6 8;
+  stroke-width: 3;
+}
+
+.selectedRing {
+  fill: none;
+  filter: drop-shadow(0 0 8px rgb(211 181 111 / 0.42));
+  stroke: var(--color-gold-bright);
+  stroke-width: 5;
+}
+
+.moveIndicator circle {
+  fill: rgb(211 181 111 / 0.26);
+  stroke: var(--color-gold-bright);
+  stroke-width: 4;
+}
+
+.captureIndicator circle:first-child {
+  fill: rgb(93 22 32 / 0.22);
+  stroke: var(--color-oxblood);
+  stroke-width: 5;
+}
+
+.captureIndicator circle:last-child {
+  fill: none;
+  stroke: var(--color-gold-bright);
+  stroke-width: 3;
+}
+
 .specialMark circle {
   fill: url("#specialGlow");
   opacity: 0.45;

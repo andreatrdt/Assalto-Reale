@@ -7,6 +7,7 @@ import { getSpecialControl, refreshTerritoryClaim } from "./territory";
 import type { Action, DefendedKingPreview, PieceType, Player, Vec2 } from "./types";
 
 type FixtureCase = (typeof fixtures.cases)[number];
+const legacyActionFixtureNames = new Set(["simple_move", "two_square_capture", "defended_king"]);
 
 function findCase(name: string): FixtureCase {
   const match = fixtures.cases.find((fixture) => fixture.name === name);
@@ -94,8 +95,10 @@ function normalizePythonResult(result: Record<string, unknown>) {
 }
 
 describe("TypeScript engine parity fixtures", () => {
-  it.each(["simple_move", "two_square_capture", "defended_king"])("matches Python action and transition for %s", (name) => {
-    const fixture = findCase(name);
+  it.each(fixtures.cases.filter((fixture) => fixture.kind === "action" || legacyActionFixtureNames.has(fixture.name)).map((fixture) => fixture.name))(
+    "matches Python action and transition for %s",
+    (name) => {
+      const fixture = findCase(name);
     const board = fromPythonSnapshot(fixture.initial as PythonBoardSnapshot);
     const input = fixture.input as unknown as {
       start: Vec2;
@@ -117,7 +120,8 @@ describe("TypeScript engine parity fixtures", () => {
     });
     expect(resultSummary(result)).toEqual(normalizePythonResult(fixture.result as Record<string, unknown>));
     expect(toPythonSnapshot(finalBoard)).toEqual(fixture.final);
-  });
+    },
+  );
 
   it("matches Python placement restriction reasons", () => {
     const fixture = findCase("placement_restrictions");
