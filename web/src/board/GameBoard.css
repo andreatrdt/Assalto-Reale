@@ -183,6 +183,93 @@
   stroke: rgb(32 38 34 / 0.46);
 }
 
+.capturedBox {
+  background: #eef1ea;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+}
+
+.capturedTitle {
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.capturedRows {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.capturedRow {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 4.3rem minmax(0, 1fr);
+  min-height: 2rem;
+}
+
+.capturedSide {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 600;
+  gap: 0.38rem;
+}
+
+.capturedSide > span {
+  border: 1px solid #687168;
+  border-radius: 999px;
+  display: inline-block;
+  height: 0.62rem;
+  width: 0.62rem;
+}
+
+.capturedSideBlack > span {
+  background: #29302c;
+}
+
+.capturedSideWhite > span {
+  background: #f4f2ea;
+}
+
+.capturedIcons {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.08rem;
+  min-height: 1.9rem;
+}
+
+.capturedPieceIcon {
+  height: 1.95rem;
+  overflow: visible;
+  width: 1.95rem;
+}
+
+.capturedPieceIcon .piece {
+  pointer-events: none;
+  transition: none;
+}
+
+.capturedPieceIcon .piece:hover {
+  filter: none;
+  transform: none;
+}
+
+.capturedPieceIcon .pieceShadow {
+  display: none;
+}
+
+.capturedEmpty {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
 html[data-board-contrast="high"] .boardBed {
   fill: #aeb9a9;
 }
@@ -229,5 +316,14 @@ html[data-board-contrast="high"] .selectedRing {
   .boardFrame {
     max-width: calc(100vw - 1.1rem);
     padding: 0.3rem;
+  }
+
+  .capturedRow {
+    grid-template-columns: 3.8rem minmax(0, 1fr);
+  }
+
+  .capturedPieceIcon {
+    height: 1.75rem;
+    width: 1.75rem;
   }
 }
