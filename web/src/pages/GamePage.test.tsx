@@ -163,7 +163,10 @@ describe("Game decision and control panels", () => {
   });
 
   it("does not render a defended-King shield on the board", () => {
-    const defendedBoard = structuredClone(board);
+    const defendedBoard = {
+      ...board,
+      grid: board.grid.map((row) => row.map((piece) => (piece ? { ...piece } : null))),
+    } as BoardState;
     defendedBoard.grid[5][5] = { player: "White", type: "King" };
     defendedBoard.grid[5][4] = { player: "White", type: "DefensePawn" };
 
