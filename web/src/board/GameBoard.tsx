@@ -123,12 +123,6 @@ export function GameBoard({ board, selected = null, legalTargets = [], placement
                     <PieceGlyph piece={piece} />
                   </svg>
                 )}
-                {isDefendedKing && (
-                  <g className="defendedKingMark" aria-hidden="true">
-                    <path d={`M ${x + cell * 0.72} ${y + cell * 0.18} L ${x + cell * 0.86} ${y + cell * 0.24} L ${x + cell * 0.84} ${y + cell * 0.43} C ${x + cell * 0.82} ${y + cell * 0.55}, ${x + cell * 0.76} ${y + cell * 0.62}, ${x + cell * 0.72} ${y + cell * 0.66} C ${x + cell * 0.66} ${y + cell * 0.62}, ${x + cell * 0.61} ${y + cell * 0.55}, ${x + cell * 0.6} ${y + cell * 0.43} L ${x + cell * 0.58} ${y + cell * 0.24} Z`} />
-                    <path d={`M ${x + cell * 0.66} ${y + cell * 0.4} L ${x + cell * 0.7} ${y + cell * 0.46} L ${x + cell * 0.8} ${y + cell * 0.34}`} />
-                  </g>
-                )}
                 {(rowIndex === 0 || colIndex === 0) && (
                   <text x={x + 12} y={y + 24} className="coordLabel">
                     {rowIndex === 0 ? String.fromCharCode("A".charCodeAt(0) + colIndex) : board.config.rows - rowIndex}
