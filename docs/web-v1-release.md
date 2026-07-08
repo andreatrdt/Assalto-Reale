@@ -22,7 +22,7 @@
 - Timers now count down during active human play and can produce timeout victory, but full Python policy parity for every pause/decision case is still incomplete.
 - AI difficulty is captured by setup but live AI still uses the current deterministic greedy action path.
 - Pending decisions do not yet use the release-scope discriminated `PendingDecision.owner` model.
-- Save/load remains schema 1 and lacks runtime validation, import/export, migrations, and complete pending-decision restoration.
+- Save/load now writes schema 2 with runtime validation, import/export JSON controls, placement-state restore and undo-history persistence. It still lacks legacy Python snapshot import, migrations beyond schema 1 compatibility, and fully fixture-proven pending-decision restoration.
 - Audio feedback is not wired.
 - PWA/installability and offline behavior are missing.
 
@@ -53,10 +53,13 @@
 - Added `docs/deployment.md`.
 - Updated README deployment guidance for the modern React artifact.
 - Added `npm run package:release`.
+- Added schema-2 web save/export/import support with validation and a clearer Load screen for local saves, current-match export and imported JSON files.
 
 ## Latest Validation On This Branch
 
-- `npm run test`: passed, 85 tests.
+- `python -m pytest -q`: passed, 37 tests.
+- `npm run test`: passed, 89 tests.
+- `npm run build`: passed.
 - `npm run e2e`: passed, 8 tests.
 - `npm run package:release`: passed and created `release/assalto-reale-web-v1/`.
 - `npm run build -- --base /AssaltoRealeWeb/`: passed.

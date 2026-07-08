@@ -81,6 +81,7 @@
 - Fixed SPA navigation scroll reset so `/game` does not inherit scroll from the Setup route.
 - Follow-up UX slice: exposed Save during manual placement because the current save schema includes placement phase, board, cursor, current placement, remaining pieces, clocks and match config; added a store test proving placement save/load resumes the deployment state.
 - Follow-up UX slice: added placement save helper copy noting unresolved Defended-King or Transform modal decisions still need fuller serialization before they can safely be saved.
+- Release hardening slice: Load now recognizes schema-2 web saves, shows the save schema, exports either the stored local save or the active current match, imports JSON with validation, and keeps schema-1 warnings visible.
 - Follow-up UX slice: expanded the Defended-King panel to show attacking pawn, attacked King, eligible defender squares, engine-provided attack path, bounce path, landing square, AP cost, Transform trigger and turn-ending status.
 - Follow-up UX slice: Defended-King attacks now enter the preview state even when only one defender is eligible, so the sacrifice is visible before confirmation.
 - Follow-up UX slice: added visible Rematch action to victory state, clarified restart/rematch confirmation copy, and disabled restart when no stored match setup exists.
@@ -90,7 +91,7 @@
 - Full Defended-King animation still needs engine/store state for ordered animation steps: attack, defender sacrifice, bounce path, landing, optional Transform. The current preview shows available positions and paths but does not animate them.
 - Defended-King decision ownership is still inferred from the attacking side in UI copy. The parity work should add explicit `PendingDecision.owner` so AI/human ownership is not inferred from `currentPlayer` or attacker.
 - Timer countdown UI is now backed by a monotonic active-human clock with timeout victory, but full Python pause/save/load policy remains release parity work.
-- Load cards can now show saved-at metadata for new saves; older local saves still lack that field.
+- Load cards can now show saved-at metadata and schema for new saves; older schema-1 local saves remain loadable with limitation messaging.
 - Victory/rematch now has visible actions and confirmation, but exact rematch lifecycle parity and random-side rematch policy still belong to the match-controller work.
 - Audio feedback is not implemented in this slice.
 

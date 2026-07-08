@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog, EmptyState, GameButton, PageHeader, PageShell, Panel, SectionHeader, StatusBadge } from "../ui/components";
@@ -10,6 +10,7 @@ interface LoadPageProps {
 
 interface SaveSummary {
   valid: boolean;
+  schema: number | null;
   savedAt: string | null;
   phase: string | null;
   currentPlayer: string | null;
@@ -22,10 +23,13 @@ const SAVE_KEY = "assalto-reale-save";
 
 export function LoadPage({ route, navigate }: LoadPageProps) {
   const loadGame = useGameStore((state) => state.loadGame);
+  const exportSaveJson = useGameStore((state) => state.exportSaveJson);
+  const importSaveJson = useGameStore((state) => state.importSaveJson);
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
   const message = useGameStore((state) => state.message);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const saveSummary = useMemo(() => readSaveSummary(), [refreshKey]);
 
   function loadAndContinue() {
@@ -40,6 +44,49 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
     window.localStorage.removeItem(SAVE_KEY);
     setDeleteOpen(false);
     setRefreshKey((value) => value + 1);
+  }
+
+  function downloadSaveJson(json: string, label: string) {
+    if (!json) return;
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `assalto-reale-${label}-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCurrentSave() {
+    const json = exportSaveJson();
+    if (json) {
+      downloadSaveJson(json, "current-save");
+    }
+  }
+
+  function exportLocalSave() {
+    const raw = window.localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      downloadSaveJson(raw, "local-save");
+    }
+  }
+
+  function importSave(file: File | undefined) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string" && importSaveJson(reader.result)) {
+        setRefreshKey((value) => value + 1);
+        navigate("/game");
+      } else {
+        setRefreshKey((value) => value + 1);
+      }
+    };
+    reader.onerror = () => {
+      useGameStore.setState({ message: "Save import failed because the file could not be read." });
+      setRefreshKey((value) => value + 1);
+    };
+    reader.readAsText(file);
   }
 
   return (
@@ -81,6 +128,10 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
                   <dt>Current player</dt>
                   <dd>{saveSummary.currentPlayer ?? "Unknown"}</dd>
                 </div>
+                <div>
+                  <dt>Schema</dt>
+                  <dd>{saveSummary.schema ? `v${saveSummary.schema}` : "Unknown"}</dd>
+                </div>
               </dl>
               {saveSummary.issue && (
                 <StatusBadge tone="info" icon="warning">
@@ -91,6 +142,9 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
             <div className="saveActions">
               <GameButton variant="primary" icon="load" onClick={loadAndContinue} disabled={!saveSummary.valid}>
                 Load
+              </GameButton>
+              <GameButton variant="secondary" icon="save" onClick={exportLocalSave} disabled={!saveSummary.valid}>
+                Export
               </GameButton>
               <GameButton variant="danger" icon="trash" onClick={() => setDeleteOpen(true)}>
                 Delete
@@ -115,6 +169,24 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
             <p>Save from the game screen to create a local match card here.</p>
           </EmptyState>
         )}
+        <div className="saveActions" aria-label="Save import and export">
+          <GameButton variant="secondary" icon="load" onClick={() => fileInputRef.current?.click()}>
+            Import JSON
+          </GameButton>
+          <GameButton variant="secondary" icon="save" onClick={exportCurrentSave} disabled={!hasActiveMatch}>
+            Export Current
+          </GameButton>
+          <input
+            ref={fileInputRef}
+            className="srOnly"
+            type="file"
+            accept="application/json,.json"
+            onChange={(event) => {
+              importSave(event.currentTarget.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
+        </div>
         <p className="statusLine">{message}</p>
       </Panel>
 
@@ -133,21 +205,31 @@ function readSaveSummary(): SaveSummary | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
+    const schema = typeof parsed.schema === "number" ? parsed.schema : null;
     const config = parsed.matchConfig;
     const opponent = config?.opponent === "Computer" ? `${config.aiDifficulty ?? "Unknown"} AI` : "Human vs Human";
     const placement = config?.placementMode === "QuickBalanced" ? "Quick Balanced" : config?.placementMode === "Manual" ? "Manual" : "Unknown placement";
+    const valid = (schema === 1 || schema === 2) && Boolean(parsed.board);
+    const issue =
+      schema === 1
+        ? "This is an older schema-1 web save. It can be loaded, but modal decisions and undo history may be incomplete."
+        : parsed.savedAt
+          ? undefined
+          : "The save is missing saved-at metadata.";
     return {
-      valid: parsed.schema === 1 && Boolean(parsed.board),
+      valid,
+      schema,
       savedAt: parsed.savedAt ?? null,
       phase: parsed.phase?.phase ?? parsed.phase ?? null,
       currentPlayer: parsed.currentPlayer ?? null,
       turnCounter: typeof parsed.turnCounter === "number" ? parsed.turnCounter : null,
       mode: `${opponent}, ${placement}`,
-      issue: parsed.savedAt ? undefined : "The current save schema does not yet include saved-at metadata.",
+      issue: valid ? issue : "This local save uses an unsupported or incomplete schema.",
     };
   } catch {
     return {
       valid: false,
+      schema: null,
       savedAt: null,
       phase: null,
       currentPlayer: null,

@@ -111,6 +111,43 @@ describe("game store wiring", () => {
     expect(loaded.message).toBe("Game loaded.");
   });
 
+  it("exports schema-2 saves and imports them with validation", () => {
+    useGameStore.getState().startManualPlacement({ seed: 99 });
+    useGameStore.getState().activateSquare([5, 2]);
+    const exported = useGameStore.getState().exportSaveJson();
+    expect(exported).toBeTruthy();
+
+    const parsed = JSON.parse(exported ?? "{}");
+    expect(parsed.schema).toBe(2);
+    expect(parsed.history).toHaveLength(1);
+
+    useGameStore.getState().startQuickMatch({ seed: 11 });
+    expect(useGameStore.getState().phase.phase).toBe("playing");
+
+    expect(useGameStore.getState().importSaveJson(exported ?? "")).toBe(true);
+    const imported = useGameStore.getState();
+    expect(imported.phase.phase).toBe("placement");
+    expect(imported.placementCursor).toBe(1);
+    expect(imported.history).toHaveLength(1);
+    expect(imported.message).toBe("Imported save loaded.");
+  });
+
+  it("rejects malformed imported saves", () => {
+    useGameStore.getState().startQuickMatch({ seed: 12 });
+    expect(useGameStore.getState().importSaveJson("{not json")).toBe(false);
+    expect(useGameStore.getState().message).toBe("Imported save is invalid or unsupported.");
+    expect(useGameStore.getState().phase.phase).toBe("playing");
+  });
+
+  it("rejects imports that cannot be restored safely", () => {
+    const exported = useGameStore.getState().exportSaveJson();
+    const broken = { ...JSON.parse(exported ?? "{}"), board: {} };
+
+    expect(useGameStore.getState().importSaveJson(JSON.stringify(broken))).toBe(false);
+    expect(useGameStore.getState().message).toBe("Saved data could not be restored safely.");
+    expect(useGameStore.getState().phase.phase).toBe("playing");
+  });
+
   it("advances half-turn territory claims through the opponent response window", () => {
     const board = createBoard();
     board.specialSquares = [

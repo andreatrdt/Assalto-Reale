@@ -62,7 +62,8 @@ interface StartMatchOptions {
 }
 
 interface SavedGame {
-  schema: 1;
+  schema: 1 | 2;
+  appVersion?: string;
   savedAt?: string;
   board: ReturnType<typeof toPythonSnapshot>;
   phase: PhaseState;
@@ -80,6 +81,9 @@ interface SavedGame {
   hasActiveMatch: boolean;
   matchConfig: MatchConfig | null;
   timeLeft: Record<Player, number>;
+  pendingTransform?: PendingTransform | null;
+  pendingDefendedKing?: PendingDefendedKing | null;
+  history?: HistoryEntry[];
 }
 
 interface GameStore {
@@ -125,6 +129,8 @@ interface GameStore {
   tickClock: (now: number) => void;
   saveGame: () => void;
   loadGame: () => void;
+  exportSaveJson: () => string | null;
+  importSaveJson: (raw: string) => boolean;
 }
 
 function createInitialPiecesLeft(): PiecesLeft {
@@ -327,7 +333,8 @@ function advanceHalfTurn(board: BoardState, state: GameStore): { currentPlayer: 
 
 function savedGameFromState(state: GameStore): SavedGame {
   return {
-    schema: 1,
+    schema: 2,
+    appVersion: "web-v1",
     savedAt: new Date().toISOString(),
     board: toPythonSnapshot(state.board),
     phase: state.phase,
@@ -345,13 +352,43 @@ function savedGameFromState(state: GameStore): SavedGame {
     hasActiveMatch: state.hasActiveMatch,
     matchConfig: state.matchConfig,
     timeLeft: state.timeLeft,
+    pendingTransform: state.pendingTransform,
+    pendingDefendedKing: state.pendingDefendedKing,
+    history: state.history,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPlayer(value: unknown): value is Player {
+  return value === "Black" || value === "White";
+}
+
+function isValidTimeLeft(value: unknown): value is Record<Player, number> {
+  return isRecord(value) && typeof value.Black === "number" && typeof value.White === "number" && value.Black >= 0 && value.White >= 0;
+}
+
+function validateSavedGame(value: unknown): SavedGame | null {
+  if (!isRecord(value)) return null;
+  if (value.schema !== 1 && value.schema !== 2) return null;
+  if (!isRecord(value.board) || !isRecord(value.phase)) return null;
+  if (!isPlayer(value.currentPlayer) || !isPlayer(value.aiPlayer)) return null;
+  if (typeof value.movesThisTurn !== "number" || value.movesThisTurn < 0 || value.movesThisTurn > 2) return null;
+  if (typeof value.kingMoved !== "boolean") return null;
+  if (typeof value.turnCounter !== "number" || value.turnCounter < 0) return null;
+  if (typeof value.placementCursor !== "number" || value.placementCursor < 0) return null;
+  if (!isRecord(value.piecesLeft)) return null;
+  if (typeof value.lastAction !== "string" || typeof value.message !== "string") return null;
+  if (typeof value.aiEnabled !== "boolean" || typeof value.hasActiveMatch !== "boolean") return null;
+  if (!isValidTimeLeft(value.timeLeft)) return null;
+  return value as unknown as SavedGame;
 }
 
 function loadSavedGame(raw: string): SavedGame | null {
   try {
-    const parsed = JSON.parse(raw) as SavedGame;
-    return parsed.schema === 1 ? parsed : null;
+    return validateSavedGame(JSON.parse(raw));
   } catch {
     return null;
   }
@@ -410,6 +447,40 @@ export const useGameStore = create<GameStore>((set, get) => {
     const patch = clockPatch(get(), now, stopRunning);
     if (Object.keys(patch).length > 0) {
       set(patch);
+    }
+  }
+
+  function restoreSavedGame(saved: SavedGame, message = "Game loaded."): boolean {
+    try {
+      set({
+        board: fromPythonSnapshot(saved.board),
+        phase: saved.phase,
+        currentPlayer: saved.currentPlayer,
+        movesThisTurn: saved.movesThisTurn,
+        kingMoved: saved.kingMoved,
+        turnCounter: saved.turnCounter,
+        placementCursor: saved.placementCursor,
+        currentPlacement: saved.currentPlacement,
+        piecesLeft: clonePiecesLeft(saved.piecesLeft),
+        lastAction: saved.lastAction,
+        message,
+        aiEnabled: saved.aiEnabled,
+        aiPlayer: saved.aiPlayer,
+        hasActiveMatch: saved.hasActiveMatch ?? true,
+        matchConfig: saved.matchConfig ?? null,
+        timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+        clockRunningFor: null,
+        clockLastSyncMs: null,
+        selected: null,
+        legalTargets: [],
+        pendingTransform: saved.schema === 2 ? (saved.pendingTransform ?? null) : null,
+        pendingDefendedKing: saved.schema === 2 ? (saved.pendingDefendedKing ?? null) : null,
+        history: saved.schema === 2 ? (saved.history ?? []) : [],
+      });
+      return true;
+    } catch {
+      set({ message: "Saved data could not be restored safely." });
+      return false;
     }
   }
 
@@ -962,31 +1033,36 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ message: "No valid local save found." });
         return;
       }
-      set({
-        board: fromPythonSnapshot(saved.board),
-        phase: saved.phase,
-        currentPlayer: saved.currentPlayer,
-        movesThisTurn: saved.movesThisTurn,
-        kingMoved: saved.kingMoved,
-        turnCounter: saved.turnCounter,
-        placementCursor: saved.placementCursor,
-        currentPlacement: saved.currentPlacement,
-        piecesLeft: clonePiecesLeft(saved.piecesLeft),
-        lastAction: saved.lastAction,
-        message: "Game loaded.",
-        aiEnabled: saved.aiEnabled,
-        aiPlayer: saved.aiPlayer,
-        hasActiveMatch: saved.hasActiveMatch ?? true,
-        matchConfig: saved.matchConfig ?? null,
-        timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
-        clockRunningFor: null,
-        clockLastSyncMs: null,
-        selected: null,
-        legalTargets: [],
-        pendingTransform: null,
-        pendingDefendedKing: null,
-        history: [],
-      });
+      restoreSavedGame(saved);
+    },
+
+    exportSaveJson: () => {
+      syncClock(monotonicNow(), false);
+      try {
+        return JSON.stringify(savedGameFromState(get()), null, 2);
+      } catch {
+        set({ message: "Save export failed." });
+        return null;
+      }
+    },
+
+    importSaveJson: (raw) => {
+      const saved = loadSavedGame(raw);
+      if (!saved) {
+        set({ message: "Imported save is invalid or unsupported." });
+        return false;
+      }
+      if (!restoreSavedGame(saved, "Imported save loaded.")) {
+        return false;
+      }
+      try {
+        if (localStorageAvailable()) {
+          window.localStorage.setItem("assalto-reale-save", JSON.stringify(saved));
+        }
+      } catch {
+        set({ message: "Imported save loaded, but could not be written to local storage." });
+      }
+      return true;
     },
   };
 });
