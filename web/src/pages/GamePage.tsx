@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppRoute } from "../app/routes";
-import { GameBoard } from "../board/GameBoard";
-import { canPlacePiece, PAWN_TYPES, type BoardState, type Player, type Vec2 } from "../game/engine";
+import { GameBoard, PieceGlyph } from "../board/GameBoard";
+import { canPlacePiece, PAWN_TYPES, type BoardState, type PieceType, type Player, type Vec2 } from "../game/engine";
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog, FactionBadge, GameButton, Icon, IconButton, StatusBadge } from "../ui/components";
@@ -65,8 +65,7 @@ export function GamePage({ navigate }: GamePageProps) {
         const latestDecision =
           (latest.phase.phase === "transformSelection" && latest.pendingTransform?.owner === latest.aiPlayer) ||
           (latest.phase.phase === "defenderSelection" && latest.pendingDefendedKing?.owner === latest.aiPlayer);
-        const latestTurn =
-          (latest.currentPlayer === latest.aiPlayer && latest.phase.phase === "playing") || latestDecision;
+        const latestTurn = (latest.currentPlayer === latest.aiPlayer && latest.phase.phase === "playing") || latestDecision;
         if (!latest.aiEnabled || (!latestPlacement && !latestTurn)) return;
         latest.runAiTurn();
       }
@@ -206,7 +205,13 @@ export function GamePage({ navigate }: GamePageProps) {
           ) : phase === "transformSelection" && pendingTransform ? (
             <TransformPanel pendingTransform={pendingTransform} message={activeMessage} chooseTransform={chooseTransform} />
           ) : phase === "gameOver" ? (
-            <VictoryPanel message={activeMessage} saveGame={saveGame} rematch={() => setConfirmRestart(true)} newMatch={() => navigate("/setup")} home={() => setConfirmHome(true)} />
+            <VictoryPanel
+              message={activeMessage}
+              saveGame={saveGame}
+              rematch={() => setConfirmRestart(true)}
+              newMatch={() => navigate("/setup")}
+              home={() => setConfirmHome(true)}
+            />
           ) : (
             <MatchPanel
               board={board}
@@ -292,21 +297,9 @@ export function GameStatus({
 
       {territoryRelevant && (
         <div className="statusTerritory" aria-label="Territory control">
-          {blackControl > 0 && (
-            <p>
-              Black controls {blackControl} of {totalSpecial} Special Squares
-            </p>
-          )}
-          {whiteControl > 0 && (
-            <p>
-              White controls {whiteControl} of {totalSpecial} Special Squares
-            </p>
-          )}
-          {board.territoryClaim && (
-            <p>
-              {board.territoryClaim.claimant}&apos;s claim matures on turn {board.territoryClaim.matureTurn}
-            </p>
-          )}
+          {blackControl > 0 && <p>Black controls {blackControl} of {totalSpecial} Special Squares</p>}
+          {whiteControl > 0 && <p>White controls {whiteControl} of {totalSpecial} Special Squares</p>}
+          {board.territoryClaim && <p>{board.territoryClaim.claimant}&apos;s claim matures on turn {board.territoryClaim.matureTurn}</p>}
         </div>
       )}
 
@@ -395,15 +388,11 @@ export function DefendedKingPanel({
       <dl className="hudList">
         <div>
           <dt>Attacking pawn</dt>
-          <dd>
-            {attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}
-          </dd>
+          <dd>{attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}</dd>
         </div>
         <div>
           <dt>Attacked King</dt>
-          <dd>
-            {defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}
-          </dd>
+          <dd>{defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}</dd>
         </div>
         <div>
           <dt>Attack path</dt>
@@ -555,13 +544,50 @@ export function VictoryPanel({
   );
 }
 
-function CapturedPieces({ board }: { board: BoardState }) {
+const CAPTURED_PIECE_ORDER: PieceType[] = ["King", "AttackPawn", "DefensePawn", "ConquestPawn"];
+
+export function CapturedPieces({ board }: { board: BoardState }) {
   return (
-    <div className="capturedBox" aria-label="Captured pieces">
-      <p className="eyebrow">Captured</p>
-      <span>Black: {capturedByType(board, "Black")}</span>
-      <span>White: {capturedByType(board, "White")}</span>
-    </div>
+    <section className="capturedBox" aria-labelledby="captured-title">
+      <h3 id="captured-title" className="capturedTitle">Captured</h3>
+      <div className="capturedRows">
+        {(["Black", "White"] as const).map((player) => {
+          const pieces = CAPTURED_PIECE_ORDER.flatMap((pieceType) =>
+            Array.from({ length: board.capturedPieces[player][pieceType] ?? 0 }, (_, index) => ({ pieceType, index })),
+          );
+
+          return (
+            <div
+              key={player}
+              className="capturedRow"
+              aria-label={pieces.length > 0 ? `${player} captured pieces` : `No ${player} pieces captured`}
+            >
+              <span className={`capturedSide capturedSide${player}`}>
+                <span aria-hidden="true" />
+                {player}
+              </span>
+              <div className="capturedIcons">
+                {pieces.length > 0 ? (
+                  pieces.map(({ pieceType, index }) => (
+                    <svg
+                      key={`${player}-${pieceType}-${index}`}
+                      className="capturedPieceIcon"
+                      viewBox="0 0 100 100"
+                      role="img"
+                      aria-label={`${player} ${pieceLabel(pieceType)} captured`}
+                    >
+                      <PieceGlyph piece={{ player, type: pieceType }} />
+                    </svg>
+                  ))
+                ) : (
+                  <span className="capturedEmpty">None</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -592,7 +618,12 @@ function formatClock(seconds: number): string {
   return `${minutes}:${remaining.toString().padStart(2, "0")}`;
 }
 
-function statusHeadline(phase: string, currentPlayer: Player, currentPlacement: { player: Player; pieceType: string } | null, aiControlsTurn: boolean): string {
+function statusHeadline(
+  phase: string,
+  currentPlayer: Player,
+  currentPlacement: { player: Player; pieceType: string } | null,
+  aiControlsTurn: boolean,
+): string {
   if (phase === "gameOver") return "Match complete";
   if (phase === "placement") {
     return currentPlacement ? `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}` : "Manual placement";
@@ -617,12 +648,6 @@ function squareName(pos: Vec2): string {
 
 function formatPath(path: Vec2[]): string {
   return path.length > 0 ? path.map(squareName).join(" -> ") : "None";
-}
-
-function capturedByType(board: BoardState, player: Player): string {
-  return Object.entries(board.capturedPieces[player])
-    .map(([piece, count]) => `${piece.replace("Pawn", "")} ${count}`)
-    .join(" / ");
 }
 
 function describeMatchMode(config: NonNullable<ReturnType<typeof useGameStore.getState>["matchConfig"]>): string {

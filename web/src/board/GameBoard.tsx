@@ -14,7 +14,7 @@ function pieceLabel(piece: Piece): string {
   return piece.type.replace("Pawn", " Pawn");
 }
 
-function PieceGlyph({ piece }: { piece: Piece }) {
+export function PieceGlyph({ piece }: { piece: Piece }) {
   const factionClass = piece.player === "Black" ? "pieceBlack" : "pieceWhite";
   const motif = {
     King: "M30 13 39 26 50 15 61 26 70 13 65 73H35L30 13Z",
@@ -43,21 +43,6 @@ export function GameBoard({ board, selected = null, legalTargets = [], placement
   return (
     <div className="boardFrame">
       <svg className="assaltoBoard" viewBox={`0 0 ${size} ${size}`} role="grid" aria-label="Assalto Reale board">
-        <defs>
-          <linearGradient id="tileDark" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#141a1d" />
-            <stop offset="100%" stopColor="#0b0f11" />
-          </linearGradient>
-          <linearGradient id="tileLight" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#2a2f2c" />
-            <stop offset="100%" stopColor="#1a211e" />
-          </linearGradient>
-          <radialGradient id="specialGlow">
-            <stop offset="0%" stopColor="#d3b56f" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#b89753" stopOpacity="0.08" />
-          </radialGradient>
-        </defs>
-
         <rect width={size} height={size} className="boardBed" rx="20" />
 
         {board.grid.map((row, rowIndex) =>
@@ -122,12 +107,6 @@ export function GameBoard({ board, selected = null, legalTargets = [], placement
                   <svg x={x + cell * 0.16} y={y + cell * 0.1} width={cell * 0.68} height={cell * 0.78} viewBox="0 0 100 100">
                     <PieceGlyph piece={piece} />
                   </svg>
-                )}
-                {isDefendedKing && (
-                  <g className="defendedKingMark" aria-hidden="true">
-                    <path d={`M ${x + cell * 0.72} ${y + cell * 0.18} L ${x + cell * 0.86} ${y + cell * 0.24} L ${x + cell * 0.84} ${y + cell * 0.43} C ${x + cell * 0.82} ${y + cell * 0.55}, ${x + cell * 0.76} ${y + cell * 0.62}, ${x + cell * 0.72} ${y + cell * 0.66} C ${x + cell * 0.66} ${y + cell * 0.62}, ${x + cell * 0.61} ${y + cell * 0.55}, ${x + cell * 0.6} ${y + cell * 0.43} L ${x + cell * 0.58} ${y + cell * 0.24} Z`} />
-                    <path d={`M ${x + cell * 0.66} ${y + cell * 0.4} L ${x + cell * 0.7} ${y + cell * 0.46} L ${x + cell * 0.8} ${y + cell * 0.34}`} />
-                  </g>
                 )}
                 {(rowIndex === 0 || colIndex === 0) && (
                   <text x={x + 12} y={y + 24} className="coordLabel">
