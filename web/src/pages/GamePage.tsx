@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { GameBoard } from "../board/GameBoard";
-import { adjacentDefendersForKing, canPlacePiece, PAWN_TYPES, type BoardState, type Player, type Vec2 } from "../game/engine";
+import { canPlacePiece, PAWN_TYPES, type BoardState, type Player, type Vec2 } from "../game/engine";
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
-import { ConfirmDialog, FactionBadge, GameButton, IconButton, Panel, StatusBadge } from "../ui/components";
+import { ConfirmDialog, FactionBadge, GameButton, Icon, IconButton, StatusBadge } from "../ui/components";
 
 interface GamePageProps {
   navigate: (route: AppRoute, replace?: boolean) => void;
@@ -16,7 +16,6 @@ export function GamePage({ navigate }: GamePageProps) {
   const currentPlayer = useGameStore((state) => state.currentPlayer);
   const movesThisTurn = useGameStore((state) => state.movesThisTurn);
   const kingMoved = useGameStore((state) => state.kingMoved);
-  const turnCounter = useGameStore((state) => state.turnCounter);
   const selected = useGameStore((state) => state.selected);
   const legalTargets = useGameStore((state) => state.legalTargets);
   const currentPlacement = useGameStore((state) => state.currentPlacement);
@@ -107,7 +106,6 @@ export function GamePage({ navigate }: GamePageProps) {
       (phase === "transformSelection" && pendingTransform?.owner === aiPlayer) ||
       (phase === "defenderSelection" && pendingDefendedKing?.owner === aiPlayer));
   const clockShouldRun = phase === "playing" && (matchConfig?.timerSeconds ?? 0) > 0 && !aiControlsTurn;
-  const defendedKings = useMemo(() => getDefendedKingStatus(board), [board]);
   const activeMessage = aiControlsTurn ? "Computer is thinking." : message;
   const restartSummary = matchConfig ? describeMatchMode(matchConfig) : "No stored match setup";
   const canRestartMatch = Boolean(matchConfig);
@@ -144,25 +142,17 @@ export function GamePage({ navigate }: GamePageProps) {
 
   return (
     <main className={`gamePage factionTurn${currentPlayer}`}>
-      <header className="gameCommandBar">
-        <div className="gameBrandBlock">
-          <p className="eyebrow">Command table</p>
-          <h1>Assalto Reale</h1>
-        </div>
-        <div className="turnBanner" aria-live="polite">
-          <FactionBadge player={currentPlayer} active />
-          <span>{phase === "placement" ? "Deployment phase" : phaseLabel(phase)}</span>
-          {aiControlsTurn && (
-            <StatusBadge tone="info" icon="gear">
-              AI thinking
-            </StatusBadge>
-          )}
-        </div>
-        <div className="clockStrip" aria-label="Player clocks">
-          <PlayerClock player="Black" seconds={timeLeft.Black} timerLabel={timerLabel} active={currentPlayer === "Black"} />
-          <PlayerClock player="White" seconds={timeLeft.White} timerLabel={timerLabel} active={currentPlayer === "White"} />
-        </div>
-        <div className="gameTopActions" aria-label="Match navigation">
+      <header className="gameHeader">
+        <button
+          type="button"
+          className="gameBrand"
+          onClick={() => setConfirmHome(true)}
+          aria-label="Leave match and return to the Assalto Reale home"
+        >
+          <Icon name="home" />
+          <span>Assalto Reale</span>
+        </button>
+        <div className="gameHeaderActions" aria-label="Match actions">
           <IconButton icon="book" label="Rules" onClick={() => navigate("/rules")} />
           <IconButton icon="gear" label="Settings" onClick={() => navigate("/settings")} />
           <IconButton
@@ -172,72 +162,34 @@ export function GamePage({ navigate }: GamePageProps) {
             onClick={() => setConfirmRestart(true)}
             disabled={!canRestartMatch}
           />
-          <GameButton variant="ghost" icon="home" onClick={() => setConfirmHome(true)}>
-            Menu
-          </GameButton>
         </div>
       </header>
 
-      <section className="gameTable">
-        <Panel as="aside" tone="strong" className="gameRail leftRail" aria-label="Player status">
-          <div className="railSection">
-            <p className="eyebrow">Turn</p>
-            <h2>{phase === "placement" ? "Deployment" : currentPlayer}</h2>
-            <ActionPointTrack movesThisTurn={movesThisTurn} />
-          </div>
-          <dl className="hudList">
-            <div>
-              <dt>Half-turn</dt>
-              <dd>{turnCounter}</dd>
-            </div>
-            <div>
-              <dt>Actions left</dt>
-              <dd>{Math.max(0, 2 - movesThisTurn)}/2</dd>
-            </div>
-            <div>
-              <dt>King status</dt>
-              <dd>{kingMoved ? "Acted" : "Ready"}</dd>
-            </div>
-            <div>
-              <dt>Mode</dt>
-              <dd>{matchConfig ? describeMatchMode(matchConfig) : "Local"}</dd>
-            </div>
-          </dl>
-          <div className="defenseStatus" aria-label="Defended Kings">
-            <StatusBadge tone={defendedKings.Black ? "gold" : "neutral"} icon="shield">
-              Black King {defendedKings.Black ? "defended" : "exposed"}
-            </StatusBadge>
-            <StatusBadge tone={defendedKings.White ? "gold" : "neutral"} icon="shield">
-              White King {defendedKings.White ? "defended" : "exposed"}
-            </StatusBadge>
-          </div>
-        </Panel>
+      <div className="gameLayout">
+        <GameStatus
+          phase={phase}
+          currentPlayer={currentPlayer}
+          currentPlacement={currentPlacement}
+          movesThisTurn={movesThisTurn}
+          aiControlsTurn={Boolean(aiControlsTurn)}
+          board={board}
+          timerSeconds={matchConfig?.timerSeconds ?? 0}
+          timeLeft={timeLeft}
+          timerLabel={timerLabel}
+          selectedWithoutTargets={Boolean(selected) && legalTargets.length === 0}
+        />
 
-        <section className="boardCommandCenter" aria-label="Board and current status">
-          <div className="statusRibbon">
-            <StatusBadge tone={phase === "gameOver" ? "success" : aiControlsTurn ? "info" : "gold"} icon={phase === "gameOver" ? "crown" : "spark"}>
-              {activeMessage}
-            </StatusBadge>
-            {selected && legalTargets.length === 0 && (
-              <StatusBadge tone="danger" icon="warning">
-                No legal targets
-              </StatusBadge>
-            )}
-          </div>
-          <section className="boardStage" aria-label="Game board">
-            <GameBoard
-              board={board}
-              selected={selected}
-              legalTargets={legalTargets}
-              placementValid={placementValid}
-              onSquareActivate={activateSquare}
-            />
-          </section>
-        </section>
+        <div className="gameBoardArea" aria-label="Game board">
+          <GameBoard
+            board={board}
+            selected={selected}
+            legalTargets={legalTargets}
+            placementValid={placementValid}
+            onSquareActivate={activateSquare}
+          />
+        </div>
 
-        <Panel as="aside" tone="strong" className="gameRail rightRail" aria-live="polite">
-          <p className="eyebrow">Orders</p>
-          <h2>{phaseLabel(phase)}</h2>
+        <aside className="gamePanel" aria-label="Match controls" aria-live="polite">
           {phase === "placement" && currentPlacement ? (
             <PlacementPanel
               currentPlacement={currentPlacement}
@@ -257,19 +209,17 @@ export function GamePage({ navigate }: GamePageProps) {
             <VictoryPanel message={activeMessage} saveGame={saveGame} rematch={() => setConfirmRestart(true)} newMatch={() => navigate("/setup")} home={() => setConfirmHome(true)} />
           ) : (
             <MatchPanel
-              message={activeMessage}
               board={board}
-              currentPlayer={currentPlayer}
               lastAction={lastAction}
               passTurn={passTurn}
               undo={undo}
               saveGame={saveGame}
               loadGame={loadGame}
-              disabled={aiControlsTurn}
+              disabled={Boolean(aiControlsTurn)}
             />
           )}
-        </Panel>
-      </section>
+        </aside>
+      </div>
 
       {confirmHome && (
         <ConfirmDialog title="Return to menu?" confirmLabel="Return Home" onConfirm={confirmReturnHome} onCancel={() => setConfirmHome(false)}>
@@ -285,6 +235,87 @@ export function GamePage({ navigate }: GamePageProps) {
         </ConfirmDialog>
       )}
     </main>
+  );
+}
+
+export function GameStatus({
+  phase,
+  currentPlayer,
+  currentPlacement,
+  movesThisTurn,
+  aiControlsTurn,
+  board,
+  timerSeconds,
+  timeLeft,
+  timerLabel,
+  selectedWithoutTargets,
+}: {
+  phase: string;
+  currentPlayer: Player;
+  currentPlacement: { player: Player; pieceType: string } | null;
+  movesThisTurn: number;
+  aiControlsTurn: boolean;
+  board: BoardState;
+  timerSeconds: number;
+  timeLeft: Record<Player, number>;
+  timerLabel: string;
+  selectedWithoutTargets: boolean;
+}) {
+  const timed = timerSeconds > 0;
+  const showActionPoints = phase === "playing";
+  const headline = statusHeadline(phase, currentPlayer, currentPlacement, aiControlsTurn);
+  const totalSpecial = board.specialSquares.length;
+  const blackControl = board.controlledSquares.Black.length;
+  const whiteControl = board.controlledSquares.White.length;
+  const territoryRelevant = blackControl > 0 || whiteControl > 0 || Boolean(board.territoryClaim);
+
+  return (
+    <section className="gameStatus" aria-label="Match status" aria-live="polite">
+      <div className="statusPrimary">
+        <FactionBadge player={currentPlayer} active />
+        <p className="statusHeadline">{headline}</p>
+      </div>
+
+      {showActionPoints && (
+        <div className="statusAp">
+          <ActionPointTrack movesThisTurn={movesThisTurn} />
+          <span className="statusApText">{Math.max(0, 2 - movesThisTurn)} actions remaining</span>
+        </div>
+      )}
+
+      {timed && (
+        <div className="clockStrip" aria-label="Player clocks">
+          <PlayerClock player="Black" seconds={timeLeft.Black} timerLabel={timerLabel} active={currentPlayer === "Black"} />
+          <PlayerClock player="White" seconds={timeLeft.White} timerLabel={timerLabel} active={currentPlayer === "White"} />
+        </div>
+      )}
+
+      {territoryRelevant && (
+        <div className="statusTerritory" aria-label="Territory control">
+          {blackControl > 0 && (
+            <p>
+              Black controls {blackControl} of {totalSpecial} Special Squares
+            </p>
+          )}
+          {whiteControl > 0 && (
+            <p>
+              White controls {whiteControl} of {totalSpecial} Special Squares
+            </p>
+          )}
+          {board.territoryClaim && (
+            <p>
+              {board.territoryClaim.claimant}&apos;s claim matures on turn {board.territoryClaim.matureTurn}
+            </p>
+          )}
+        </div>
+      )}
+
+      {selectedWithoutTargets && (
+        <StatusBadge tone="danger" icon="warning">
+          No legal targets
+        </StatusBadge>
+      )}
+    </section>
   );
 }
 
@@ -312,14 +343,6 @@ export function PlacementPanel({
       <p className="statusLine">{message}</p>
       <dl className="hudList">
         <div>
-          <dt>Deploying</dt>
-          <dd>{currentPlacement.player}</dd>
-        </div>
-        <div>
-          <dt>Piece</dt>
-          <dd>{currentPlacement.pieceType.replace("Pawn", " Pawn")}</dd>
-        </div>
-        <div>
           <dt>Progress</dt>
           <dd>{placementCursor}/26</dd>
         </div>
@@ -334,26 +357,22 @@ export function PlacementPanel({
       </dl>
       {disabled && (
         <StatusBadge tone="info" icon="gear">
-          Computer is deploying this piece.
+          Computer is placing this piece.
         </StatusBadge>
       )}
-      <StatusBadge tone="success" icon="save">
-        Placement can be saved: board, progress, remaining pieces and match settings are included.
-      </StatusBadge>
       <div className="commandGrid">
-        <GameButton variant="secondary" icon="chevron" onClick={undo} disabled={disabled}>
-          Undo Placement
+        <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+          Undo
         </GameButton>
         <GameButton variant="secondary" icon="save" onClick={saveGame}>
-          Save Deployment
+          Save
         </GameButton>
       </div>
-      <p className="helperText">Saves during unresolved Defended-King or Transform decisions still need fuller modal-state serialization.</p>
     </div>
   );
 }
 
-function DefendedKingPanel({
+export function DefendedKingPanel({
   pendingDefendedKing,
   message,
   cancel,
@@ -370,7 +389,7 @@ function DefendedKingPanel({
   return (
     <div className="matchPanel">
       <StatusBadge tone="gold" icon="shield">
-        Defended King preview
+        Defended King
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <dl className="hudList">
@@ -420,9 +439,8 @@ function DefendedKingPanel({
         </div>
       </dl>
       <StatusBadge tone="info" icon="warning">
-        The board highlight is the source of truth for the defender choice.
+        Choose the defender by selecting a highlighted square on the board.
       </StatusBadge>
-      <p className="helperText">Explicit preview-owner state and engine-provided animation steps remain documented parity work; this panel shows only state currently exposed by the store.</p>
       <GameButton variant="ghost" onClick={cancel}>
         Cancel Attack
       </GameButton>
@@ -430,7 +448,7 @@ function DefendedKingPanel({
   );
 }
 
-function TransformPanel({
+export function TransformPanel({
   pendingTransform,
   message,
   chooseTransform,
@@ -442,12 +460,12 @@ function TransformPanel({
   return (
     <div className="matchPanel">
       <StatusBadge tone="info" icon="spark">
-        Transform Square
+        Transform
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <div className="choiceGrid">
         {PAWN_TYPES.filter((pieceType) => pieceType !== pendingTransform.pieceType).map((pieceType) => (
-          <GameButton key={pieceType} variant="secondary" icon="spark" onClick={() => chooseTransform(pieceType)}>
+          <GameButton key={pieceType} variant="secondary" onClick={() => chooseTransform(pieceType)}>
             {pieceType.replace("Pawn", " Pawn")}
           </GameButton>
         ))}
@@ -456,10 +474,8 @@ function TransformPanel({
   );
 }
 
-function MatchPanel({
-  message,
+export function MatchPanel({
   board,
-  currentPlayer,
   lastAction,
   passTurn,
   undo,
@@ -467,9 +483,7 @@ function MatchPanel({
   loadGame,
   disabled,
 }: {
-  message: string;
   board: BoardState;
-  currentPlayer: Player;
   lastAction: string;
   passTurn: () => void;
   undo: () => void;
@@ -479,33 +493,18 @@ function MatchPanel({
 }) {
   return (
     <div className="matchPanel">
-      <p className="statusLine">{message}</p>
       <dl className="hudList">
         <div>
-          <dt>Current player</dt>
-          <dd>{currentPlayer}</dd>
-        </div>
-        <div>
-          <dt>Special control</dt>
-          <dd>
-            Black {board.controlledSquares.Black.length} / White {board.controlledSquares.White.length}
-          </dd>
-        </div>
-        <div>
-          <dt>Territory claim</dt>
-          <dd>{board.territoryClaim ? `${board.territoryClaim.claimant} matures on turn ${board.territoryClaim.matureTurn}` : "None"}</dd>
-        </div>
-        <div>
-          <dt>Last action</dt>
+          <dt>Last move</dt>
           <dd>{lastAction}</dd>
         </div>
       </dl>
       <CapturedPieces board={board} />
       <div className="commandGrid">
-        <GameButton variant="primary" icon="chevron" onClick={passTurn} disabled={disabled}>
+        <GameButton variant="primary" onClick={passTurn} disabled={disabled}>
           Pass
         </GameButton>
-        <GameButton variant="secondary" icon="chevron" onClick={undo} disabled={disabled}>
+        <GameButton variant="secondary" onClick={undo} disabled={disabled}>
           Undo
         </GameButton>
         <GameButton variant="secondary" icon="save" onClick={saveGame}>
@@ -519,7 +518,7 @@ function MatchPanel({
   );
 }
 
-function VictoryPanel({
+export function VictoryPanel({
   message,
   saveGame,
   rematch,
@@ -539,7 +538,7 @@ function VictoryPanel({
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <div className="commandGrid">
-        <GameButton variant="primary" icon="crown" onClick={rematch}>
+        <GameButton variant="primary" onClick={rematch}>
           Rematch
         </GameButton>
         <GameButton variant="primary" icon="play" onClick={newMatch}>
@@ -593,12 +592,23 @@ function formatClock(seconds: number): string {
   return `${minutes}:${remaining.toString().padStart(2, "0")}`;
 }
 
-function phaseLabel(phase: string): string {
-  if (phase === "gameOver") return "Victory";
-  if (phase === "placement") return "Manual Placement";
-  if (phase === "defenderSelection") return "Defended King";
-  if (phase === "transformSelection") return "Transform";
-  return "Actions";
+function statusHeadline(phase: string, currentPlayer: Player, currentPlacement: { player: Player; pieceType: string } | null, aiControlsTurn: boolean): string {
+  if (phase === "gameOver") return "Match complete";
+  if (phase === "placement") {
+    return currentPlacement ? `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}` : "Manual placement";
+  }
+  if (phase === "defenderSelection") return "Defended King decision";
+  if (phase === "transformSelection") return "Transform decision";
+  if (aiControlsTurn) return "Computer is thinking";
+  return `${currentPlayer} to move`;
+}
+
+function pieceLabel(pieceType: string): string {
+  return pieceType.replace("Pawn", " Pawn");
+}
+
+function withArticle(label: string): string {
+  return `${/^[AEIOU]/i.test(label) ? "an" : "a"} ${label}`;
 }
 
 function squareName(pos: Vec2): string {
@@ -619,17 +629,4 @@ function describeMatchMode(config: NonNullable<ReturnType<typeof useGameStore.ge
   const opponent = config.opponent === "Computer" ? `vs ${config.aiDifficulty} AI` : "Human vs Human";
   const placement = config.placementMode === "Manual" ? "Manual" : "Quick";
   return `${opponent}, ${placement}${config.transformEnabled ? ", Transform" : ""}`;
-}
-
-function getDefendedKingStatus(board: BoardState): Record<Player, boolean> {
-  const status: Record<Player, boolean> = { Black: false, White: false };
-  for (let row = 0; row < board.config.rows; row += 1) {
-    for (let col = 0; col < board.config.cols; col += 1) {
-      const piece = board.grid[row][col];
-      if (piece?.type === "King") {
-        status[piece.player] = adjacentDefendersForKing(board, [row, col], piece.player).length > 0;
-      }
-    }
-  }
-  return status;
 }
