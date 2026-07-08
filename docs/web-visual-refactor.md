@@ -79,13 +79,17 @@
 - Reworked Settings to expose only implemented preferences.
 - Added server-render presentation tests covering route rendering, setup selected states, game HUD rendering, confirmation dialogs and empty save state.
 - Fixed SPA navigation scroll reset so `/game` does not inherit scroll from the Setup route.
+- Follow-up UX slice: exposed Save during manual placement because the current save schema includes placement phase, board, cursor, current placement, remaining pieces, clocks and match config.
+- Follow-up UX slice: added placement save helper copy noting unresolved modal decisions still need fuller serialization.
+- Follow-up UX slice: expanded the Defended-King panel to show engine-provided attack path, bounce path, landing square, AP cost, Transform trigger and turn-ending status.
+- Follow-up UX slice: added visible Rematch action to victory state and clarified restart/rematch confirmation copy.
 
 ## Remaining Visual/UX Limitations
 
-- Full Defended-King preview animation and defender-choice presentation still need explicit decision-owner state from the parity work.
+- Full Defended-King preview animation and defender-choice presentation still need explicit decision-owner state from the parity work; current UI can show preview fields but cannot yet prove owner/animation sequencing.
 - Timer countdown UI is visually reserved but not yet backed by the canonical monotonic clock controller.
 - Load cards can now show saved-at metadata for new saves; older local saves still lack that field.
-- Victory/rematch remains a polished in-game state, but exact rematch lifecycle parity still belongs to the match-controller work.
+- Victory/rematch now has visible actions and confirmation, but exact rematch lifecycle parity still belongs to the match-controller work.
 - Audio feedback is not implemented in this slice.
 
 ## Screenshot Report

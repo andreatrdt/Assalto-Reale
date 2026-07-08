@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { routeFromPathname } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog } from "../ui/components";
-import { GamePage } from "./GamePage";
+import { GamePage, PlacementPanel } from "./GamePage";
 import { HomePage } from "./HomePage";
 import { LoadPage } from "./LoadPage";
 import { RulesPage } from "./RulesPage";
@@ -52,7 +52,30 @@ describe("route presentation", () => {
     expect(html).toContain("Special control");
     expect(html).toContain("Captured");
     expect(html).toContain("Pass");
-    expect(html).toContain("Restart");
+    expect(html).toContain("Restart match");
+  });
+
+  it("renders manual placement save support and limitation copy", () => {
+    const piecesLeft = {
+      Black: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
+      White: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
+    };
+    const html = renderToStaticMarkup(
+      <PlacementPanel
+        currentPlacement={{ player: "Black", pieceType: "King" }}
+        piecesLeft={piecesLeft}
+        placementCursor={0}
+        placementValidCount={8}
+        message="Black: place King."
+        undo={() => undefined}
+        saveGame={() => undefined}
+        disabled={false}
+      />,
+    );
+
+    expect(html).toContain("Save Deployment");
+    expect(html).toContain("Placement can be saved");
+    expect(html).toContain("unresolved Defended-King or Transform decisions");
   });
 
   it("renders confirmation dialogs without browser alerts", () => {

@@ -211,6 +211,7 @@ export function GamePage({ navigate }: GamePageProps) {
               placementValidCount={placementValid.length}
               message={activeMessage}
               undo={undo}
+              saveGame={saveGame}
               disabled={aiEnabled && currentPlacement.player === aiPlayer}
             />
           ) : phase === "defenderSelection" && pendingDefendedKing ? (
@@ -218,7 +219,7 @@ export function GamePage({ navigate }: GamePageProps) {
           ) : phase === "transformSelection" && pendingTransform ? (
             <TransformPanel pendingTransform={pendingTransform} message={activeMessage} chooseTransform={chooseTransform} />
           ) : phase === "gameOver" ? (
-            <VictoryPanel message={activeMessage} saveGame={saveGame} newMatch={() => navigate("/setup")} home={() => setConfirmHome(true)} />
+            <VictoryPanel message={activeMessage} saveGame={saveGame} rematch={() => setConfirmRestart(true)} newMatch={() => navigate("/setup")} home={() => setConfirmHome(true)} />
           ) : (
             <MatchPanel
               message={activeMessage}
@@ -243,20 +244,21 @@ export function GamePage({ navigate }: GamePageProps) {
 
       {confirmRestart && (
         <ConfirmDialog title="Restart this match?" confirmLabel="Restart Match" danger onConfirm={restartMatch} onCancel={() => setConfirmRestart(false)}>
-          <p>This recreates the match with the current resolved configuration and clears the current board state.</p>
+          <p>This recreates the match from the current resolved settings and seed, then clears the current board state.</p>
         </ConfirmDialog>
       )}
     </main>
   );
 }
 
-function PlacementPanel({
+export function PlacementPanel({
   currentPlacement,
   piecesLeft,
   placementCursor,
   placementValidCount,
   message,
   undo,
+  saveGame,
   disabled,
 }: {
   currentPlacement: { player: Player; pieceType: string };
@@ -265,6 +267,7 @@ function PlacementPanel({
   placementValidCount: number;
   message: string;
   undo: () => void;
+  saveGame: () => void;
   disabled: boolean;
 }) {
   return (
@@ -297,11 +300,18 @@ function PlacementPanel({
           Computer is deploying this piece.
         </StatusBadge>
       )}
+      <StatusBadge tone="success" icon="save">
+        Placement can be saved: board, progress, remaining pieces and match settings are included.
+      </StatusBadge>
       <div className="commandGrid">
         <GameButton variant="secondary" icon="chevron" onClick={undo} disabled={disabled}>
           Undo Placement
         </GameButton>
+        <GameButton variant="secondary" icon="save" onClick={saveGame}>
+          Save Deployment
+        </GameButton>
       </div>
+      <p className="helperText">Saves during unresolved Defended-King or Transform decisions still need fuller modal-state serialization.</p>
     </div>
   );
 }
@@ -323,6 +333,14 @@ function DefendedKingPanel({
       <p className="statusLine">{message}</p>
       <dl className="hudList">
         <div>
+          <dt>Attack path</dt>
+          <dd>{formatPath(pendingDefendedKing.preview.attackPath)}</dd>
+        </div>
+        <div>
+          <dt>Bounce path</dt>
+          <dd>{formatPath(pendingDefendedKing.preview.bouncePath)}</dd>
+        </div>
+        <div>
           <dt>Landing</dt>
           <dd>{squareName(pendingDefendedKing.preview.landingPosition)}</dd>
         </div>
@@ -334,7 +352,18 @@ function DefendedKingPanel({
           <dt>Cost</dt>
           <dd>{pendingDefendedKing.preview.actionCost} AP</dd>
         </div>
+        <div>
+          <dt>Transform</dt>
+          <dd>{pendingDefendedKing.preview.triggersTransform ? "Triggered on landing" : "Not triggered"}</dd>
+        </div>
+        <div>
+          <dt>Turn result</dt>
+          <dd>{pendingDefendedKing.preview.endsTurn ? "Ends turn" : "Continues turn"}</dd>
+        </div>
       </dl>
+      <StatusBadge tone="info" icon="warning">
+        Preview owner and animation sequencing still need explicit decision-owner state.
+      </StatusBadge>
       <GameButton variant="ghost" onClick={cancel}>
         Cancel Attack
       </GameButton>
@@ -431,7 +460,19 @@ function MatchPanel({
   );
 }
 
-function VictoryPanel({ message, saveGame, newMatch, home }: { message: string; saveGame: () => void; newMatch: () => void; home: () => void }) {
+function VictoryPanel({
+  message,
+  saveGame,
+  rematch,
+  newMatch,
+  home,
+}: {
+  message: string;
+  saveGame: () => void;
+  rematch: () => void;
+  newMatch: () => void;
+  home: () => void;
+}) {
   return (
     <div className="matchPanel victoryPanel">
       <StatusBadge tone="success" icon="crown">
@@ -439,6 +480,9 @@ function VictoryPanel({ message, saveGame, newMatch, home }: { message: string; 
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <div className="commandGrid">
+        <GameButton variant="primary" icon="crown" onClick={rematch}>
+          Rematch
+        </GameButton>
         <GameButton variant="primary" icon="play" onClick={newMatch}>
           New Match
         </GameButton>
@@ -500,6 +544,10 @@ function phaseLabel(phase: string): string {
 
 function squareName(pos: Vec2): string {
   return `${String.fromCharCode("A".charCodeAt(0) + pos[1])}${12 - pos[0]}`;
+}
+
+function formatPath(path: Vec2[]): string {
+  return path.length > 0 ? path.map(squareName).join(" -> ") : "None";
 }
 
 function capturedByType(board: BoardState, player: Player): string {
