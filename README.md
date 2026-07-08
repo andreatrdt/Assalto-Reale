@@ -1,6 +1,6 @@
 # Assalto Reale
 
-Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository is the authoritative source for the native Python/Pygame game and the Pygbag browser build.
+Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository is the authoritative source for the native Python/Pygame game, the canonical headless rules engine, and the modern React/TypeScript web client.
 
 The canonical product is:
 
@@ -186,6 +186,34 @@ python assalto_pygbag_ready/assalto_benchmarks.py --games 4 --seed 1234 --max-tu
 
 The benchmark reports win counts, victory reasons, average and median game length, captures, Defense Pawn sacrifices, bounces, average bounce distance, transform availability/use, Special Square control-turn totals, and illegal-action count. Add `--transform` to enable the optional Transform variant during simulations.
 
+## Modern Web Client
+
+The modern browser product lives in `web/`. It uses React, TypeScript and Vite while the Python implementation remains the canonical rules reference during parity work.
+
+```bash
+cd web
+npm ci
+npm run test
+npm run build
+npm run e2e
+npm run dev
+```
+
+Parity fixtures are generated from the Python engine with:
+
+```bash
+python web/scripts/generate_engine_fixtures.py
+```
+
+To package the modern web artifact for review:
+
+```bash
+cd web
+npm run package:release
+```
+
+The package is written to `release/assalto-reale-web-v1/` with source commit metadata.
+
 ## Pygbag Build
 
 Install browser build dependencies:
@@ -202,33 +230,20 @@ python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 
 Generated browser output belongs in the deployment repository `andreatrdt/AssaltoRealeWeb`. Do not manually patch gameplay logic in compiled Pygbag output.
 
-## Modern Web Client
-
-A staged React/TypeScript migration lives in `web/`. The Python engine remains the canonical reference until TypeScript parity is complete.
-
-```bash
-cd web
-npm install
-npm run test
-npm run build
-npm run dev
-```
-
-Parity fixtures are generated from the Python engine with:
-
-```bash
-python web/scripts/generate_engine_fixtures.py
-```
+The Pygbag build is the legacy browser runtime, not the modern React web product.
 
 ## Deployment Workflow
 
+The modern web deployment path is documented in `docs/deployment.md`.
+
 1. Finish and test source changes in `andreatrdt/Assalto-Reale`.
 2. Run `python -m pytest -q`.
-3. Smoke-test the native app.
-4. Build with Pygbag.
-5. Test the local browser build where possible.
-6. Copy generated deployable output to `andreatrdt/AssaltoRealeWeb`.
-7. Record the source commit and exact build command.
+3. Run the web validation commands in `web/`.
+4. Package with `npm run package:release`.
+5. Publish the reviewed static artifact to the chosen host.
+6. Record the source commit from `release-metadata.json`.
+
+The manual GitHub Actions workflow `Package Web Artifact` builds and uploads a reviewable static artifact. It does not automatically overwrite `andreatrdt/AssaltoRealeWeb`.
 
 ## Known Limitations
 

@@ -175,7 +175,7 @@ describe("game store wiring", () => {
     useGameStore.getState().activateSquare([5, 5]);
     useGameStore.getState().activateSquare([5, 6]);
     expect(useGameStore.getState().phase.phase).toBe("transformSelection");
-    expect(useGameStore.getState().pendingTransform).toMatchObject({ player: "Black", pieceType: "AttackPawn", forceTurnSwitch: true });
+    expect(useGameStore.getState().pendingTransform).toMatchObject({ owner: "Black", player: "Black", pieceType: "AttackPawn", forceTurnSwitch: true });
 
     useGameStore.getState().chooseTransform("DefensePawn");
     const after = useGameStore.getState();
@@ -183,6 +183,60 @@ describe("game store wiring", () => {
     expect(after.currentPlayer).toBe("White");
     expect(after.turnCounter).toBe(1);
     expect(after.phase.phase).toBe("playing");
+  });
+
+  it("counts down the active player clock with monotonic ticks and ends on timeout", () => {
+    useGameStore.getState().startConfiguredMatch({
+      ...DEFAULT_MATCH_CONFIG,
+      placementMode: "QuickBalanced",
+      timerSeconds: 300,
+      setupSeed: 31,
+    });
+
+    useGameStore.getState().startClock(1000);
+    useGameStore.getState().tickClock(3500);
+
+    let state = useGameStore.getState();
+    expect(state.timeLeft.Black).toBe(298);
+    expect(state.timeLeft.White).toBe(300);
+    expect(state.phase.phase).toBe("playing");
+
+    useGameStore.getState().tickClock(302000);
+    state = useGameStore.getState();
+    expect(state.timeLeft.Black).toBe(0);
+    expect(state.phase.phase).toBe("gameOver");
+    expect(state.message).toBe("White wins by timeout.");
+    expect(state.lastAction).toBe("Black ran out of time.");
+  });
+
+  it("does not run clocks for untimed matches or AI-owned turns", () => {
+    useGameStore.getState().startConfiguredMatch({
+      ...DEFAULT_MATCH_CONFIG,
+      opponent: "Computer",
+      humanSide: "Black",
+      placementMode: "QuickBalanced",
+      timerSeconds: 0,
+      setupSeed: 32,
+    });
+
+    useGameStore.getState().startClock(1000);
+    useGameStore.getState().tickClock(5000);
+    expect(useGameStore.getState().timeLeft.Black).toBe(0);
+
+    useGameStore.getState().startConfiguredMatch({
+      ...DEFAULT_MATCH_CONFIG,
+      opponent: "Computer",
+      humanSide: "White",
+      placementMode: "QuickBalanced",
+      timerSeconds: 300,
+      setupSeed: 33,
+    });
+
+    expect(useGameStore.getState().currentPlayer).toBe("Black");
+    expect(useGameStore.getState().aiPlayer).toBe("Black");
+    useGameStore.getState().startClock(1000);
+    useGameStore.getState().tickClock(5000);
+    expect(useGameStore.getState().timeLeft.Black).toBe(300);
   });
 
   it("shows a Defended-King preview before resolving a single-defender sacrifice", () => {
@@ -213,6 +267,7 @@ describe("game store wiring", () => {
 
     const preview = useGameStore.getState();
     expect(preview.phase.phase).toBe("defenderSelection");
+    expect(preview.pendingDefendedKing?.owner).toBe("White");
     expect(preview.pendingDefendedKing?.defenders).toEqual([[4, 3]]);
     expect(preview.legalTargets).toEqual([[4, 3]]);
     expect(preview.message).toContain("confirm the highlighted Defense Pawn sacrifice");
@@ -222,6 +277,41 @@ describe("game store wiring", () => {
     expect(resolved.phase.phase).toBe("playing");
     expect(resolved.currentPlayer).toBe("White");
     expect(getPiece(resolved.board, [5, 0])).toEqual({ player: "Black", type: "AttackPawn" });
+    expect(getPiece(resolved.board, [4, 3])).toBeNull();
+    expect(resolved.board.capturedPieces.White.DefensePawn).toBe(1);
+  });
+
+  it("lets AI resolve owned defended-King decisions by explicit owner", () => {
+    const board = createBoard();
+    setPiece(board, [5, 1], { player: "Black", type: "AttackPawn" });
+    setPiece(board, [10, 1], { player: "Black", type: "King" });
+    setPiece(board, [5, 3], { player: "White", type: "King" });
+    setPiece(board, [4, 3], { player: "White", type: "DefensePawn" });
+    updateControl(board);
+
+    useGameStore.setState({
+      phase: { phase: "playing" },
+      board,
+      currentPlayer: "Black",
+      movesThisTurn: 0,
+      kingMoved: false,
+      selected: null,
+      legalTargets: [],
+      history: [],
+      pendingTransform: null,
+      pendingDefendedKing: null,
+      aiEnabled: true,
+      aiPlayer: "White",
+    });
+
+    useGameStore.getState().activateSquare([5, 1]);
+    useGameStore.getState().activateSquare([5, 3]);
+    expect(useGameStore.getState().pendingDefendedKing?.owner).toBe("White");
+
+    useGameStore.getState().runAiTurn();
+    const resolved = useGameStore.getState();
+    expect(resolved.phase.phase).toBe("playing");
+    expect(resolved.pendingDefendedKing).toBeNull();
     expect(getPiece(resolved.board, [4, 3])).toBeNull();
     expect(resolved.board.capturedPieces.White.DefensePawn).toBe(1);
   });
@@ -266,6 +356,26 @@ describe("game store wiring", () => {
     });
     expect(state.timeLeft).toEqual({ Black: 300, White: 300 });
     expect(state.board.grid.flat().filter(Boolean)).toHaveLength(26);
+  });
+
+  it("resolves Random human side deterministically from the setup seed", () => {
+    const config: MatchConfig = {
+      ...DEFAULT_MATCH_CONFIG,
+      opponent: "Computer",
+      humanSide: "Random",
+      placementMode: "QuickBalanced",
+      timerSeconds: 300,
+      setupSeed: 12345,
+    };
+
+    useGameStore.getState().startConfiguredMatch(config);
+    const first = useGameStore.getState().matchConfig;
+    useGameStore.getState().startConfiguredMatch(config);
+    const second = useGameStore.getState().matchConfig;
+
+    expect(first?.resolvedHumanSide).toBe(second?.resolvedHumanSide);
+    expect(first?.aiSide).toBe(second?.aiSide);
+    expect(first?.setupSeed).toBe(12345);
   });
 
   it("lets AI own its manual placement schedule segment", () => {

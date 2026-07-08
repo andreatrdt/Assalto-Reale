@@ -89,7 +89,7 @@
 
 - Full Defended-King animation still needs engine/store state for ordered animation steps: attack, defender sacrifice, bounce path, landing, optional Transform. The current preview shows available positions and paths but does not animate them.
 - Defended-King decision ownership is still inferred from the attacking side in UI copy. The parity work should add explicit `PendingDecision.owner` so AI/human ownership is not inferred from `currentPlayer` or attacker.
-- Timer countdown UI is visually reserved but not yet backed by the canonical monotonic clock controller.
+- Timer countdown UI is now backed by a monotonic active-human clock with timeout victory, but full Python pause/save/load policy remains release parity work.
 - Load cards can now show saved-at metadata for new saves; older local saves still lack that field.
 - Victory/rematch now has visible actions and confirmation, but exact rematch lifecycle parity and random-side rematch policy still belong to the match-controller work.
 - Audio feedback is not implemented in this slice.

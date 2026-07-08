@@ -34,8 +34,8 @@ import { DEFAULT_MATCH_CONFIG, createSetupSeed, resolveMatchConfig, type MatchCo
 
 type PiecesLeft = Record<Player, Record<PieceType, number>>;
 type PendingPlacement = { player: Player; pieceType: PieceType };
-type PendingTransform = { pos: Vec2; player: Player; pieceType: PawnType; forceTurnSwitch: boolean };
-type PendingDefendedKing = { action: Action; preview: DefendedKingPreview; defenders: Vec2[] };
+type PendingTransform = { owner: Player; pos: Vec2; player: Player; pieceType: PawnType; forceTurnSwitch: boolean };
+type PendingDefendedKing = { owner: Player; action: Action; preview: DefendedKingPreview; defenders: Vec2[] };
 
 interface HistoryEntry {
   board: BoardState;
@@ -51,6 +51,7 @@ interface HistoryEntry {
   message: string;
   pendingTransform: PendingTransform | null;
   pendingDefendedKing: PendingDefendedKing | null;
+  timeLeft: Record<Player, number>;
 }
 
 interface StartMatchOptions {
@@ -103,6 +104,8 @@ interface GameStore {
   hasActiveMatch: boolean;
   matchConfig: MatchConfig | null;
   timeLeft: Record<Player, number>;
+  clockRunningFor: Player | null;
+  clockLastSyncMs: number | null;
   startConfiguredMatch: (config: MatchConfig) => void;
   startQuickMatch: (options?: StartMatchOptions) => void;
   startManualPlacement: (options?: StartMatchOptions) => void;
@@ -117,6 +120,9 @@ interface GameStore {
   passTurn: () => void;
   undo: () => void;
   runAiTurn: () => void;
+  startClock: (now: number) => void;
+  stopClock: (now: number) => void;
+  tickClock: (now: number) => void;
   saveGame: () => void;
   loadGame: () => void;
 }
@@ -164,6 +170,7 @@ function emptyHistoryEntry(state: GameStore): HistoryEntry {
     message: state.message,
     pendingTransform: state.pendingTransform,
     pendingDefendedKing: state.pendingDefendedKing,
+    timeLeft: { ...state.timeLeft },
   };
 }
 
@@ -303,6 +310,7 @@ function transformEvent(result: TransitionResult): PendingTransform | null {
   const event = result.events.find((item) => item.kind === "transform_available");
   if (!event) return null;
   return {
+    owner: event.data.player as Player,
     pos: event.data.at as Vec2,
     player: event.data.player as Player,
     pieceType: event.data.piece_type as PawnType,
@@ -357,7 +365,54 @@ function initialTimeLeft(seconds: number): Record<Player, number> {
   return { Black: seconds, White: seconds };
 }
 
+function monotonicNow(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 export const useGameStore = create<GameStore>((set, get) => {
+  function clockPatch(state: GameStore, now: number, stopRunning = false): Partial<GameStore> {
+    const runningFor = state.clockRunningFor;
+    if (!runningFor || state.clockLastSyncMs === null || state.phase.phase === "gameOver") {
+      return stopRunning ? { clockRunningFor: null, clockLastSyncMs: null } : {};
+    }
+
+    const elapsedMs = Math.max(0, now - state.clockLastSyncMs);
+    const remainingSeconds = state.timeLeft[runningFor];
+    if (remainingSeconds <= 0 || elapsedMs >= remainingSeconds * 1000) {
+      const winner = switchPlayer(runningFor);
+      return {
+        timeLeft: { ...state.timeLeft, [runningFor]: 0 },
+        phase: { phase: "gameOver", previousPhase: state.phase.phase },
+        selected: null,
+        legalTargets: [],
+        pendingTransform: null,
+        pendingDefendedKing: null,
+        clockRunningFor: null,
+        clockLastSyncMs: null,
+        lastAction: `${runningFor} ran out of time.`,
+        message: `${winner} wins by timeout.`,
+      };
+    }
+
+    const elapsedSeconds = Math.floor(elapsedMs / 1000);
+    if (elapsedSeconds === 0) {
+      return stopRunning ? { clockRunningFor: null, clockLastSyncMs: null } : {};
+    }
+
+    return {
+      timeLeft: { ...state.timeLeft, [runningFor]: remainingSeconds - elapsedSeconds },
+      clockRunningFor: stopRunning ? null : runningFor,
+      clockLastSyncMs: stopRunning ? null : state.clockLastSyncMs + elapsedSeconds * 1000,
+    };
+  }
+
+  function syncClock(now = monotonicNow(), stopRunning = false): void {
+    const patch = clockPatch(get(), now, stopRunning);
+    if (Object.keys(patch).length > 0) {
+      set(patch);
+    }
+  }
+
   function commitAction(action: Action, state: GameStore): void {
     const { board, result } = applyAction(state.board, action, {
       movesThisTurn: state.movesThisTurn,
@@ -434,6 +489,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     hasActiveMatch: false,
     matchConfig: null,
     timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+    clockRunningFor: null,
+    clockLastSyncMs: null,
 
     startConfiguredMatch: (config) => {
       const resolved = resolveMatchConfig(config);
@@ -461,6 +518,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           hasActiveMatch: true,
           matchConfig: resolved,
           timeLeft: initialTimeLeft(resolved.timerSeconds),
+          clockRunningFor: null,
+          clockLastSyncMs: null,
           lastAction: "Quick Balanced deployment complete.",
           message: "Black to move.",
         });
@@ -488,6 +547,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         hasActiveMatch: true,
         matchConfig: resolved,
         timeLeft: initialTimeLeft(resolved.timerSeconds),
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         lastAction: "Manual deployment started.",
         message: `${first.player}: place ${describePiece(first.pieceType)}.`,
       });
@@ -523,6 +584,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           setupSeed: options.seed,
         },
         timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         lastAction: "Quick Balanced deployment complete.",
         message: "Black to move.",
       });
@@ -562,6 +625,8 @@ export const useGameStore = create<GameStore>((set, get) => {
           setupSeed: options.seed,
         },
         timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         lastAction: "Manual deployment started.",
         message: `${first.player}: place ${describePiece(first.pieceType)}.`,
       });
@@ -575,6 +640,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         legalTargets: [],
         pendingTransform: null,
         pendingDefendedKing: null,
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         message: get().hasActiveMatch ? "Match preserved on the Home page." : "Choose a match flow.",
       }),
 
@@ -668,7 +735,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const defenderOwner = switchPlayer(action.player as Player);
         set({
           phase: { phase: "defenderSelection", previousPhase: "playing" },
-          pendingDefendedKing: { action, preview: action.defendedKing, defenders },
+          pendingDefendedKing: { owner: defenderOwner, action, preview: action.defendedKing, defenders },
           selected: action.end ?? state.selected,
           legalTargets: defenders,
           message:
@@ -776,8 +843,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         phase: previous.phase,
         lastAction: previous.lastAction,
         message: "Undone.",
+        timeLeft: { ...previous.timeLeft },
         pendingTransform: previous.pendingTransform,
         pendingDefendedKing: previous.pendingDefendedKing,
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         selected: null,
         legalTargets: [],
         history: state.history.slice(0, -1),
@@ -811,16 +881,18 @@ export const useGameStore = create<GameStore>((set, get) => {
         });
         return;
       }
-      if (state.currentPlayer !== state.aiPlayer) return;
-      if (state.phase.phase === "transformSelection" && state.pendingTransform?.player === state.aiPlayer) {
+      if (state.phase.phase === "transformSelection") {
+        if (state.pendingTransform?.owner !== state.aiPlayer) return;
         const options = transformOptions(state.pendingTransform.pieceType);
         state.chooseTransform(options[0]);
         return;
       }
-      if (state.phase.phase === "defenderSelection" && state.pendingDefendedKing) {
+      if (state.phase.phase === "defenderSelection") {
+        if (state.pendingDefendedKing?.owner !== state.aiPlayer) return;
         state.chooseDefender(state.pendingDefendedKing.defenders[0]);
         return;
       }
+      if (state.currentPlayer !== state.aiPlayer) return;
       if (state.phase.phase !== "playing") return;
       const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved);
       if (action.kind === "pass") {
@@ -829,13 +901,48 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
       if (action.defendedKing && !action.selectedDefender) {
         const defenders = defenderPositions(state.board, action);
-        commitAction({ ...action, selectedDefender: defenders[0] }, state);
+        const owner = switchPlayer(action.player as Player);
+        if (owner === state.aiPlayer) {
+          commitAction({ ...action, selectedDefender: defenders[0] }, state);
+          return;
+        }
+        set({
+          phase: { phase: "defenderSelection", previousPhase: "playing" },
+          pendingDefendedKing: { owner, action, preview: action.defendedKing, defenders },
+          selected: action.end ?? action.start ?? null,
+          legalTargets: defenders,
+          message:
+            defenders.length === 1
+              ? `${owner}: confirm the highlighted Defense Pawn sacrifice.`
+              : `${owner}: choose a Defense Pawn to sacrifice.`,
+        });
         return;
       }
       commitAction(action, state);
     },
 
+    startClock: (now) => {
+      const state = get();
+      if (!state.matchConfig || state.matchConfig.timerSeconds === 0 || state.phase.phase !== "playing") {
+        return;
+      }
+      if (state.aiEnabled && state.currentPlayer === state.aiPlayer) {
+        return;
+      }
+      syncClock(now, true);
+      const latest = get();
+      if (latest.phase.phase === "gameOver") {
+        return;
+      }
+      set({ clockRunningFor: latest.currentPlayer, clockLastSyncMs: now });
+    },
+
+    stopClock: (now) => syncClock(now, true),
+
+    tickClock: (now) => syncClock(now, false),
+
     saveGame: () => {
+      syncClock(monotonicNow(), false);
       const state = get();
       if (!localStorageAvailable()) {
         set({ message: "Save is not available in this environment." });
@@ -872,6 +979,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         hasActiveMatch: saved.hasActiveMatch ?? true,
         matchConfig: saved.matchConfig ?? null,
         timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+        clockRunningFor: null,
+        clockLastSyncMs: null,
         selected: null,
         legalTargets: [],
         pendingTransform: null,

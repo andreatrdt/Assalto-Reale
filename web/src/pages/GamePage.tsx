@@ -37,6 +37,9 @@ export function GamePage({ navigate }: GamePageProps) {
   const undo = useGameStore((state) => state.undo);
   const saveGame = useGameStore((state) => state.saveGame);
   const loadGame = useGameStore((state) => state.loadGame);
+  const startClock = useGameStore((state) => state.startClock);
+  const stopClock = useGameStore((state) => state.stopClock);
+  const tickClock = useGameStore((state) => state.tickClock);
   const returnHome = useGameStore((state) => state.returnHome);
   const startConfiguredMatch = useGameStore((state) => state.startConfiguredMatch);
   const runAiTurn = useGameStore((state) => state.runAiTurn);
@@ -45,7 +48,10 @@ export function GamePage({ navigate }: GamePageProps) {
 
   useEffect(() => {
     const aiOwnsPlacement = phase === "placement" && currentPlacement?.player === aiPlayer;
-    const aiOwnsTurn = currentPlayer === aiPlayer && (phase === "playing" || phase === "transformSelection" || phase === "defenderSelection");
+    const aiOwnsDecision =
+      (phase === "transformSelection" && pendingTransform?.owner === aiPlayer) ||
+      (phase === "defenderSelection" && pendingDefendedKing?.owner === aiPlayer);
+    const aiOwnsTurn = (currentPlayer === aiPlayer && phase === "playing") || aiOwnsDecision;
     if (!aiEnabled || (!aiOwnsPlacement && !aiOwnsTurn)) {
       return undefined;
     }
@@ -57,9 +63,11 @@ export function GamePage({ navigate }: GamePageProps) {
         if (cancelled) return;
         const latest = useGameStore.getState();
         const latestPlacement = latest.phase.phase === "placement" && latest.currentPlacement?.player === latest.aiPlayer;
+        const latestDecision =
+          (latest.phase.phase === "transformSelection" && latest.pendingTransform?.owner === latest.aiPlayer) ||
+          (latest.phase.phase === "defenderSelection" && latest.pendingDefendedKing?.owner === latest.aiPlayer);
         const latestTurn =
-          latest.currentPlayer === latest.aiPlayer &&
-          (latest.phase.phase === "playing" || latest.phase.phase === "transformSelection" || latest.phase.phase === "defenderSelection");
+          (latest.currentPlayer === latest.aiPlayer && latest.phase.phase === "playing") || latestDecision;
         if (!latest.aiEnabled || (!latestPlacement && !latestTurn)) return;
         latest.runAiTurn();
       }
@@ -93,7 +101,12 @@ export function GamePage({ navigate }: GamePageProps) {
   }, [board, currentPlacement, phase]);
 
   const timerLabel = TIMER_PRESETS.find((preset) => preset.seconds === matchConfig?.timerSeconds)?.label ?? "12 minutes";
-  const aiControlsTurn = aiEnabled && currentPlayer === aiPlayer && phase === "playing";
+  const aiControlsTurn =
+    aiEnabled &&
+    ((currentPlayer === aiPlayer && phase === "playing") ||
+      (phase === "transformSelection" && pendingTransform?.owner === aiPlayer) ||
+      (phase === "defenderSelection" && pendingDefendedKing?.owner === aiPlayer));
+  const clockShouldRun = phase === "playing" && (matchConfig?.timerSeconds ?? 0) > 0 && !aiControlsTurn;
   const defendedKings = useMemo(() => getDefendedKingStatus(board), [board]);
   const activeMessage = aiControlsTurn ? "Computer is thinking." : message;
   const restartSummary = matchConfig ? describeMatchMode(matchConfig) : "No stored match setup";
@@ -114,6 +127,20 @@ export function GamePage({ navigate }: GamePageProps) {
     setConfirmRestart(false);
     navigate("/game");
   }
+
+  useEffect(() => {
+    if (!clockShouldRun) {
+      stopClock(performance.now());
+      return undefined;
+    }
+
+    startClock(performance.now());
+    const id = window.setInterval(() => tickClock(performance.now()), 250);
+    return () => {
+      window.clearInterval(id);
+      stopClock(performance.now());
+    };
+  }, [clockShouldRun, currentPlayer, startClock, stopClock, tickClock]);
 
   return (
     <main className={`gamePage factionTurn${currentPlayer}`}>
@@ -336,7 +363,7 @@ function DefendedKingPanel({
   cancel: () => void;
 }) {
   const attackingPlayer = pendingDefendedKing.action.player;
-  const defendingPlayer = attackingPlayer === "Black" ? "White" : "Black";
+  const defendingPlayer = pendingDefendedKing.owner;
   const defenderText = formatPath(pendingDefendedKing.defenders);
   const needsChoice = pendingDefendedKing.defenders.length > 1;
 
