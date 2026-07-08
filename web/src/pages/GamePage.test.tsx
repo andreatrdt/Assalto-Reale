@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { BoardState } from "../game/engine";
-import { DefendedKingPanel, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
+import { CapturedPieces, DefendedKingPanel, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
 
 const noop = () => undefined;
 
@@ -15,7 +15,10 @@ const board = {
   ],
   controlledSquares: { Black: [[0, 0], [0, 1], [0, 2]], White: [] },
   territoryClaim: null,
-  capturedPieces: { Black: { AttackPawn: 1 }, White: {} },
+  capturedPieces: {
+    Black: { AttackPawn: 2, DefensePawn: 1, ConquestPawn: 0, King: 0 },
+    White: { AttackPawn: 0, DefensePawn: 0, ConquestPawn: 0, King: 0 },
+  },
 } as unknown as BoardState;
 
 describe("GameStatus", () => {
@@ -143,6 +146,16 @@ describe("Game decision and control panels", () => {
     expect(html).toContain("Load");
     expect(html).toContain("Captured");
     expect(html).toContain("Last move");
+  });
+
+  it("renders captured material as repeated piece glyphs instead of inventory text", () => {
+    const html = renderToStaticMarkup(<CapturedPieces board={board} />);
+
+    expect(html.match(/Black Attack Pawn captured/g)).toHaveLength(2);
+    expect(html).toContain("Black Defense Pawn captured");
+    expect(html).toContain("No White pieces captured");
+    expect(html).toContain("capturedPieceIcon");
+    expect(html).not.toContain("Attack 2 /");
   });
 
   it("shows victory winner and controls", () => {
