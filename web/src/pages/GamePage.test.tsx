@@ -1,11 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { BoardState } from "../game/engine";
+import { GameBoard } from "../board/GameBoard";
 import { CapturedPieces, DefendedKingPanel, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
 
 const noop = () => undefined;
 
 const board = {
+  config: { rows: 12, cols: 12, specialCount: 5, transformEnabled: true, transformRound: 5 },
+  grid: Array.from({ length: 12 }, () => Array.from({ length: 12 }, () => null)),
   specialSquares: [
     [0, 0],
     [0, 1],
@@ -13,6 +16,7 @@ const board = {
     [0, 3],
     [0, 4],
   ],
+  transformSquares: [],
   controlledSquares: { Black: [[0, 0], [0, 1], [0, 2]], White: [] },
   territoryClaim: null,
   capturedPieces: {
@@ -156,6 +160,17 @@ describe("Game decision and control panels", () => {
     expect(html).toContain("No White pieces captured");
     expect(html).toContain("capturedPieceIcon");
     expect(html).not.toContain("Attack 2 /");
+  });
+
+  it("does not render a defended-King shield on the board", () => {
+    const defendedBoard = structuredClone(board);
+    defendedBoard.grid[5][5] = { player: "White", type: "King" };
+    defendedBoard.grid[5][4] = { player: "White", type: "DefensePawn" };
+
+    const html = renderToStaticMarkup(<GameBoard board={defendedBoard} />);
+
+    expect(html).toContain("defended King");
+    expect(html).not.toContain("defendedKingMark");
   });
 
   it("shows victory winner and controls", () => {
