@@ -4,6 +4,7 @@ export * from "./config";
 export * from "./defendedKing";
 export * from "./placement";
 export * from "./serialization";
+export * from "./specialSquares";
 export * from "./territory";
 export * from "./transform";
 export * from "./types";

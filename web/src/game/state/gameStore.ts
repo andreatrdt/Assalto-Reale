@@ -3,6 +3,7 @@ import type { PhaseState } from "../../app/phases";
 import { chooseDeterministicAction } from "../ai/search";
 import {
   adjacentDefendersForKing,
+  assignGeneratedSpecialSquares,
   applyAction,
   buildAction,
   canPlacePiece,
@@ -54,6 +55,7 @@ interface HistoryEntry {
 interface StartMatchOptions {
   transformEnabled?: boolean;
   aiEnabled?: boolean;
+  seed?: number;
 }
 
 interface SavedGame {
@@ -123,15 +125,11 @@ function createEmptyPiecesLeft(): PiecesLeft {
   };
 }
 
-function createBaseBoard(transformEnabled = false): BoardState {
+const DEFAULT_SETUP_SEED = 20260707;
+
+function createBaseBoard(transformEnabled = false, seed = DEFAULT_SETUP_SEED): BoardState {
   const board = createBoard({ transformEnabled });
-  board.specialSquares = [
-    [2, 4],
-    [3, 8],
-    [6, 5],
-    [8, 3],
-    [9, 8],
-  ];
+  assignGeneratedSpecialSquares(board, seed);
   updateControl(board);
   return board;
 }
@@ -236,8 +234,8 @@ function chooseQuickPlacementSquare(board: BoardState, player: Player, pieceType
   return best;
 }
 
-function createQuickBalancedBoard(transformEnabled = false): BoardState {
-  const board = createBaseBoard(transformEnabled);
+function createQuickBalancedBoard(transformEnabled = false, seed = DEFAULT_SETUP_SEED): BoardState {
+  const board = createBaseBoard(transformEnabled, seed);
   for (const item of QUEUE) {
     const pos = chooseQuickPlacementSquare(board, item.player, item.pieceType);
     placePiece(board, pos, item.player, item.pieceType);
@@ -414,7 +412,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     startQuickMatch: (options = {}) => {
       set({
         phase: { phase: "playing", previousPhase: "home" },
-        board: createQuickBalancedBoard(options.transformEnabled ?? false),
+        board: createQuickBalancedBoard(options.transformEnabled ?? false, options.seed),
         currentPlayer: "Black",
         movesThisTurn: 0,
         kingMoved: false,
@@ -441,7 +439,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const first = QUEUE[0];
       set({
         phase: { phase: "placement", previousPhase: "home" },
-        board: createBaseBoard(options.transformEnabled ?? false),
+        board: createBaseBoard(options.transformEnabled ?? false, options.seed),
         currentPlayer: first.player,
         movesThisTurn: 0,
         kingMoved: false,
