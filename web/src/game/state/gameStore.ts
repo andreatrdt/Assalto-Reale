@@ -30,6 +30,7 @@ import {
   type Vec2,
 } from "../engine";
 import { PLACEMENT_SCHEDULE } from "../engine/config";
+import { DEFAULT_MATCH_CONFIG, createSetupSeed, resolveMatchConfig, type MatchConfig } from "../setup/matchConfig";
 
 type PiecesLeft = Record<Player, Record<PieceType, number>>;
 type PendingPlacement = { player: Player; pieceType: PieceType };
@@ -55,6 +56,7 @@ interface HistoryEntry {
 interface StartMatchOptions {
   transformEnabled?: boolean;
   aiEnabled?: boolean;
+  aiPlayer?: Player;
   seed?: number;
 }
 
@@ -73,6 +75,9 @@ interface SavedGame {
   message: string;
   aiEnabled: boolean;
   aiPlayer: Player;
+  hasActiveMatch: boolean;
+  matchConfig: MatchConfig | null;
+  timeLeft: Record<Player, number>;
 }
 
 interface GameStore {
@@ -94,6 +99,10 @@ interface GameStore {
   pendingDefendedKing: PendingDefendedKing | null;
   aiEnabled: boolean;
   aiPlayer: Player;
+  hasActiveMatch: boolean;
+  matchConfig: MatchConfig | null;
+  timeLeft: Record<Player, number>;
+  startConfiguredMatch: (config: MatchConfig) => void;
   startQuickMatch: (options?: StartMatchOptions) => void;
   startManualPlacement: (options?: StartMatchOptions) => void;
   startAiMatch: () => void;
@@ -125,9 +134,7 @@ function createEmptyPiecesLeft(): PiecesLeft {
   };
 }
 
-const DEFAULT_SETUP_SEED = 20260707;
-
-function createBaseBoard(transformEnabled = false, seed = DEFAULT_SETUP_SEED): BoardState {
+function createBaseBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
   const board = createBoard({ transformEnabled });
   assignGeneratedSpecialSquares(board, seed);
   updateControl(board);
@@ -234,7 +241,7 @@ function chooseQuickPlacementSquare(board: BoardState, player: Player, pieceType
   return best;
 }
 
-function createQuickBalancedBoard(transformEnabled = false, seed = DEFAULT_SETUP_SEED): BoardState {
+function createQuickBalancedBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
   const board = createBaseBoard(transformEnabled, seed);
   for (const item of QUEUE) {
     const pos = chooseQuickPlacementSquare(board, item.player, item.pieceType);
@@ -325,6 +332,9 @@ function savedGameFromState(state: GameStore): SavedGame {
     message: state.message,
     aiEnabled: state.aiEnabled,
     aiPlayer: state.aiPlayer,
+    hasActiveMatch: state.hasActiveMatch,
+    matchConfig: state.matchConfig,
+    timeLeft: state.timeLeft,
   };
 }
 
@@ -339,6 +349,10 @@ function loadSavedGame(raw: string): SavedGame | null {
 
 function localStorageAvailable(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function initialTimeLeft(seconds: number): Record<Player, number> {
+  return { Black: seconds, White: seconds };
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -408,6 +422,67 @@ export const useGameStore = create<GameStore>((set, get) => {
     pendingDefendedKing: null,
     aiEnabled: false,
     aiPlayer: "White",
+    hasActiveMatch: false,
+    matchConfig: null,
+    timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+
+    startConfiguredMatch: (config) => {
+      const resolved = resolveMatchConfig(config);
+      const aiEnabled = resolved.opponent === "Computer";
+      const aiPlayer = resolved.aiSide ?? "White";
+      const seed = resolved.setupSeed;
+      if (resolved.placementMode === "QuickBalanced") {
+        set({
+          phase: { phase: "playing", previousPhase: "setup" },
+          board: createQuickBalancedBoard(resolved.transformEnabled, seed),
+          currentPlayer: "Black",
+          movesThisTurn: 0,
+          kingMoved: false,
+          turnCounter: 0,
+          selected: null,
+          legalTargets: [],
+          placementCursor: QUEUE.length,
+          currentPlacement: null,
+          piecesLeft: createEmptyPiecesLeft(),
+          history: [],
+          pendingTransform: null,
+          pendingDefendedKing: null,
+          aiEnabled,
+          aiPlayer,
+          hasActiveMatch: true,
+          matchConfig: resolved,
+          timeLeft: initialTimeLeft(resolved.timerSeconds),
+          lastAction: "Quick Balanced deployment complete.",
+          message: "Black to move.",
+        });
+        return;
+      }
+
+      const first = QUEUE[0];
+      set({
+        phase: { phase: "placement", previousPhase: "setup" },
+        board: createBaseBoard(resolved.transformEnabled, seed),
+        currentPlayer: first.player,
+        movesThisTurn: 0,
+        kingMoved: false,
+        turnCounter: 0,
+        selected: null,
+        legalTargets: [],
+        placementCursor: 0,
+        currentPlacement: first,
+        piecesLeft: createInitialPiecesLeft(),
+        history: [],
+        pendingTransform: null,
+        pendingDefendedKing: null,
+        aiEnabled,
+        aiPlayer,
+        hasActiveMatch: true,
+        matchConfig: resolved,
+        timeLeft: initialTimeLeft(resolved.timerSeconds),
+        lastAction: "Manual deployment started.",
+        message: `${first.player}: place ${describePiece(first.pieceType)}.`,
+      });
+    },
 
     startQuickMatch: (options = {}) => {
       set({
@@ -426,7 +501,19 @@ export const useGameStore = create<GameStore>((set, get) => {
         pendingTransform: null,
         pendingDefendedKing: null,
         aiEnabled: options.aiEnabled ?? false,
-        aiPlayer: "White",
+        aiPlayer: options.aiPlayer ?? "White",
+        hasActiveMatch: true,
+        matchConfig: {
+          ...DEFAULT_MATCH_CONFIG,
+          opponent: options.aiEnabled ? "Computer" : "Human",
+          humanSide: options.aiPlayer === "Black" ? "White" : "Black",
+          resolvedHumanSide: options.aiEnabled ? (options.aiPlayer === "Black" ? "White" : "Black") : null,
+          aiSide: options.aiEnabled ? (options.aiPlayer ?? "White") : null,
+          placementMode: "QuickBalanced",
+          transformEnabled: options.transformEnabled ?? false,
+          setupSeed: options.seed,
+        },
+        timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
         lastAction: "Quick Balanced deployment complete.",
         message: "Black to move.",
       });
@@ -453,7 +540,19 @@ export const useGameStore = create<GameStore>((set, get) => {
         pendingTransform: null,
         pendingDefendedKing: null,
         aiEnabled: options.aiEnabled ?? false,
-        aiPlayer: "White",
+        aiPlayer: options.aiPlayer ?? "White",
+        hasActiveMatch: true,
+        matchConfig: {
+          ...DEFAULT_MATCH_CONFIG,
+          opponent: options.aiEnabled ? "Computer" : "Human",
+          humanSide: options.aiPlayer === "Black" ? "White" : "Black",
+          resolvedHumanSide: options.aiEnabled ? (options.aiPlayer === "Black" ? "White" : "Black") : null,
+          aiSide: options.aiEnabled ? (options.aiPlayer ?? "White") : null,
+          placementMode: "Manual",
+          transformEnabled: options.transformEnabled ?? false,
+          setupSeed: options.seed,
+        },
+        timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
         lastAction: "Manual deployment started.",
         message: `${first.player}: place ${describePiece(first.pieceType)}.`,
       });
@@ -463,12 +562,11 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     returnHome: () =>
       set({
-        phase: { phase: "home" },
         selected: null,
         legalTargets: [],
         pendingTransform: null,
         pendingDefendedKing: null,
-        message: "Choose a match flow.",
+        message: get().hasActiveMatch ? "Match preserved on the Home page." : "Choose a match flow.",
       }),
 
     activateSquare: (pos) => {
@@ -483,6 +581,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (state.phase.phase === "placement") {
         const item = QUEUE[state.placementCursor];
         if (!item) return;
+        if (state.aiEnabled && item.player === state.aiPlayer) {
+          set({ message: `Computer is placing ${describePiece(item.pieceType)}.` });
+          return;
+        }
         const result = canPlacePiece(state.board, pos, item.player, item.pieceType);
         if (!result.ok) {
           set({ message: result.reason ?? "Invalid placement." });
@@ -510,6 +612,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       if (state.phase.phase !== "playing") {
+        return;
+      }
+
+      if (state.aiEnabled && state.currentPlayer === state.aiPlayer) {
+        set({ message: "Computer is thinking." });
         return;
       }
 
@@ -670,7 +777,32 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     runAiTurn: () => {
       const state = get();
-      if (!state.aiEnabled || state.currentPlayer !== state.aiPlayer) return;
+      if (!state.aiEnabled) return;
+      if (state.phase.phase === "placement" && state.currentPlacement?.player === state.aiPlayer) {
+        const item = QUEUE[state.placementCursor];
+        if (!item) return;
+        const pos = chooseQuickPlacementSquare(state.board, item.player, item.pieceType);
+        const board = cloneBoard(state.board);
+        placePiece(board, pos, item.player, item.pieceType);
+        const piecesLeft = clonePiecesLeft(state.piecesLeft);
+        piecesLeft[item.player][item.pieceType] -= 1;
+        const nextCursor = state.placementCursor + 1;
+        const nextItem = QUEUE[nextCursor];
+        updateControl(board);
+        set({
+          board,
+          piecesLeft,
+          placementCursor: nextCursor,
+          currentPlacement: nextItem ?? null,
+          currentPlayer: nextItem?.player ?? "Black",
+          phase: nextItem ? state.phase : { phase: "playing", previousPhase: "placement" },
+          history: [...state.history, emptyHistoryEntry(state)],
+          lastAction: `${item.player} placed ${describePiece(item.pieceType)} on ${squareName(pos)}.`,
+          message: nextItem ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.` : "Deployment complete. Black to move.",
+        });
+        return;
+      }
+      if (state.currentPlayer !== state.aiPlayer) return;
       if (state.phase.phase === "transformSelection" && state.pendingTransform?.player === state.aiPlayer) {
         const options = transformOptions(state.pendingTransform.pieceType);
         state.chooseTransform(options[0]);
@@ -728,6 +860,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         message: "Game loaded.",
         aiEnabled: saved.aiEnabled,
         aiPlayer: saved.aiPlayer,
+        hasActiveMatch: saved.hasActiveMatch ?? true,
+        matchConfig: saved.matchConfig ?? null,
+        timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
         selected: null,
         legalTargets: [],
         pendingTransform: null,
