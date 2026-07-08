@@ -1,56 +1,69 @@
-import { motion } from "motion/react";
-import { useGameStore } from "../game/state/gameStore";
 import type { AppRoute } from "../app/routes";
+import { useGameStore } from "../game/state/gameStore";
+import { FactionBadge, GameButton, Icon, PageShell, Panel, StatusBadge } from "../ui/components";
 
 interface HomePageProps {
+  route: AppRoute;
   navigate: (route: AppRoute, replace?: boolean) => void;
 }
 
-export function HomePage({ navigate }: HomePageProps) {
+export function HomePage({ route, navigate }: HomePageProps) {
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
 
   return (
-    <main className="menuPage homePage">
+    <PageShell activeRoute={route} navigate={navigate} className="homeShell">
       <section className="homeHero" aria-labelledby="home-title">
-        <motion.div
-          className="wordmark"
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <span className="crest" aria-hidden="true" />
-          <div className="titleBlock">
-            <p className="eyebrow">Royal tactical war room</p>
-            <h1 id="home-title">Assalto Reale</h1>
-          </div>
-        </motion.div>
-        <p className="heroCopy">A modern command table for the canonical Python ruleset.</p>
-        <div className="homeActions" aria-label="Home actions">
-          <button type="button" className="primaryAction" onClick={() => navigate("/setup")}>
-            New Game
-          </button>
-          {hasActiveMatch && (
-            <button type="button" onClick={() => navigate("/game")}>
-              Continue Game
-            </button>
-          )}
+        <div className="heroIdentity">
+          <span className="heroCrest" aria-hidden="true">
+            <Icon name="crown" />
+          </span>
+          <p className="eyebrow">Medieval abstract strategy</p>
+          <h1 id="home-title">Assalto Reale</h1>
+          <p className="heroCopy">
+            Command Black or White across a royal tactical board where action points, protected Kings, Special Squares and territory claims decide the match.
+          </p>
+        </div>
+
+        <div className="heroActions" aria-label="Start actions">
+          <GameButton variant="primary" size="lg" icon="play" onClick={() => navigate("/setup")}>
+            New Match
+          </GameButton>
+          <GameButton variant="secondary" size="lg" icon={hasActiveMatch ? "board" : "load"} onClick={() => navigate(hasActiveMatch ? "/game" : "/load")}>
+            {hasActiveMatch ? "Continue Match" : "Load Match"}
+          </GameButton>
+        </div>
+
+        <div className="homeQuickLinks">
           <button type="button" onClick={() => navigate("/rules")}>
-            Rules
+            Read rules
           </button>
           <button type="button" onClick={() => navigate("/settings")}>
-            Settings
+            Preferences
           </button>
         </div>
       </section>
 
-      <section className="homePreview" aria-label="Decorative board preview">
-        <div className="previewBoard" aria-hidden="true">
-          {Array.from({ length: 64 }, (_, index) => (
-            <span key={index} className={index % 9 === 0 || index % 7 === 0 ? "previewEmphasis" : undefined} />
-          ))}
+      <aside className="homeTableau" aria-label="Game overview">
+        <div className="royalBoardPreview" aria-hidden="true">
+          {Array.from({ length: 144 }, (_, index) => {
+            const row = Math.floor(index / 12);
+            const col = index % 12;
+            const isSpecial = (row === 2 && col === 4) || (row === 4 && col === 8) || (row === 7 && col === 3) || (row === 8 && col === 7);
+            const hasPiece = (row === 5 && col === 2) || (row === 5 && col === 9) || (row === 3 && col === 1) || (row === 8 && col === 10);
+            return <span key={index} className={`${isSpecial ? "previewSpecial" : ""} ${hasPiece ? "previewPiece" : ""}`.trim()} />;
+          })}
         </div>
-        <p className="buildInfo">Credits: designed and developed for the Assalto Reale web migration.</p>
-      </section>
-    </main>
+        <Panel tone="subtle" className="homeFacts">
+          <StatusBadge tone="gold" icon="board">
+            12x12 board
+          </StatusBadge>
+          <div className="factionRow">
+            <FactionBadge player="Black" />
+            <FactionBadge player="White" />
+          </div>
+          <p>Manual deployment is the default. Quick Balanced setup, AI opponent and Transform remain configurable before every match.</p>
+        </Panel>
+      </aside>
+    </PageShell>
   );
 }

@@ -11,22 +11,24 @@ import {
   type PlacementMode,
   type TimerSeconds,
 } from "../game/setup/matchConfig";
+import { FactionBadge, FormField, GameButton, PageHeader, PageShell, Panel, SectionHeader, SegmentedControl, StatusBadge } from "../ui/components";
 
 interface SetupPageProps {
+  route: AppRoute;
   navigate: (route: AppRoute, replace?: boolean) => void;
 }
 
-export function SetupPage({ navigate }: SetupPageProps) {
+export function SetupPage({ route, navigate }: SetupPageProps) {
   const startConfiguredMatch = useGameStore((state) => state.startConfiguredMatch);
   const [config, setConfig] = useState<MatchConfig>(DEFAULT_MATCH_CONFIG);
 
   const summary = useMemo(() => {
     const timer = TIMER_PRESETS.find((preset) => preset.seconds === config.timerSeconds)?.label ?? "12 minutes";
-    const opponent = config.opponent === "Computer" ? `${config.aiDifficulty} computer` : "Human";
-    const side = config.opponent === "Computer" ? `Human ${config.humanSide}` : "Local seats";
-    const placement = config.placementMode === "Manual" ? "Manual placement" : "Quick Balanced placement";
-    const transform = config.transformEnabled ? "Transform on" : "Transform off";
-    return [opponent, side, timer, placement, transform].join(" / ");
+    const opponent = config.opponent === "Computer" ? `${config.aiDifficulty} computer` : "Human opponent";
+    const side = config.opponent === "Computer" ? `Human side: ${config.humanSide}` : "Shared local command";
+    const placement = config.placementMode === "Manual" ? "Manual deployment" : "Quick Balanced deployment";
+    const transform = config.transformEnabled ? "Transform enabled" : "Transform disabled";
+    return { timer, opponent, side, placement, transform };
   }, [config]);
 
   function update<K extends keyof MatchConfig>(key: K, value: MatchConfig[K]) {
@@ -39,124 +41,139 @@ export function SetupPage({ navigate }: SetupPageProps) {
   }
 
   return (
-    <main className="menuPage setupPage">
-      <header className="pageHeader">
-        <button type="button" onClick={() => navigate("/")}>
-          Back to Home
-        </button>
-        <div>
-          <p className="eyebrow">New match</p>
-          <h1>Configure Battle</h1>
+    <PageShell activeRoute={route} navigate={navigate} className="setupShell">
+      <PageHeader
+        eyebrow="Pre-match council"
+        title="Configure Battle"
+        description="Choose the opponent, deployment, clocks and optional Transform rule before entering the command table."
+        actions={
+          <GameButton variant="ghost" icon="home" onClick={() => navigate("/")}>
+            Back
+          </GameButton>
+        }
+      />
+
+      <section className="setupCommandTable" aria-label="Match setup">
+        <div className="setupGroups">
+          <Panel tone="strong" className="setupPanel">
+            <SectionHeader eyebrow="Opponent" title="Command Seats" description="Play locally against another human, or give the opposing side to the computer." />
+            <FormField label="Opponent">
+              <SegmentedControl<OpponentMode>
+                label="Opponent"
+                options={[
+                  { label: "Human", value: "Human", description: "Two local seats", icon: "crown" },
+                  { label: "Computer", value: "Computer", description: "AI takes one side", icon: "gear" },
+                ]}
+                value={config.opponent}
+                onChange={(value) => update("opponent", value)}
+              />
+            </FormField>
+
+            {config.opponent === "Computer" && (
+              <div className="setupNested">
+                <FormField label="Human faction" helper="Random resolves once at match start and is saved with the match.">
+                  <SegmentedControl<HumanSideChoice>
+                    label="Human side"
+                    options={[
+                      { label: "Black", value: "Black", description: "First move", icon: "crown" },
+                      { label: "White", value: "White", description: "Second seat", icon: "shield" },
+                      { label: "Random", value: "Random", description: "Resolve on start", icon: "spark" },
+                    ]}
+                    value={config.humanSide}
+                    onChange={(value) => update("humanSide", value)}
+                  />
+                </FormField>
+
+                <FormField label="AI difficulty">
+                  <SegmentedControl<AiDifficulty>
+                    label="AI difficulty"
+                    options={[
+                      { label: "Easy", value: "Easy", description: "Fast scout", icon: "chevron" },
+                      { label: "Medium", value: "Medium", description: "Balanced search", icon: "shield" },
+                      { label: "Hard", value: "Hard", description: "Deeper plan", icon: "sword" },
+                    ]}
+                    value={config.aiDifficulty}
+                    onChange={(value) => update("aiDifficulty", value)}
+                  />
+                </FormField>
+              </div>
+            )}
+          </Panel>
+
+          <Panel tone="strong" className="setupPanel">
+            <SectionHeader eyebrow="Rules" title="Match Conditions" description="These options can be combined independently." />
+            <FormField label="Timer">
+              <SegmentedControl<TimerSeconds>
+                label="Timer"
+                options={TIMER_PRESETS.map((preset) => ({ label: preset.label, value: preset.seconds, icon: "clock" }))}
+                value={config.timerSeconds}
+                onChange={(value) => update("timerSeconds", value)}
+              />
+            </FormField>
+
+            <FormField label="Placement" helper="Manual follows the canonical snake-order deployment schedule.">
+              <SegmentedControl<PlacementMode>
+                label="Placement"
+                options={[
+                  { label: "Manual", value: "Manual", description: "Place every piece", icon: "board" },
+                  { label: "Quick Balanced", value: "QuickBalanced", description: "Auto deploy", icon: "spark" },
+                ]}
+                value={config.placementMode}
+                onChange={(value) => update("placementMode", value)}
+              />
+            </FormField>
+
+            <FormField label="Transform variant" helper="Optional rule from the Python version. Disabled by default.">
+              <SegmentedControl<boolean>
+                label="Transform"
+                options={[
+                  { label: "Off", value: false, description: "Canonical default", icon: "shield" },
+                  { label: "On", value: true, description: "Transform Square", icon: "spark" },
+                ]}
+                value={config.transformEnabled}
+                onChange={(value) => update("transformEnabled", value)}
+              />
+            </FormField>
+          </Panel>
         </div>
-      </header>
 
-      <section className="setupGrid" aria-label="Match setup">
-        <fieldset className="setupGroup">
-          <legend>Timer</legend>
-          <SegmentedControl
-            options={TIMER_PRESETS.map((preset) => ({ label: preset.label, value: preset.seconds }))}
-            value={config.timerSeconds}
-            onChange={(value) => update("timerSeconds", value as TimerSeconds)}
-          />
-        </fieldset>
-
-        <fieldset className="setupGroup">
-          <legend>Opponent</legend>
-          <SegmentedControl<OpponentMode>
-            options={[
-              { label: "Human", value: "Human" },
-              { label: "Computer", value: "Computer" },
-            ]}
-            value={config.opponent}
-            onChange={(value) => update("opponent", value)}
-          />
-        </fieldset>
-
-        {config.opponent === "Computer" && (
-          <>
-            <fieldset className="setupGroup">
-              <legend>Human side</legend>
-              <SegmentedControl<HumanSideChoice>
-                options={[
-                  { label: "Black", value: "Black" },
-                  { label: "White", value: "White" },
-                  { label: "Random", value: "Random" },
-                ]}
-                value={config.humanSide}
-                onChange={(value) => update("humanSide", value)}
-              />
-            </fieldset>
-
-            <fieldset className="setupGroup">
-              <legend>AI difficulty</legend>
-              <SegmentedControl<AiDifficulty>
-                options={[
-                  { label: "Easy", value: "Easy" },
-                  { label: "Medium", value: "Medium" },
-                  { label: "Hard", value: "Hard" },
-                ]}
-                value={config.aiDifficulty}
-                onChange={(value) => update("aiDifficulty", value)}
-              />
-            </fieldset>
-          </>
-        )}
-
-        <fieldset className="setupGroup">
-          <legend>Placement</legend>
-          <SegmentedControl<PlacementMode>
-            options={[
-              { label: "Manual", value: "Manual" },
-              { label: "Quick Balanced", value: "QuickBalanced" },
-            ]}
-            value={config.placementMode}
-            onChange={(value) => update("placementMode", value)}
-          />
-        </fieldset>
-
-        <fieldset className="setupGroup">
-          <legend>Transform</legend>
-          <SegmentedControl<boolean>
-            options={[
-              { label: "Off", value: false },
-              { label: "On", value: true },
-            ]}
-            value={config.transformEnabled}
-            onChange={(value) => update("transformEnabled", value)}
-          />
-        </fieldset>
+        <Panel as="aside" tone="strong" className="matchSummaryPanel" aria-label="Match summary">
+          <SectionHeader eyebrow="Summary" title="Ready Room" />
+          <div className="factionPreview">
+            <FactionBadge player="Black" active={config.opponent === "Human" || config.humanSide === "Black"} />
+            <span aria-hidden="true">vs</span>
+            <FactionBadge player="White" active={config.opponent === "Human" || config.humanSide === "White"} />
+          </div>
+          <dl className="summaryList">
+            <div>
+              <dt>Opponent</dt>
+              <dd>{summary.opponent}</dd>
+            </div>
+            <div>
+              <dt>Human side</dt>
+              <dd>{summary.side}</dd>
+            </div>
+            <div>
+              <dt>Clock</dt>
+              <dd>{summary.timer}</dd>
+            </div>
+            <div>
+              <dt>Deployment</dt>
+              <dd>{summary.placement}</dd>
+            </div>
+            <div>
+              <dt>Variant</dt>
+              <dd>{summary.transform}</dd>
+            </div>
+          </dl>
+          <StatusBadge tone="info" icon="warning">
+            Timers are configured now; live countdown parity remains tracked.
+          </StatusBadge>
+          <GameButton variant="primary" size="lg" icon="play" onClick={startMatch}>
+            Start Match
+          </GameButton>
+        </Panel>
       </section>
-
-      <aside className="setupSummary" aria-label="Match summary">
-        <p className="eyebrow">Match summary</p>
-        <p>{summary}</p>
-        <button type="button" className="primaryAction" onClick={startMatch}>
-          Start Match
-        </button>
-      </aside>
-    </main>
-  );
-}
-
-interface SegmentedControlProps<T extends string | number | boolean> {
-  options: { label: string; value: T }[];
-  value: T;
-  onChange: (value: T) => void;
-}
-
-function SegmentedControl<T extends string | number | boolean>({ options, value, onChange }: SegmentedControlProps<T>) {
-  return (
-    <div className="segmentedControl">
-      {options.map((option) => (
-        <button
-          key={String(option.value)}
-          type="button"
-          className={Object.is(option.value, value) ? "isSelected" : undefined}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    </PageShell>
   );
 }

@@ -62,6 +62,7 @@ interface StartMatchOptions {
 
 interface SavedGame {
   schema: 1;
+  savedAt?: string;
   board: ReturnType<typeof toPythonSnapshot>;
   phase: PhaseState;
   currentPlayer: Player;
@@ -319,6 +320,7 @@ function advanceHalfTurn(board: BoardState, state: GameStore): { currentPlayer: 
 function savedGameFromState(state: GameStore): SavedGame {
   return {
     schema: 1,
+    savedAt: new Date().toISOString(),
     board: toPythonSnapshot(state.board),
     phase: state.phase,
     currentPlayer: state.currentPlayer,

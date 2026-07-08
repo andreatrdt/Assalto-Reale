@@ -1,32 +1,47 @@
 .boardFrame {
   background:
-    linear-gradient(135deg, rgb(239 230 208 / 0.12), transparent 34%),
-    linear-gradient(180deg, rgb(18 25 29 / 0.95), rgb(7 9 11 / 0.96));
-  border: 1px solid rgb(239 230 208 / 0.16);
-  border-radius: 0.5rem;
-  box-shadow: var(--shadow-panel);
-  padding: clamp(0.5rem, 1.5vw, 1rem);
+    linear-gradient(135deg, rgb(216 189 120 / 0.16), transparent 28%),
+    linear-gradient(315deg, rgb(36 62 104 / 0.18), transparent 34%),
+    #07090b;
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-panel);
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 0 0 1px rgb(255 255 255 / 0.05),
+    inset 0 0 42px rgb(0 0 0 / 0.54);
+  display: grid;
+  padding: clamp(0.45rem, 1.2vw, 0.85rem);
+  position: relative;
+}
+
+.boardFrame::before {
+  border: 1px solid rgb(232 221 194 / 0.11);
+  content: "";
+  inset: 0.35rem;
+  pointer-events: none;
+  position: absolute;
 }
 
 .assaltoBoard {
-  display: block;
-  width: min(100%, calc(100vh - 4rem));
   aspect-ratio: 1;
+  display: block;
   margin: 0 auto;
+  max-height: calc(100vh - 13.5rem);
+  width: min(100%, calc(100vh - 13.5rem));
 }
 
 .boardBed {
-  fill: #080b0d;
+  fill: #080a0c;
 }
 
 .tileDark {
   fill: url("#tileDark");
-  stroke: rgb(239 230 208 / 0.06);
+  stroke: rgb(232 221 194 / 0.08);
 }
 
 .tileLight {
   fill: url("#tileLight");
-  stroke: rgb(239 230 208 / 0.08);
+  stroke: rgb(232 221 194 / 0.1);
 }
 
 .boardCell {
@@ -40,84 +55,108 @@
 .boardCell:focus .tileDark,
 .boardCell:focus .tileLight {
   stroke: var(--color-gold-bright);
-  stroke-width: 4;
+  stroke-width: 5;
+}
+
+.coordLabel {
+  fill: rgb(232 221 194 / 0.45);
+  font: 800 18px var(--font-ui);
+  pointer-events: none;
 }
 
 .placementValid {
-  fill: rgb(31 106 85 / 0.1);
-  stroke: rgb(31 106 85 / 0.55);
-  stroke-dasharray: 6 8;
+  fill: rgb(31 106 85 / 0.12);
+  stroke: rgb(93 183 145 / 0.72);
+  stroke-dasharray: 7 8;
   stroke-width: 3;
 }
 
 .selectedRing {
   fill: none;
-  filter: drop-shadow(0 0 8px rgb(211 181 111 / 0.42));
+  filter: drop-shadow(0 0 10px rgb(216 189 120 / 0.58));
   stroke: var(--color-gold-bright);
-  stroke-width: 5;
+  stroke-width: 6;
 }
 
 .moveIndicator circle {
-  fill: rgb(211 181 111 / 0.26);
+  fill: rgb(216 189 120 / 0.3);
   stroke: var(--color-gold-bright);
   stroke-width: 4;
 }
 
 .captureIndicator circle:first-child {
-  fill: rgb(93 22 32 / 0.22);
-  stroke: var(--color-oxblood);
-  stroke-width: 5;
+  fill: rgb(179 58 69 / 0.24);
+  stroke: var(--color-danger);
+  stroke-width: 6;
 }
 
 .captureIndicator circle:last-child {
   fill: none;
   stroke: var(--color-gold-bright);
+  stroke-dasharray: 9 6;
   stroke-width: 3;
 }
 
 .specialMark circle {
   fill: url("#specialGlow");
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
 .specialMark path {
   fill: none;
   stroke: var(--color-gold-bright);
-  stroke-width: 4;
+  stroke-width: 5;
 }
 
 .specialMark.controlledBlack path {
-  stroke: var(--color-ivory);
+  stroke: var(--faction-black-line);
+  filter: drop-shadow(0 0 8px rgb(216 189 120 / 0.42));
 }
 
 .specialMark.controlledWhite path {
-  stroke: #f8f2e3;
-  filter: drop-shadow(0 0 8px rgb(239 230 208 / 0.34));
+  stroke: var(--faction-white);
+  filter: drop-shadow(0 0 8px rgb(239 230 208 / 0.38));
 }
 
 .transformMark circle {
-  fill: rgb(31 106 85 / 0.28);
-  stroke: var(--color-emerald);
+  fill: rgb(31 106 85 / 0.3);
+  stroke: #7ccda9;
   stroke-width: 4;
 }
 
 .transformMark path {
   fill: none;
-  stroke: var(--color-emerald);
+  stroke: #a5f0cd;
   stroke-linecap: round;
   stroke-width: 5;
 }
 
+.defendedKingMark path:first-child {
+  fill: rgb(216 189 120 / 0.24);
+  stroke: var(--color-gold-bright);
+  stroke-width: 3;
+}
+
+.defendedKingMark path:last-child {
+  fill: none;
+  stroke: var(--color-gold-bright);
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
 .piece {
-  transition: transform var(--duration-medium) var(--ease-standard);
+  transition:
+    filter var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
 }
 
 .piece:hover {
-  transform: translateY(-5px);
+  filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.42));
+  transform: translateY(-4px);
 }
 
 .pieceShadow {
-  fill: rgb(0 0 0 / 0.42);
+  fill: rgb(0 0 0 / 0.48);
 }
 
 .pieceBody {
@@ -130,19 +169,50 @@
 }
 
 .pieceBlack .pieceBody {
-  fill: #111519;
-  stroke: var(--color-gold);
+  fill: var(--faction-black);
+  stroke: var(--faction-black-line);
 }
 
 .pieceBlack .pieceLine {
-  stroke: rgb(239 230 208 / 0.28);
+  stroke: rgb(232 221 194 / 0.28);
 }
 
 .pieceWhite .pieceBody {
-  fill: var(--color-ivory);
-  stroke: #4f4635;
+  fill: var(--faction-white);
+  stroke: var(--faction-white-line);
 }
 
 .pieceWhite .pieceLine {
   stroke: rgb(7 9 11 / 0.42);
+}
+
+html[data-board-contrast="high"] .tileDark,
+html[data-board-contrast="high"] .tileLight {
+  stroke: rgb(232 221 194 / 0.24);
+}
+
+html[data-board-contrast="high"] .coordLabel {
+  fill: rgb(232 221 194 / 0.75);
+}
+
+html[data-board-contrast="high"] .moveIndicator circle {
+  fill: rgb(216 189 120 / 0.44);
+}
+
+@media (max-width: 1180px) {
+  .assaltoBoard {
+    max-height: min(70vh, calc(100vw - 2rem));
+    width: min(100%, min(70vh, calc(100vw - 2rem)));
+  }
+}
+
+@media (max-width: 540px) {
+  .boardFrame {
+    padding: 0.35rem;
+  }
+
+  .assaltoBoard {
+    max-height: calc(100vw - 1.3rem);
+    width: min(100%, calc(100vw - 1.3rem));
+  }
 }

@@ -15,6 +15,7 @@ export function navigateTo(route: AppRoute, replace = false): void {
   } else {
     window.history.pushState({}, "", route);
   }
+  window.scrollTo({ left: 0, top: 0 });
   window.dispatchEvent(new Event("popstate"));
 }
 
