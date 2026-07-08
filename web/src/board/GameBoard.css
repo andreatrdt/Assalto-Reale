@@ -128,19 +128,6 @@
   stroke-width: 5;
 }
 
-.defendedKingMark path:first-child {
-  fill: rgb(63 81 55 / 0.14);
-  stroke: #3f5137;
-  stroke-width: 3;
-}
-
-.defendedKingMark path:last-child {
-  fill: none;
-  stroke: #3f5137;
-  stroke-linecap: round;
-  stroke-width: 4;
-}
-
 .piece {
   transition:
     filter var(--duration-fast) var(--ease-standard),
