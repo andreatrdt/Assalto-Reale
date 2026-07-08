@@ -1,23 +1,21 @@
 .boardFrame {
-  background:
-    linear-gradient(135deg, rgb(216 189 120 / 0.16), transparent 28%),
-    linear-gradient(315deg, rgb(36 62 104 / 0.18), transparent 34%),
-    #07090b;
-  border: 1px solid var(--border-gold);
+  background: #edf1e9;
+  border: 1px solid #c4cdc0;
   border-radius: var(--radius-panel);
-  box-shadow:
-    var(--shadow-panel),
-    inset 0 0 0 1px rgb(255 255 255 / 0.05),
-    inset 0 0 42px rgb(0 0 0 / 0.54);
+  box-shadow: 0 1px 3px rgb(32 38 34 / 0.08), 0 12px 30px rgb(32 38 34 / 0.08);
+  box-sizing: border-box;
   display: grid;
-  padding: clamp(0.45rem, 1.2vw, 0.85rem);
+  max-width: calc(100dvh - 6rem);
+  padding: clamp(0.4rem, 0.9vw, 0.7rem);
   position: relative;
+  width: 100%;
 }
 
 .boardFrame::before {
-  border: 1px solid rgb(232 221 194 / 0.11);
+  border: 1px solid rgb(72 88 73 / 0.12);
+  border-radius: calc(var(--radius-panel) - 0.2rem);
   content: "";
-  inset: 0.35rem;
+  inset: 0.3rem;
   pointer-events: none;
   position: absolute;
 }
@@ -26,22 +24,23 @@
   aspect-ratio: 1;
   display: block;
   margin: 0 auto;
-  max-height: calc(100vh - 13.5rem);
-  width: min(100%, calc(100vh - 13.5rem));
+  width: 100%;
 }
 
 .boardBed {
-  fill: #080a0c;
+  fill: #cbd5c6;
 }
 
 .tileDark {
-  fill: url("#tileDark");
-  stroke: rgb(232 221 194 / 0.08);
+  fill: #9cac93;
+  stroke: #87977f;
+  stroke-width: 1.5;
 }
 
 .tileLight {
-  fill: url("#tileLight");
-  stroke: rgb(232 221 194 / 0.1);
+  fill: #dce5d7;
+  stroke: #c6d0c2;
+  stroke-width: 1.5;
 }
 
 .boardCell {
@@ -54,92 +53,90 @@
 
 .boardCell:focus .tileDark,
 .boardCell:focus .tileLight {
-  stroke: var(--color-gold-bright);
+  stroke: var(--focus-ring);
   stroke-width: 5;
 }
 
 .coordLabel {
-  fill: rgb(232 221 194 / 0.45);
+  fill: #465448;
   font: 800 18px var(--font-ui);
   pointer-events: none;
 }
 
 .placementValid {
-  fill: rgb(31 106 85 / 0.12);
-  stroke: rgb(93 183 145 / 0.72);
+  fill: rgb(52 105 78 / 0.11);
+  stroke: #3f7257;
   stroke-dasharray: 7 8;
   stroke-width: 3;
 }
 
 .selectedRing {
   fill: none;
-  filter: drop-shadow(0 0 10px rgb(216 189 120 / 0.58));
-  stroke: var(--color-gold-bright);
+  stroke: #365b43;
   stroke-width: 6;
 }
 
 .moveIndicator circle {
-  fill: rgb(216 189 120 / 0.3);
-  stroke: var(--color-gold-bright);
+  fill: rgb(44 86 64 / 0.28);
+  stroke: #355d46;
   stroke-width: 4;
 }
 
 .captureIndicator circle:first-child {
-  fill: rgb(179 58 69 / 0.24);
-  stroke: var(--color-danger);
+  fill: rgb(166 95 90 / 0.15);
+  stroke: #934f4b;
   stroke-width: 6;
 }
 
 .captureIndicator circle:last-child {
   fill: none;
-  stroke: var(--color-gold-bright);
+  stroke: #334a39;
   stroke-dasharray: 9 6;
   stroke-width: 3;
 }
 
 .specialMark circle {
-  fill: url("#specialGlow");
-  opacity: 0.5;
+  fill: rgb(94 119 84 / 0.14);
+  opacity: 1;
 }
 
 .specialMark path {
   fill: none;
-  stroke: var(--color-gold-bright);
+  stroke: #526b49;
   stroke-width: 5;
 }
 
 .specialMark.controlledBlack path {
-  stroke: var(--faction-black-line);
-  filter: drop-shadow(0 0 8px rgb(216 189 120 / 0.42));
+  stroke: #26312b;
 }
 
 .specialMark.controlledWhite path {
-  stroke: var(--faction-white);
-  filter: drop-shadow(0 0 8px rgb(239 230 208 / 0.38));
+  stroke: #f7f5ed;
+  filter: drop-shadow(0 0 2px rgb(32 38 34 / 0.55));
 }
 
 .transformMark circle {
-  fill: rgb(31 106 85 / 0.3);
-  stroke: #7ccda9;
+  fill: rgb(65 112 91 / 0.18);
+  stroke: #3f725c;
   stroke-width: 4;
 }
 
 .transformMark path {
   fill: none;
-  stroke: #a5f0cd;
+  stroke: #315b49;
   stroke-linecap: round;
   stroke-width: 5;
 }
 
 .defendedKingMark path:first-child {
-  fill: rgb(216 189 120 / 0.24);
-  stroke: var(--color-gold-bright);
+  fill: rgb(63 81 55 / 0.14);
+  stroke: #3f5137;
   stroke-width: 3;
 }
 
 .defendedKingMark path:last-child {
   fill: none;
-  stroke: var(--color-gold-bright);
+  stroke: #3f5137;
   stroke-linecap: round;
   stroke-width: 4;
 }
@@ -151,12 +148,12 @@
 }
 
 .piece:hover {
-  filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.42));
+  filter: drop-shadow(0 5px 6px rgb(32 38 34 / 0.28));
   transform: translateY(-4px);
 }
 
 .pieceShadow {
-  fill: rgb(0 0 0 / 0.48);
+  fill: rgb(32 38 34 / 0.22);
 }
 
 .pieceBody {
@@ -169,50 +166,68 @@
 }
 
 .pieceBlack .pieceBody {
-  fill: var(--faction-black);
-  stroke: var(--faction-black-line);
+  fill: #29302c;
+  stroke: #111713;
 }
 
 .pieceBlack .pieceLine {
-  stroke: rgb(232 221 194 / 0.28);
+  stroke: rgb(244 242 234 / 0.34);
 }
 
 .pieceWhite .pieceBody {
-  fill: var(--faction-white);
-  stroke: var(--faction-white-line);
+  fill: #f4f2ea;
+  stroke: #697369;
 }
 
 .pieceWhite .pieceLine {
-  stroke: rgb(7 9 11 / 0.42);
+  stroke: rgb(32 38 34 / 0.46);
 }
 
-html[data-board-contrast="high"] .tileDark,
+html[data-board-contrast="high"] .boardBed {
+  fill: #aeb9a9;
+}
+
+html[data-board-contrast="high"] .tileDark {
+  fill: #718069;
+  stroke: #263027;
+  stroke-width: 2.5;
+}
+
 html[data-board-contrast="high"] .tileLight {
-  stroke: rgb(232 221 194 / 0.24);
+  fill: #eef3eb;
+  stroke: #6b7768;
+  stroke-width: 2.5;
 }
 
 html[data-board-contrast="high"] .coordLabel {
-  fill: rgb(232 221 194 / 0.75);
+  fill: #1f2921;
 }
 
 html[data-board-contrast="high"] .moveIndicator circle {
-  fill: rgb(216 189 120 / 0.44);
+  fill: rgb(22 55 37 / 0.42);
+  stroke: #102c1d;
+}
+
+html[data-board-contrast="high"] .placementValid {
+  fill: rgb(20 73 44 / 0.16);
+  stroke: #123e27;
+  stroke-width: 4;
+}
+
+html[data-board-contrast="high"] .selectedRing {
+  stroke: #152f20;
+  stroke-width: 7;
 }
 
 @media (max-width: 1180px) {
-  .assaltoBoard {
-    max-height: min(70vh, calc(100vw - 2rem));
-    width: min(100%, min(70vh, calc(100vw - 2rem)));
+  .boardFrame {
+    max-width: min(46rem, calc(100vw - 2rem));
   }
 }
 
 @media (max-width: 540px) {
   .boardFrame {
-    padding: 0.35rem;
-  }
-
-  .assaltoBoard {
-    max-height: calc(100vw - 1.3rem);
-    width: min(100%, calc(100vw - 1.3rem));
+    max-width: calc(100vw - 1.1rem);
+    padding: 0.3rem;
   }
 }
