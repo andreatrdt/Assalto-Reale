@@ -11,183 +11,728 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 50% 10%, rgb(184 151 83 / 0.16), transparent 34rem),
-    linear-gradient(135deg, var(--color-void), var(--color-steel-950) 45%, #10090b);
-  color: var(--color-ivory);
+    linear-gradient(90deg, rgb(255 255 255 / 0.025) 1px, transparent 1px) 0 0 / 42px 42px,
+    linear-gradient(0deg, rgb(255 255 255 / 0.018) 1px, transparent 1px) 0 0 / 42px 42px,
+    radial-gradient(circle at 18% 10%, rgb(184 151 83 / 0.18), transparent 25rem),
+    radial-gradient(circle at 86% 16%, rgb(36 62 104 / 0.24), transparent 31rem),
+    linear-gradient(135deg, var(--color-void), var(--color-stone-940) 48%, #12070a);
+  color: var(--text-strong);
   font-family: var(--font-ui);
 }
 
+button,
+input {
+  font: inherit;
+}
+
 button {
-  border: 1px solid rgb(239 230 208 / 0.22);
-  border-radius: var(--radius-control);
-  background: rgb(239 230 208 / 0.08);
-  color: var(--color-ivory);
   cursor: pointer;
-  font: 700 0.95rem var(--font-ui);
-  padding: 0.85rem 1rem;
-  transition:
-    background var(--duration-fast) var(--ease-standard),
-    border-color var(--duration-fast) var(--ease-standard),
-    transform var(--duration-fast) var(--ease-standard);
-}
-
-button:hover,
-button:focus-visible {
-  background: rgb(184 151 83 / 0.2);
-  border-color: var(--color-gold);
-  transform: translateY(-1px);
-}
-
-button:focus-visible {
-  outline: 3px solid rgb(211 181 111 / 0.45);
-  outline-offset: 3px;
 }
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
-  transform: none;
+  opacity: 0.48;
 }
 
-.appShell {
-  display: grid;
-  grid-template-columns: minmax(18rem, 0.72fr) minmax(24rem, 1.2fr) minmax(18rem, 0.58fr);
-  gap: clamp(1rem, 2vw, 2rem);
-  min-height: 100vh;
-  padding: clamp(1rem, 3vw, 2.5rem);
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgb(216 189 120 / 0.52);
+  outline-offset: 3px;
 }
 
-.heroPanel,
-.phasePanel {
-  align-self: center;
-  background: linear-gradient(180deg, rgb(18 25 29 / 0.88), rgb(9 11 13 / 0.9));
-  border: 1px solid rgb(239 230 208 / 0.14);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-panel);
-  padding: clamp(1.25rem, 3vw, 2rem);
-}
-
-.wordmark {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.crest {
-  display: inline-grid;
-  place-items: center;
-  width: 3.75rem;
-  aspect-ratio: 1;
-  border: 2px solid var(--color-gold);
-  border-radius: 50%;
-  box-shadow: var(--glow-gold);
-}
-
-.titleBlock {
-  min-width: 0;
-}
-
-.crest::before {
-  content: "";
-  width: 1.5rem;
-  height: 2.2rem;
-  background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold));
-  clip-path: polygon(50% 0, 78% 30%, 66% 100%, 34% 100%, 22% 30%);
-}
-
-.eyebrow {
-  color: var(--color-gold-bright);
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  margin: 0 0 0.35rem;
-  text-transform: uppercase;
+a {
+  color: inherit;
 }
 
 h1,
 h2,
 h3 {
+  color: var(--text-strong);
   font-family: var(--font-display);
   letter-spacing: 0;
+  line-height: 1;
+  margin: 0;
 }
 
 h1 {
-  font-size: clamp(2.8rem, 5.4vw, 4.35rem);
-  line-height: 0.92;
-  margin: 0;
-  max-width: 100%;
+  font-size: clamp(2.6rem, 6vw, 5.7rem);
 }
 
 h2 {
-  font-size: clamp(1.8rem, 4vw, 3rem);
-  margin: 0 0 1rem;
-  text-transform: capitalize;
+  font-size: clamp(1.4rem, 3vw, 2.25rem);
 }
 
 h3 {
-  color: var(--color-gold-bright);
-  margin: 1rem 0 0.35rem;
+  font-size: 1.15rem;
 }
 
-.heroActions {
+p {
+  line-height: 1.65;
+}
+
+.icon {
+  display: inline-block;
+  fill: none;
+  flex: 0 0 auto;
+  height: 1.05rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 1.05rem;
+}
+
+.eyebrow {
+  color: var(--color-gold-bright);
+  font-size: 0.75rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.pageLead,
+.heroCopy,
+.sectionHeader p,
+.formField p,
+.emptyState p,
+.textPanel p,
+.rulebook p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.pageShell {
+  min-height: 100vh;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.pageShell::before {
+  background: linear-gradient(180deg, rgb(232 221 194 / 0.08), transparent);
+  content: "";
+  height: 1px;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: var(--z-shell);
+}
+
+.shellBar {
+  align-items: center;
+  background: rgb(7 9 10 / 0.72);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin: 0 auto clamp(1rem, 2vw, 1.5rem);
+  max-width: 118rem;
+  padding: 0.65rem;
+  position: sticky;
+  top: 0.75rem;
+  z-index: var(--z-shell);
+}
+
+.brandMark,
+.shellNav button,
+.homeQuickLinks button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  display: inline-flex;
+  gap: 0.55rem;
+}
+
+.brandMark {
+  color: var(--text-strong);
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+}
+
+.brandMark strong {
+  display: block;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+
+.brandMark small {
+  color: var(--text-dim);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.brandCrest,
+.heroCrest,
+.emptyIcon {
+  align-items: center;
+  border: 1px solid var(--border-gold);
+  color: var(--color-gold-bright);
+  display: inline-flex;
+  justify-content: center;
+}
+
+.brandCrest {
+  background: rgb(184 151 83 / 0.12);
+  height: 2.5rem;
+  width: 2.5rem;
+}
+
+.shellNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.shellNav button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0.65rem 0.75rem;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.shellNav button:hover,
+.shellNav button.isActive {
+  background: rgb(232 221 194 / 0.08);
+  border-color: var(--border-medium);
+  color: var(--text-strong);
+}
+
+.pageShellContent {
+  margin: 0 auto;
+  max-width: 118rem;
+}
+
+.panel,
+.gameCard {
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.04), transparent 40%),
+    var(--surface-panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.panel-strong {
+  background:
+    linear-gradient(180deg, rgb(216 189 120 / 0.05), transparent 36%),
+    var(--surface-panel-strong);
+}
+
+.panel-subtle {
+  background: var(--surface-panel-subtle);
+  box-shadow: none;
+}
+
+.pageHeader {
+  align-items: end;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
+}
+
+.pageHeader h1 {
+  font-size: clamp(2.35rem, 5vw, 4.2rem);
+}
+
+.pageHeaderActions,
+.heroActions,
+.emptyActions,
+.saveActions,
+.gameTopActions,
+.commandGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.gameButton,
+.iconButton {
+  align-items: center;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-inset);
+  display: inline-flex;
+  font-weight: 850;
+  gap: 0.55rem;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.72rem 0.95rem;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.gameButton-sm {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.7rem;
+}
+
+.gameButton-lg {
+  min-height: 3.2rem;
+  padding: 0.9rem 1.15rem;
+}
+
+.gameButton:hover:not(:disabled),
+.iconButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.gameButton-primary {
+  background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold));
+  border-color: rgb(255 255 255 / 0.2);
+  color: #15110a;
+}
+
+.gameButton-secondary,
+.iconButton-secondary {
+  background: var(--surface-control);
+  color: var(--text-strong);
+}
+
+.gameButton-ghost,
+.iconButton-ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.gameButton-danger,
+.iconButton-danger {
+  background: rgb(179 58 69 / 0.16);
+  border-color: rgb(179 58 69 / 0.5);
+  color: #ffd8d8;
+}
+
+.gameButton.isSelected,
+.segmentedControl button.isSelected {
+  background: linear-gradient(180deg, rgb(216 189 120 / 0.26), rgb(184 151 83 / 0.16));
+  border-color: var(--border-gold);
+  color: var(--text-strong);
+}
+
+.iconButton {
+  aspect-ratio: 1;
+  padding: 0;
+  width: 2.75rem;
+}
+
+.sectionHeader {
+  margin-bottom: 1rem;
+}
+
+.sectionHeader h2 {
+  font-size: clamp(1.45rem, 2.6vw, 2.1rem);
+}
+
+.formField {
+  border: 0;
   display: grid;
   gap: 0.75rem;
-  margin-top: 2rem;
+  margin: 0;
+  padding: 0;
 }
 
-.primaryAction {
-  background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold));
-  border-color: rgb(255 255 255 / 0.18);
-  color: #10100d;
+.formField legend {
+  color: var(--text-strong);
+  font-weight: 900;
+  padding: 0;
 }
 
-.buildInfo,
-.rulesPreview p,
-.phasePanel p {
-  color: var(--color-ivory-muted);
-  line-height: 1.6;
+.segmentedControl {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
 }
 
-.buildInfo {
-  font-size: 0.85rem;
-  margin-top: 1.25rem;
+.segmentedControl button {
+  align-items: flex-start;
+  background: rgb(232 221 194 / 0.055);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  color: var(--text-muted);
+  display: grid;
+  gap: 0.25rem;
+  min-height: 4.1rem;
+  padding: 0.75rem;
+  text-align: left;
 }
 
+.segmentedControl button span {
+  color: var(--text-strong);
+  font-weight: 900;
+}
+
+.segmentedControl button small,
+.toggleControl small {
+  color: var(--text-dim);
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.statusBadge,
+.factionBadge {
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 850;
+  gap: 0.45rem;
+  line-height: 1.2;
+  padding: 0.42rem 0.55rem;
+}
+
+.statusBadge-neutral {
+  background: rgb(232 221 194 / 0.06);
+  color: var(--text-muted);
+}
+
+.statusBadge-gold {
+  background: rgb(184 151 83 / 0.14);
+  border-color: rgb(216 189 120 / 0.45);
+  color: var(--color-gold-bright);
+}
+
+.statusBadge-success {
+  background: rgb(62 139 104 / 0.16);
+  border-color: rgb(62 139 104 / 0.45);
+  color: #aee6c6;
+}
+
+.statusBadge-danger {
+  background: rgb(179 58 69 / 0.16);
+  border-color: rgb(179 58 69 / 0.45);
+  color: #ffd8d8;
+}
+
+.statusBadge-info {
+  background: rgb(109 139 180 / 0.14);
+  border-color: rgb(109 139 180 / 0.45);
+  color: #d8e6ff;
+}
+
+.factionBadge span {
+  border: 1px solid currentColor;
+  display: inline-block;
+  height: 0.7rem;
+  width: 0.7rem;
+}
+
+.factionBlack {
+  background: rgb(18 22 26 / 0.74);
+  color: var(--faction-black-line);
+}
+
+.factionBlack span {
+  background: var(--faction-black);
+}
+
+.factionWhite {
+  background: rgb(242 234 216 / 0.1);
+  color: var(--faction-white);
+}
+
+.factionWhite span {
+  background: var(--faction-white);
+}
+
+.factionBadge.isActive {
+  box-shadow: var(--glow-gold);
+}
+
+.homeShell .pageShellContent {
+  align-items: center;
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  grid-template-columns: minmax(0, 0.92fr) minmax(19rem, 0.62fr);
+  min-height: calc(100vh - 7.5rem);
+}
+
+.homeHero {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.heroCrest {
+  background: rgb(184 151 83 / 0.12);
+  box-shadow: var(--glow-gold);
+  height: 4.4rem;
+  margin-bottom: 1rem;
+  width: 4.4rem;
+}
+
+.heroCrest .icon {
+  height: 2.2rem;
+  width: 2.2rem;
+}
+
+.heroCopy {
+  font-size: clamp(1.05rem, 2vw, 1.32rem);
+  max-width: 42rem;
+}
+
+.homeQuickLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.homeQuickLinks button {
+  border-bottom: 1px solid var(--border-gold);
+  padding: 0.15rem 0;
+}
+
+.homeTableau {
+  display: grid;
+  gap: 1rem;
+  justify-self: end;
+  max-width: 32rem;
+  width: 100%;
+}
+
+.royalBoardPreview {
+  background:
+    linear-gradient(135deg, rgb(216 189 120 / 0.12), transparent 34%),
+    rgb(8 10 12 / 0.85);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(12, 1fr);
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.royalBoardPreview span {
+  aspect-ratio: 1;
+  background: rgb(232 221 194 / 0.055);
+  border: 1px solid rgb(232 221 194 / 0.03);
+}
+
+.royalBoardPreview .previewSpecial {
+  background: rgb(184 151 83 / 0.42);
+  box-shadow: var(--glow-gold);
+}
+
+.royalBoardPreview .previewPiece::after {
+  background: var(--text-strong);
+  content: "";
+  display: block;
+  height: 52%;
+  margin: 24% auto;
+  width: 52%;
+}
+
+.homeFacts {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.factionRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.setupCommandTable {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 0.36fr);
+}
+
+.setupGroups {
+  display: grid;
+  gap: 1rem;
+}
+
+.setupPanel,
+.settingsStack,
 .matchPanel {
   display: grid;
   gap: 1rem;
 }
 
-.statusLine {
-  color: var(--color-ivory);
-  font-weight: 700;
-  margin: 0;
-}
-
-.statGrid {
+.setupNested {
   display: grid;
-  gap: 0.65rem 1rem;
-  grid-template-columns: minmax(6.5rem, 0.85fr) 1fr;
+  gap: 1rem;
 }
 
-.statGrid span {
-  color: var(--color-ivory-muted);
+.matchSummaryPanel {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+  position: sticky;
+  top: 6rem;
 }
 
-.statGrid strong {
-  color: var(--color-ivory);
-  font-weight: 800;
-}
-
-.apTrack {
+.factionPreview {
+  align-items: center;
   display: flex;
   gap: 0.65rem;
 }
 
+.summaryList,
+.hudList {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.summaryList div,
+.hudList div {
+  border-top: 1px solid rgb(232 221 194 / 0.09);
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(7rem, 0.72fr) 1fr;
+  padding-top: 0.55rem;
+}
+
+.summaryList dt,
+.hudList dt {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.summaryList dd,
+.hudList dd {
+  color: var(--text-strong);
+  font-weight: 850;
+  margin: 0;
+}
+
+.gamePage {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding: clamp(0.6rem, 1.4vw, 1rem);
+}
+
+.gameCommandBar {
+  align-items: center;
+  background:
+    linear-gradient(90deg, rgb(184 151 83 / 0.09), transparent 38%),
+    rgb(7 9 10 / 0.82);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-raised);
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(12rem, 0.55fr) minmax(14rem, 0.7fr) auto auto;
+  padding: 0.65rem 0.8rem;
+}
+
+.gameBrandBlock h1 {
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+}
+
+.turnBanner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: center;
+}
+
+.clockStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: center;
+}
+
+.playerClock {
+  align-items: center;
+  background: rgb(232 221 194 / 0.055);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: 0.25rem;
+  min-width: 8.8rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.playerClock strong {
+  font-size: 1.05rem;
+}
+
+.playerClock.isActive {
+  border-color: var(--border-gold);
+  box-shadow: var(--glow-gold);
+}
+
+.gameTable {
+  align-items: stretch;
+  display: grid;
+  gap: clamp(0.75rem, 1.4vw, 1rem);
+  grid-template-columns: minmax(13rem, 0.48fr) minmax(0, 1.18fr) minmax(15rem, 0.56fr);
+  min-height: 0;
+}
+
+.gameRail {
+  align-content: start;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.gameRail h2 {
+  font-size: clamp(1.55rem, 2.4vw, 2.2rem);
+}
+
+.boardCommandCenter {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.statusRibbon {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: center;
+  min-height: 2.6rem;
+}
+
+.boardStage {
+  align-items: center;
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+}
+
+.apTrack {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .apTrack span {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
   display: block;
-  width: 2.8rem;
-  height: 0.55rem;
-  border-radius: 999px;
+  font-size: 0;
+  height: 0.75rem;
 }
 
 .apReady {
@@ -196,33 +741,395 @@ h3 {
 }
 
 .apSpent {
-  background: rgb(239 230 208 / 0.16);
+  background: rgb(232 221 194 / 0.1);
 }
 
-.panelActions {
+.defenseStatus,
+.capturedBox {
   display: grid;
-  gap: 0.75rem;
-  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.capturedBox {
+  background: rgb(232 221 194 / 0.045);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  padding: 0.75rem;
+}
+
+.capturedBox span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.commandGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .choiceGrid {
   display: grid;
+  gap: 0.65rem;
+}
+
+.statusLine {
+  color: var(--text-strong);
+  font-weight: 850;
+  margin: 0;
+}
+
+.victoryPanel {
+  border-top: 2px solid var(--border-gold);
+  padding-top: 0.5rem;
+}
+
+.rulebookLayout,
+.settingsGrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(12rem, 0.25fr) minmax(0, 1fr);
+}
+
+.ruleToc {
+  align-content: start;
+  display: grid;
+  gap: 0.4rem;
+  position: sticky;
+  top: 6rem;
+}
+
+.ruleToc a {
+  border-left: 2px solid transparent;
+  color: var(--text-muted);
+  padding: 0.35rem 0.55rem;
+  text-decoration: none;
+}
+
+.ruleToc a:hover {
+  border-left-color: var(--color-gold-bright);
+  color: var(--text-strong);
+}
+
+.rulebook {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 72rem;
+}
+
+.ruleSection {
+  display: grid;
   gap: 0.75rem;
 }
 
-.boardStage {
-  align-self: center;
-  min-width: 0;
+.rulesTable {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  overflow: hidden;
 }
 
-@media (max-width: 1100px) {
-  .appShell {
+.rulesTable > div {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 12rem 1fr;
+  padding: 0.7rem 0.85rem;
+}
+
+.rulesTable > div:nth-child(odd) {
+  background: rgb(232 221 194 / 0.045);
+}
+
+.loadPanel {
+  display: grid;
+  gap: 1rem;
+  max-width: 72rem;
+}
+
+.saveCard {
+  align-items: start;
+  background: rgb(232 221 194 / 0.045);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  padding: 1rem;
+}
+
+.saveCardInvalid {
+  border-color: rgb(179 58 69 / 0.45);
+}
+
+.saveCard h2 {
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  margin: 0.75rem 0;
+}
+
+.saveActions {
+  align-content: start;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.emptyState {
+  align-items: center;
+  display: grid;
+  gap: 0.8rem;
+  justify-items: start;
+  padding: 1rem 0;
+}
+
+.emptyIcon {
+  background: rgb(232 221 194 / 0.06);
+  height: 3rem;
+  width: 3rem;
+}
+
+.toggleControl {
+  align-items: center;
+  background: rgb(232 221 194 / 0.045);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr auto auto;
+  padding: 0.85rem;
+}
+
+.toggleControl input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.toggleControl i {
+  background: rgb(232 221 194 / 0.12);
+  border: 1px solid var(--border-medium);
+  display: block;
+  height: 1.5rem;
+  position: relative;
+  width: 2.8rem;
+}
+
+.toggleControl i::after {
+  background: var(--text-muted);
+  content: "";
+  height: 1rem;
+  left: 0.2rem;
+  position: absolute;
+  top: 0.19rem;
+  transition: transform var(--duration-fast) var(--ease-standard);
+  width: 1rem;
+}
+
+.toggleControl input:checked + i {
+  background: rgb(184 151 83 / 0.24);
+  border-color: var(--border-gold);
+}
+
+.toggleControl input:checked + i::after {
+  background: var(--color-gold-bright);
+  transform: translateX(1.3rem);
+}
+
+.modalBackdrop {
+  align-items: center;
+  background: rgb(0 0 0 / 0.62);
+  display: grid;
+  inset: 0;
+  justify-items: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: var(--z-modal);
+}
+
+.modalPanel {
+  background:
+    linear-gradient(180deg, rgb(216 189 120 / 0.08), transparent 42%),
+    var(--color-stone-940);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 1rem;
+  max-width: 32rem;
+  padding: 1rem;
+  width: min(100%, 32rem);
+}
+
+.modalPanel header,
+.modalPanel footer {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.modalBody p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.tooltip {
+  position: relative;
+}
+
+.tooltip [role="tooltip"] {
+  background: var(--color-stone-940);
+  border: 1px solid var(--border-medium);
+  color: var(--text-strong);
+  display: none;
+  font-size: 0.8rem;
+  left: 0;
+  max-width: 14rem;
+  padding: 0.5rem;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  z-index: var(--z-modal);
+}
+
+.tooltip:hover [role="tooltip"],
+.tooltip:focus-within [role="tooltip"] {
+  display: block;
+}
+
+@media (max-width: 1180px) {
+  .gameCommandBar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .turnBanner,
+  .clockStrip {
+    justify-content: start;
+  }
+
+  .gameTable {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .leftRail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .boardCommandCenter {
+    order: -1;
+  }
+}
+
+@media (min-width: 1181px) {
+  .gamePage {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .gameTable {
+    height: calc(100vh - 7.4rem);
+  }
+
+  .gameRail {
+    max-height: 100%;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 860px) {
+  .shellBar,
+  .pageHeader,
+  .saveCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .shellBar,
+  .pageHeader {
+    display: grid;
+  }
+
+  .shellNav {
+    justify-content: start;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+
+  .shellNav button span {
+    white-space: nowrap;
+  }
+
+  .homeShell .pageShellContent,
+  .setupCommandTable,
+  .rulebookLayout,
+  .settingsGrid,
+  .saveCard {
     grid-template-columns: 1fr;
   }
 
-  .heroPanel,
-  .phasePanel {
-    align-self: stretch;
+  .matchSummaryPanel,
+  .ruleToc {
+    position: static;
+  }
+
+  .leftRail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .pageShell,
+  .gamePage {
+    padding: 0.55rem;
+  }
+
+  .shellNav button {
+    padding: 0.55rem;
+  }
+
+  .shellNav button span {
+    display: none;
+  }
+
+  .homeActions,
+  .commandGrid,
+  .pageHeaderActions,
+  .saveActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .gameCommandBar {
+    grid-template-columns: 1fr;
+    padding: 0.55rem;
+  }
+
+  .gameBrandBlock {
+    display: none;
+  }
+
+  .turnBanner {
+    justify-content: start;
+  }
+
+  .clockStrip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .playerClock {
+    min-width: 0;
+  }
+
+  .gameTopActions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .summaryList div,
+  .hudList div,
+  .rulesTable > div {
+    grid-template-columns: 1fr;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 14vw, 3.4rem);
   }
 }
 
@@ -234,4 +1141,11 @@ h3 {
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
   }
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important;
+  transition-duration: 1ms !important;
 }
