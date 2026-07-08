@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/board-size-captured-pieces
+  pull_request:
+    branches:
+      - main
 
 jobs:
   web:
