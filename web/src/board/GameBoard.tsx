@@ -43,21 +43,6 @@ export function GameBoard({ board, selected = null, legalTargets = [], placement
   return (
     <div className="boardFrame">
       <svg className="assaltoBoard" viewBox={`0 0 ${size} ${size}`} role="grid" aria-label="Assalto Reale board">
-        <defs>
-          <linearGradient id="tileDark" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#141a1d" />
-            <stop offset="100%" stopColor="#0b0f11" />
-          </linearGradient>
-          <linearGradient id="tileLight" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#2a2f2c" />
-            <stop offset="100%" stopColor="#1a211e" />
-          </linearGradient>
-          <radialGradient id="specialGlow">
-            <stop offset="0%" stopColor="#d3b56f" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#b89753" stopOpacity="0.08" />
-          </radialGradient>
-        </defs>
-
         <rect width={size} height={size} className="boardBed" rx="20" />
 
         {board.grid.map((row, rowIndex) =>
