@@ -83,6 +83,18 @@ p {
   width: 1.05rem;
 }
 
+.srOnly {
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .eyebrow {
   color: var(--color-gold-bright);
   font-size: 0.75rem;

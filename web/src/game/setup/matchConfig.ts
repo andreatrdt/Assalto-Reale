@@ -48,23 +48,31 @@ export function createSetupSeed(): number {
   return (time ^ random) >>> 0;
 }
 
+function seededSide(seed: number): Player {
+  let value = seed >>> 0;
+  value ^= value << 13;
+  value ^= value >>> 17;
+  value ^= value << 5;
+  return (value >>> 0) % 2 === 0 ? "Black" : "White";
+}
+
 export function resolveMatchConfig(config: MatchConfig): MatchConfig {
+  const setupSeed = config.setupSeed ?? createSetupSeed();
   if (config.opponent === "Human") {
     return {
       ...config,
       resolvedHumanSide: null,
       aiSide: null,
-      setupSeed: config.setupSeed ?? createSetupSeed(),
+      setupSeed,
     };
   }
 
-  const resolvedHumanSide: Player =
-    config.humanSide === "Random" ? (Math.random() < 0.5 ? "Black" : "White") : config.humanSide;
+  const resolvedHumanSide: Player = config.humanSide === "Random" ? seededSide(setupSeed) : config.humanSide;
 
   return {
     ...config,
     resolvedHumanSide,
     aiSide: oppositePlayer(resolvedHumanSide),
-    setupSeed: config.setupSeed ?? createSetupSeed(),
+    setupSeed,
   };
 }

@@ -30,6 +30,8 @@ describe("route presentation", () => {
     expect(rules).toContain("Capture hierarchy");
     expect(load).toContain("Continue A Match");
     expect(load).toContain("No local save yet");
+    expect(load).toContain("Import JSON");
+    expect(load).toContain("Export Current");
     expect(settings).toContain("Reduce motion");
     expect(settings).toContain("High contrast board");
   });
