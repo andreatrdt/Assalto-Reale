@@ -52,7 +52,7 @@ describe("route presentation", () => {
     expect(html).toContain("Special control");
     expect(html).toContain("Captured");
     expect(html).toContain("Pass");
-    expect(html).toContain("Restart match");
+    expect(html).toContain("Restart unavailable until a match setup is stored");
   });
 
   it("renders manual placement save support and limitation copy", () => {

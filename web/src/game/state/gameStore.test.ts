@@ -3,6 +3,21 @@ import { buildAction, createBoard, getPiece, setPiece, updateControl, type Vec2 
 import { DEFAULT_MATCH_CONFIG, type MatchConfig } from "../setup/matchConfig";
 import { useGameStore } from "./gameStore";
 
+function installLocalStorage() {
+  const values = new Map<string, string>();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key),
+        clear: () => values.clear(),
+      },
+    },
+  });
+}
+
 function findFirstLegalMove(): { start: Vec2; end: Vec2 } {
   const state = useGameStore.getState();
   for (let row = 0; row < state.board.config.rows; row += 1) {
@@ -28,6 +43,7 @@ function findFirstLegalMove(): { start: Vec2; end: Vec2 } {
 
 describe("game store wiring", () => {
   beforeEach(() => {
+    installLocalStorage();
     useGameStore.getState().startQuickMatch();
   });
 
@@ -62,19 +78,37 @@ describe("game store wiring", () => {
   });
 
   it("manual placement uses the canonical placement queue and validates squares", () => {
-    useGameStore.getState().startManualPlacement();
+    useGameStore.getState().startManualPlacement({ seed: 77 });
     let state = useGameStore.getState();
     expect(state.phase.phase).toBe("placement");
     expect(state.currentPlacement).toEqual({ player: "Black", pieceType: "King" });
 
-    useGameStore.getState().activateSquare([5, 8]);
+    useGameStore.getState().activateSquare([0, 8]);
     expect(useGameStore.getState().message).toContain("left half");
 
-    useGameStore.getState().activateSquare([5, 2]);
+    useGameStore.getState().activateSquare([0, 0]);
     state = useGameStore.getState();
-    expect(getPiece(state.board, [5, 2])).toEqual({ player: "Black", type: "King" });
+    expect(getPiece(state.board, [0, 0])).toEqual({ player: "Black", type: "King" });
     expect(state.currentPlacement).toEqual({ player: "White", pieceType: "King" });
     expect(state.history).toHaveLength(1);
+  });
+
+  it("saves and reloads manual placement progress", () => {
+    useGameStore.getState().startManualPlacement({ seed: 77 });
+    useGameStore.getState().activateSquare([5, 2]);
+    useGameStore.getState().saveGame();
+
+    useGameStore.getState().startQuickMatch({ seed: 11 });
+    useGameStore.getState().loadGame();
+
+    const loaded = useGameStore.getState();
+    expect(loaded.phase.phase).toBe("placement");
+    expect(loaded.placementCursor).toBe(1);
+    expect(loaded.currentPlacement).toEqual({ player: "White", pieceType: "King" });
+    expect(getPiece(loaded.board, [5, 2])).toEqual({ player: "Black", type: "King" });
+    expect(loaded.piecesLeft.Black.King).toBe(0);
+    expect(loaded.matchConfig?.placementMode).toBe("Manual");
+    expect(loaded.message).toBe("Game loaded.");
   });
 
   it("advances half-turn territory claims through the opponent response window", () => {
@@ -149,6 +183,47 @@ describe("game store wiring", () => {
     expect(after.currentPlayer).toBe("White");
     expect(after.turnCounter).toBe(1);
     expect(after.phase.phase).toBe("playing");
+  });
+
+  it("shows a Defended-King preview before resolving a single-defender sacrifice", () => {
+    const board = createBoard();
+    setPiece(board, [5, 1], { player: "Black", type: "AttackPawn" });
+    setPiece(board, [10, 1], { player: "Black", type: "King" });
+    setPiece(board, [5, 3], { player: "White", type: "King" });
+    setPiece(board, [4, 3], { player: "White", type: "DefensePawn" });
+    updateControl(board);
+
+    useGameStore.setState({
+      phase: { phase: "playing" },
+      board,
+      currentPlayer: "Black",
+      movesThisTurn: 0,
+      kingMoved: false,
+      selected: null,
+      legalTargets: [],
+      history: [],
+      pendingTransform: null,
+      pendingDefendedKing: null,
+      aiEnabled: false,
+      aiPlayer: "White",
+    });
+
+    useGameStore.getState().activateSquare([5, 1]);
+    useGameStore.getState().activateSquare([5, 3]);
+
+    const preview = useGameStore.getState();
+    expect(preview.phase.phase).toBe("defenderSelection");
+    expect(preview.pendingDefendedKing?.defenders).toEqual([[4, 3]]);
+    expect(preview.legalTargets).toEqual([[4, 3]]);
+    expect(preview.message).toContain("confirm the highlighted Defense Pawn sacrifice");
+
+    useGameStore.getState().chooseDefender([4, 3]);
+    const resolved = useGameStore.getState();
+    expect(resolved.phase.phase).toBe("playing");
+    expect(resolved.currentPlayer).toBe("White");
+    expect(getPiece(resolved.board, [5, 0])).toEqual({ player: "Black", type: "AttackPawn" });
+    expect(getPiece(resolved.board, [4, 3])).toBeNull();
+    expect(resolved.board.capturedPieces.White.DefensePawn).toBe(1);
   });
 
   it("runs a wired AI action through the engine", () => {

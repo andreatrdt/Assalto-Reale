@@ -96,6 +96,8 @@ export function GamePage({ navigate }: GamePageProps) {
   const aiControlsTurn = aiEnabled && currentPlayer === aiPlayer && phase === "playing";
   const defendedKings = useMemo(() => getDefendedKingStatus(board), [board]);
   const activeMessage = aiControlsTurn ? "Computer is thinking." : message;
+  const restartSummary = matchConfig ? describeMatchMode(matchConfig) : "No stored match setup";
+  const canRestartMatch = Boolean(matchConfig);
 
   function confirmReturnHome() {
     returnHome();
@@ -136,7 +138,13 @@ export function GamePage({ navigate }: GamePageProps) {
         <div className="gameTopActions" aria-label="Match navigation">
           <IconButton icon="book" label="Rules" onClick={() => navigate("/rules")} />
           <IconButton icon="gear" label="Settings" onClick={() => navigate("/settings")} />
-          <IconButton icon="warning" label="Restart match" variant="danger" onClick={() => setConfirmRestart(true)} />
+          <IconButton
+            icon="warning"
+            label={canRestartMatch ? "Restart match" : "Restart unavailable until a match setup is stored"}
+            variant="danger"
+            onClick={() => setConfirmRestart(true)}
+            disabled={!canRestartMatch}
+          />
           <GameButton variant="ghost" icon="home" onClick={() => setConfirmHome(true)}>
             Menu
           </GameButton>
@@ -244,7 +252,9 @@ export function GamePage({ navigate }: GamePageProps) {
 
       {confirmRestart && (
         <ConfirmDialog title="Restart this match?" confirmLabel="Restart Match" danger onConfirm={restartMatch} onCancel={() => setConfirmRestart(false)}>
-          <p>This recreates the match from the current resolved settings and seed, then clears the current board state.</p>
+          <p>
+            This rebuilds a fresh board from the stored setup: {restartSummary}. The current board, move history and unresolved selections will be cleared.
+          </p>
         </ConfirmDialog>
       )}
     </main>
@@ -325,6 +335,11 @@ function DefendedKingPanel({
   message: string;
   cancel: () => void;
 }) {
+  const attackingPlayer = pendingDefendedKing.action.player;
+  const defendingPlayer = attackingPlayer === "Black" ? "White" : "Black";
+  const defenderText = formatPath(pendingDefendedKing.defenders);
+  const needsChoice = pendingDefendedKing.defenders.length > 1;
+
   return (
     <div className="matchPanel">
       <StatusBadge tone="gold" icon="shield">
@@ -332,6 +347,18 @@ function DefendedKingPanel({
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <dl className="hudList">
+        <div>
+          <dt>Attacking pawn</dt>
+          <dd>
+            {attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}
+          </dd>
+        </div>
+        <div>
+          <dt>Attacked King</dt>
+          <dd>
+            {defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}
+          </dd>
+        </div>
         <div>
           <dt>Attack path</dt>
           <dd>{formatPath(pendingDefendedKing.preview.attackPath)}</dd>
@@ -346,7 +373,11 @@ function DefendedKingPanel({
         </div>
         <div>
           <dt>Defenders</dt>
-          <dd>{pendingDefendedKing.defenders.length}</dd>
+          <dd>{defenderText}</dd>
+        </div>
+        <div>
+          <dt>Decision</dt>
+          <dd>{needsChoice ? `${defendingPlayer} chooses one highlighted defender` : `Confirm highlighted defender ${defenderText}`}</dd>
         </div>
         <div>
           <dt>Cost</dt>
@@ -362,8 +393,9 @@ function DefendedKingPanel({
         </div>
       </dl>
       <StatusBadge tone="info" icon="warning">
-        Preview owner and animation sequencing still need explicit decision-owner state.
+        The board highlight is the source of truth for the defender choice.
       </StatusBadge>
+      <p className="helperText">Explicit preview-owner state and engine-provided animation steps remain documented parity work; this panel shows only state currently exposed by the store.</p>
       <GameButton variant="ghost" onClick={cancel}>
         Cancel Attack
       </GameButton>

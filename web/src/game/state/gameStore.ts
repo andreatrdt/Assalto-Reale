@@ -388,6 +388,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     const lastAction = describeAction(action, action.defendedKing?.landingPosition ?? action.end ?? [0, 0]);
+    const nextPhase = victory
+      ? { phase: "gameOver", previousPhase: "playing" }
+      : pendingTransform
+        ? { phase: "transformSelection", previousPhase: "playing" }
+        : state.phase.phase === "defenderSelection"
+          ? { phase: "playing", previousPhase: "defenderSelection" }
+          : state.phase;
     set({
       board,
       currentPlayer,
@@ -398,7 +405,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       legalTargets: [],
       pendingTransform,
       pendingDefendedKing: null,
-      phase: victory ? { phase: "gameOver", previousPhase: "playing" } : pendingTransform ? { phase: "transformSelection", previousPhase: "playing" } : state.phase,
+      phase: nextPhase as PhaseState,
       history: [...state.history, emptyHistoryEntry(state)],
       lastAction,
       message: victory ? `${victory.winner} wins by ${victory.reason}.` : message,
@@ -658,16 +665,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
       if (action.defendedKing && !action.selectedDefender) {
         const defenders = defenderPositions(state.board, action);
-        if (defenders.length === 1) {
-          commitAction({ ...action, selectedDefender: defenders[0] }, state);
-          return;
-        }
+        const defenderOwner = switchPlayer(action.player as Player);
         set({
           phase: { phase: "defenderSelection", previousPhase: "playing" },
           pendingDefendedKing: { action, preview: action.defendedKing, defenders },
           selected: action.end ?? state.selected,
           legalTargets: defenders,
-          message: `${switchPlayer(action.player as Player)}: choose a Defense Pawn to sacrifice.`,
+          message:
+            defenders.length === 1
+              ? `${defenderOwner}: confirm the highlighted Defense Pawn sacrifice.`
+              : `${defenderOwner}: choose a Defense Pawn to sacrifice.`,
         });
         return;
       }
