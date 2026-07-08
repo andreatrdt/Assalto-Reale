@@ -42,6 +42,22 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByLabel("Board and current status").getByText("Game saved locally.")).toBeVisible();
   });
 
+  test("Home offers Continue Last Match only after a match has started", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Assalto Reale" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue Last Match" })).toHaveCount(0);
+
+    await page.goto("/setup");
+    await page.getByRole("button", { name: /Quick Balanced/i }).click();
+    await page.getByRole("button", { name: "Start Match" }).click();
+    await expect(page.getByRole("button", { name: "Pass" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Menu" }).click();
+    await page.getByRole("button", { name: "Return Home" }).click();
+
+    await expect(page.getByRole("button", { name: "Continue Last Match" })).toBeVisible();
+  });
+
   test("configured clock counts down during active human play", async ({ page }) => {
     await page.goto("/setup");
     await page.getByRole("button", { name: "5 minutes", exact: true }).click();

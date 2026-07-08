@@ -5,8 +5,8 @@
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#090b0d",
-  "theme_color": "#090b0d",
+  "background_color": "#f4f5f1",
+  "theme_color": "#f4f5f1",
   "icons": [
     {
       "src": "icons/assalto-64.png",

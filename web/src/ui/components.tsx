@@ -138,30 +138,39 @@ interface PageShellProps {
   navigate: (route: AppRoute, replace?: boolean) => void;
   children: ReactNode;
   className?: string;
+  /** "home" hides the brand (the hero title carries it) and shows only utility actions. */
+  variant?: "app" | "home";
 }
 
-export function PageShell({ activeRoute, navigate, children, className = "" }: PageShellProps) {
-  const navItems: { route: AppRoute; label: string; icon: IconName }[] = [
-    { route: "/", label: "Home", icon: "home" },
-    { route: "/setup", label: "New Match", icon: "sword" },
-    { route: "/load", label: "Load", icon: "load" },
-    { route: "/rules", label: "Rules", icon: "book" },
-    { route: "/settings", label: "Settings", icon: "gear" },
-  ];
+const APP_NAV: { route: AppRoute; label: string; icon: IconName }[] = [
+  { route: "/", label: "Home", icon: "home" },
+  { route: "/setup", label: "New Match", icon: "play" },
+  { route: "/load", label: "Load", icon: "load" },
+  { route: "/rules", label: "Rules", icon: "book" },
+  { route: "/settings", label: "Settings", icon: "gear" },
+];
+
+const HOME_NAV: { route: AppRoute; label: string; icon: IconName }[] = [
+  { route: "/load", label: "Load", icon: "load" },
+  { route: "/rules", label: "Rules", icon: "book" },
+  { route: "/settings", label: "Settings", icon: "gear" },
+];
+
+export function PageShell({ activeRoute, navigate, children, className = "", variant = "app" }: PageShellProps) {
+  const isHome = variant === "home";
+  const navItems = isHome ? HOME_NAV : APP_NAV;
 
   return (
     <main className={`pageShell ${className}`.trim()}>
-      <header className="shellBar">
-        <button type="button" className="brandMark" onClick={() => navigate("/")} aria-label="Assalto Reale home">
-          <span className="brandCrest" aria-hidden="true">
-            <Icon name="crown" />
-          </span>
-          <span>
-            <strong>Assalto Reale</strong>
-            <small>Royal tactics</small>
-          </span>
-        </button>
-        <nav className="shellNav" aria-label="Main navigation">
+      <header className={`shellBar${isHome ? " shellBar-home" : ""}`}>
+        {isHome ? (
+          <span className="shellSpacer" aria-hidden="true" />
+        ) : (
+          <button type="button" className="brandMark" onClick={() => navigate("/")} aria-label="Assalto Reale home">
+            Assalto Reale
+          </button>
+        )}
+        <nav className="shellNav" aria-label={isHome ? "Utility navigation" : "Main navigation"}>
           {navItems.map((item) => (
             <button
               key={item.route}

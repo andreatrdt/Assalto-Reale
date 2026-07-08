@@ -25,7 +25,7 @@ describe("route presentation", () => {
     const settings = renderToStaticMarkup(<SettingsPage route="/settings" navigate={navigate} />);
 
     expect(home).toContain("Assalto Reale");
-    expect(home).toContain("New Match");
+    expect(home).toContain("Start Match");
     expect(rules).toContain("Rules Of Assalto Reale");
     expect(rules).toContain("Capture hierarchy");
     expect(load).toContain("Continue A Match");
