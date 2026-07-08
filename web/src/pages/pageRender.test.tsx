@@ -54,18 +54,22 @@ describe("route presentation", () => {
     expect(html).not.toContain("Random");
   });
 
-  it("renders the game HUD from active match state", () => {
-    useGameStore.getState().startQuickMatch({ seed: 88 });
+  it("renders a board-first game layout without command-table wording", () => {
     const html = renderToStaticMarkup(<GamePage navigate={navigate} />);
 
-    expect(html).toContain("Command table");
-    expect(html).toContain("Special control");
-    expect(html).toContain("Captured");
+    expect(html).toContain("Assalto Reale");
     expect(html).toContain("Pass");
+    expect(html).toContain("Captured");
     expect(html).toContain("Restart unavailable until a match setup is stored");
+    // Board comes before the controls panel in source order.
+    expect(html.indexOf('class="gameBoardArea"')).toBeLessThan(html.indexOf('class="gamePanel"'));
+    // Rejected medieval / command-table wording is gone.
+    expect(html).not.toContain("Command table");
+    expect(html).not.toContain("Orders");
+    expect(html).not.toContain("Battle");
   });
 
-  it("renders manual placement save support and limitation copy", () => {
+  it("renders the compact manual placement panel", () => {
     const piecesLeft = {
       Black: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
       White: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
@@ -83,9 +87,12 @@ describe("route presentation", () => {
       />,
     );
 
-    expect(html).toContain("Save Deployment");
-    expect(html).toContain("Placement can be saved");
-    expect(html).toContain("unresolved Defended-King or Transform decisions");
+    expect(html).toContain("Black: place King.");
+    expect(html).toContain("Progress");
+    expect(html).toContain("0/26");
+    expect(html).toContain("Valid squares");
+    expect(html).toContain("Undo");
+    expect(html).toContain("Save");
   });
 
   it("renders confirmation dialogs without browser alerts", () => {
