@@ -6,7 +6,7 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByRole("heading", { name: "Assalto Reale" })).toBeVisible();
 
     await page.goto("/setup");
-    await expect(page.getByRole("heading", { name: "Configure Battle" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start a Match" })).toBeVisible();
 
     await page.goto("/rules");
     await expect(page.getByRole("heading", { name: "Rules Of Assalto Reale" })).toBeVisible();
@@ -18,13 +18,33 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   });
 
-  test("starts a Human versus Human Quick Balanced match", async ({ page }) => {
+  test("public setup hides Quick Balanced and difficulty and enters manual placement", async ({ page }) => {
     await page.goto("/setup");
-    await page.getByRole("button", { name: /Quick Balanced/i }).click();
-    await page.getByRole("button", { name: "Start Match" }).click();
 
-    await expect(page.getByRole("button", { name: "Pass" })).toBeVisible();
-    await expect(page.getByText("Quick Balanced deployment complete.")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Quick Balanced/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Easy" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Hard" })).toHaveCount(0);
+    await expect(page.getByText("Manual placement · Transform enabled")).toBeVisible();
+
+    await page.getByRole("button", { name: "Start Match" }).click();
+    await expect(page.getByText("Manual Placement")).toBeVisible();
+  });
+
+  test("side selection appears only against the computer, difficulty never does", async ({ page }) => {
+    await page.goto("/setup");
+
+    // Human opponent (default): no side choice.
+    await expect(page.getByRole("button", { name: "Random" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Computer" }).click();
+    await expect(page.getByRole("button", { name: "Black" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "White" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Random" })).toBeVisible();
+
+    // Difficulty stays hidden in every case.
+    await expect(page.getByRole("button", { name: "Easy" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Medium" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Hard" })).toHaveCount(0);
   });
 
   test("manual placement shows invalid feedback and can be saved", async ({ page }) => {
@@ -48,9 +68,8 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByRole("button", { name: "Continue Last Match" })).toHaveCount(0);
 
     await page.goto("/setup");
-    await page.getByRole("button", { name: /Quick Balanced/i }).click();
     await page.getByRole("button", { name: "Start Match" }).click();
-    await expect(page.getByRole("button", { name: "Pass" })).toBeVisible();
+    await expect(page.getByText("Manual Placement")).toBeVisible();
 
     await page.getByRole("button", { name: "Menu" }).click();
     await page.getByRole("button", { name: "Return Home" }).click();
@@ -58,13 +77,12 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByRole("button", { name: "Continue Last Match" })).toBeVisible();
   });
 
-  test("configured clock counts down during active human play", async ({ page }) => {
+  test("selected timer preset is applied to the new match", async ({ page }) => {
     await page.goto("/setup");
     await page.getByRole("button", { name: "5 minutes", exact: true }).click();
-    await page.getByRole("button", { name: /Quick Balanced/i }).click();
     await page.getByRole("button", { name: "Start Match" }).click();
 
+    await expect(page.getByText("Manual Placement")).toBeVisible();
     await expect(page.getByText("5:00").first()).toBeVisible();
-    await expect(page.getByText("4:59").first()).toBeVisible({ timeout: 2500 });
   });
 });

@@ -38,6 +38,29 @@ export const DEFAULT_MATCH_CONFIG: MatchConfig = {
   transformEnabled: false,
 };
 
+/**
+ * Builds the configuration for a match created from the public Setup page.
+ *
+ * Public matches always use manual placement and always enable Transform; these
+ * are not user-facing toggles. The AI difficulty is kept (from the default) so
+ * the AI stays internally configured even though it is not shown publicly.
+ * QuickBalanced remains available internally via the store's own helpers.
+ */
+export function createPublicMatchConfig(input: {
+  opponent: OpponentMode;
+  humanSide: HumanSideChoice;
+  timerSeconds: TimerSeconds;
+}): MatchConfig {
+  return {
+    ...DEFAULT_MATCH_CONFIG,
+    opponent: input.opponent,
+    humanSide: input.humanSide,
+    timerSeconds: input.timerSeconds,
+    placementMode: "Manual",
+    transformEnabled: true,
+  };
+}
+
 export function oppositePlayer(player: Player): Player {
   return player === "Black" ? "White" : "Black";
 }

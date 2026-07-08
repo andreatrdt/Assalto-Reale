@@ -36,14 +36,22 @@ describe("route presentation", () => {
     expect(settings).toContain("High contrast board");
   });
 
-  it("renders setup defaults with selected option states", () => {
+  it("renders the minimal public setup with fixed match rules", () => {
     const html = renderToStaticMarkup(<SetupPage route="/setup" navigate={navigate} />);
 
-    expect(html).toContain("Configure Battle");
+    expect(html).toContain("Start a Match");
+    expect(html).toContain("Human");
+    expect(html).toContain("Computer");
     expect(html).toContain("12 minutes");
-    expect(html).toContain("Manual deployment");
-    expect(html).toContain("Transform disabled");
+    expect(html).toContain("Manual placement · Transform enabled");
     expect(html).toContain('aria-pressed="true"');
+
+    // Removed from the public UI (Human is the default, so side is hidden too).
+    expect(html).not.toContain("Quick Balanced");
+    expect(html).not.toContain("Easy");
+    expect(html).not.toContain("Hard");
+    expect(html).not.toContain("Transform disabled");
+    expect(html).not.toContain("Random");
   });
 
   it("renders the game HUD from active match state", () => {
