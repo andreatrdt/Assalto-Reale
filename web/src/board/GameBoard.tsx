@@ -14,7 +14,7 @@ function pieceLabel(piece: Piece): string {
   return piece.type.replace("Pawn", " Pawn");
 }
 
-function PieceGlyph({ piece }: { piece: Piece }) {
+export function PieceGlyph({ piece }: { piece: Piece }) {
   const factionClass = piece.player === "Black" ? "pieceBlack" : "pieceWhite";
   const motif = {
     King: "M30 13 39 26 50 15 61 26 70 13 65 73H35L30 13Z",
