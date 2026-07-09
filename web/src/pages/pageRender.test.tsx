@@ -49,6 +49,10 @@ describe("route presentation", () => {
     expect(settings).not.toContain("Coming later");
     expect(settings).not.toContain("Not exposed until implemented");
     expect(settings).not.toContain("Audio And Defaults");
+
+    // Discreet build/version line, sourced from build-time constants with an accessible label.
+    expect(settings).toContain(`Version ${__APP_VERSION__} · ${__APP_COMMIT__}`);
+    expect(settings).toContain(`Application version ${__APP_VERSION__}, build ${__APP_COMMIT__}`);
   });
 
   it("renders the minimal public setup with fixed match rules", () => {

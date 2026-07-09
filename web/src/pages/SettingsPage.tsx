@@ -35,6 +35,10 @@ export function SettingsPage({ route, navigate }: SettingsPageProps) {
           />
         </div>
       </Panel>
+
+      <p className="appVersionLine" aria-label={`Application version ${__APP_VERSION__}, build ${__APP_COMMIT__}`}>
+        Version {__APP_VERSION__} · {__APP_COMMIT__}
+      </p>
     </PageShell>
   );
 }

@@ -130,8 +130,33 @@ touch the legacy Vercel site.
 - Safety: self-contained, reversible, and non-destructive — the current public
   (Vercel) site keeps serving until a switch is deliberately made.
 
-Run it from the Actions tab; the deployed commit is recorded in
-`release-metadata.json` and in the workflow run.
+**Automatic deployment.** The workflow also triggers on
+`workflow_run` after the **CI** workflow completes. The `build` job runs only
+when `workflow_run.conclusion == 'success'` and `workflow_run.head_branch ==
+'main'`, and it checks out `workflow_run.head_sha` — the exact commit CI tested,
+not a later `main` commit. Failed or cancelled CI runs never deploy. Manual
+`workflow_dispatch` is retained (and still accepts the base path). The tested SHA
+is passed to the build via `SOURCE_COMMIT`, so `release-metadata.json` records
+the tested commit even though `GITHUB_SHA` points at the default branch during
+`workflow_run`.
+
+**Post-deploy verification.** A `verify` job polls the live site with bounded
+retries (no long sleeps) until it is reachable and `release-metadata.json`
+reports the expected commit, then confirms the referenced JS/CSS assets load and
+that no legacy Pygbag loader is served. The workflow fails if the release is
+clearly broken.
+
+**Service-worker update behaviour.** `web/public/sw.js` serves assets
+network-first (content-hashed by Vite), calls `skipWaiting()` + `clients.claim()`
+so a new version activates immediately, and purges caches whose name differs from
+the current `CACHE_NAME` on `activate`. It only caches successful same-origin
+responses (so a `404.html` SPA fallback is never stored as an app asset) and
+never caches `release-metadata.json`. There is no forced-reload loop.
+
+**Version line.** Settings shows a discreet `Version <package version> · <short
+commit>` line, sourced from build-time constants injected by Vite `define`
+(`__APP_VERSION__`, `__APP_COMMIT__`) — no GitHub API call from the browser. It
+works in local development (`dev` commit fallback) and production.
 
 ### Architecture B (alternative): preserve the current Vercel URL
 
