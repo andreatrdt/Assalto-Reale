@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - ui/board-state-clarity
+  pull_request:
+    branches:
+      - main
 
 jobs:
   web:
