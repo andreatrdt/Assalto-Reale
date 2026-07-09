@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { AppRoute } from "../app/routes";
-import { GameButton, PageHeader, PageShell, Panel, SectionHeader, StatusBadge } from "../ui/components";
+import { GameButton, PageHeader, PageShell, SectionHeader } from "../ui/components";
 
 interface RulesPageProps {
   route: AppRoute;
@@ -11,9 +11,9 @@ const sections = [
   { id: "objective", label: "Objective" },
   { id: "setup", label: "Setup" },
   { id: "turns", label: "Turns" },
-  { id: "combat", label: "Combat" },
+  { id: "combat", label: "Movement & capture" },
   { id: "kings", label: "Defended Kings" },
-  { id: "territory", label: "Territory" },
+  { id: "territory", label: "Special Squares" },
   { id: "transform", label: "Transform" },
   { id: "victory", label: "Victory" },
 ];
@@ -22,9 +22,8 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
   return (
     <PageShell activeRoute={route} navigate={navigate} className="rulesShell">
       <PageHeader
-        eyebrow="Field manual"
-        title="Rules Of Assalto Reale"
-        description="A readable guide aligned to the canonical Python rulebook. Engine parity gaps are recorded separately instead of hidden here."
+        title="How to Play"
+        description="The complete rules for a standard Assalto Reale match."
         actions={
           <GameButton variant="primary" icon="play" onClick={() => navigate("/setup")}>
             Start a Match
@@ -33,41 +32,42 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
       />
 
       <div className="rulebookLayout">
-        <Panel as="aside" tone="subtle" className="ruleToc" aria-label="Rule sections">
-          <p className="eyebrow">Contents</p>
+        <nav className="ruleToc" aria-label="Rule sections">
+          <p className="eyebrow">On this page</p>
           {sections.map((section) => (
             <a key={section.id} href={`#${section.id}`}>
               {section.label}
             </a>
           ))}
-        </Panel>
+        </nav>
 
-        <Panel tone="strong" className="rulebook">
+        <article className="rulebook">
           <RuleSection id="objective" title="Objective">
-            <p>Assalto Reale is a two-player abstract strategy game for Black and White on a 12x12 board.</p>
-            <p>Win by capturing the enemy King, or by maintaining strict majority control of Special Squares through the opponent response turn.</p>
+            <p>Assalto Reale is a two-player abstract strategy game for Black and White on a 12×12 board.</p>
+            <p>Win by capturing the enemy King, or by keeping strict majority control of the Special Squares through the opponent&apos;s full response turn.</p>
           </RuleSection>
 
-          <RuleSection id="setup" title="Setup And Deployment">
-            <p>Each player has one King, four Attack Pawns, four Defense Pawns and four Conquest Pawns.</p>
-            <p>Manual placement follows the canonical snake schedule: Black places one piece, White places two, the players continue in two-piece groups, and White closes the sequence with one piece.</p>
-            <p>Quick Balanced setup uses the same placement legality checks and remains tracked for exact Python scoring parity.</p>
+          <RuleSection id="setup" title="Setup">
+            <p>Each player begins with one King, four Attack Pawns, four Defense Pawns and four Conquest Pawns.</p>
+            <p>All new public matches use manual placement. Black places one piece, White places two, the players continue in two-piece groups, and White places the final piece.</p>
+            <p>Kings and Attack Pawns have starting-area restrictions. Conquest Pawns must also begin at least three squares away from every Special Square.</p>
           </RuleSection>
 
-          <RuleSection id="turns" title="Turns And Action Points">
-            <p>Every turn starts with two action points. One-square movement costs one point. Passing ends the turn.</p>
-            <p>The King may act at most once per turn. Non-King pieces may use both action points if legal actions remain.</p>
+          <RuleSection id="turns" title="Turns and action points">
+            <p>Each turn begins with two action points. A one-square move or one-square capture costs one point. Passing ends the turn.</p>
+            <p>The King may act only once per turn. A non-King piece may use both action points when legal actions remain.</p>
           </RuleSection>
 
-          <RuleSection id="combat" title="Movement And Combat">
+          <RuleSection id="combat" title="Movement and capture">
+            <p>Every piece may move one square to any adjacent empty square, including diagonally.</p>
             <div className="rulesTable" role="table" aria-label="Capture hierarchy">
               <div role="row">
                 <strong role="columnheader">Attacker</strong>
-                <strong role="columnheader">Captures</strong>
+                <strong role="columnheader">May capture</strong>
               </div>
               <div role="row">
                 <span>Attack Pawn</span>
-                <span>Defense Pawn, King</span>
+                <span>Defense Pawn or King</span>
               </div>
               <div role="row">
                 <span>Defense Pawn</span>
@@ -79,33 +79,34 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
               </div>
               <div role="row">
                 <span>King</span>
-                <span>Attack, Defense or Conquest Pawn</span>
+                <span>Any pawn</span>
               </div>
             </div>
-            <p>Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. Two-square captures cost both points and require a clear intermediate square.</p>
+            <p>Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. A two-square capture costs both action points, requires a clear intermediate square and must be the first action of the turn.</p>
+            <p>Conquest Pawns and Kings capture adjacent targets only. A King cannot capture another King.</p>
           </RuleSection>
 
           <RuleSection id="kings" title="Defended Kings">
-            <p>A King adjacent to at least one friendly Defense Pawn is defended. When an Attack Pawn attacks a defended King, one eligible Defense Pawn is sacrificed, the King survives, and the Attack Pawn bounces backward along the attack line.</p>
-            <StatusBadge tone="gold" icon="shield">
-              The current web UI now marks defended Kings visually; the complete preview/confirmation flow remains a parity item.
-            </StatusBadge>
+            <p>A King is defended while at least one friendly Defense Pawn occupies an adjacent square.</p>
+            <p>When an Attack Pawn attacks a defended King, one eligible Defense Pawn is sacrificed, the King survives and the attacking pawn bounces directly backward along the attack line. The bounce travels up to five squares and stops before the board edge or an occupied square.</p>
+            <p>If several defenders are eligible, the defending player chooses which one is sacrificed. The attack then ends the turn.</p>
           </RuleSection>
 
-          <RuleSection id="territory" title="Special Squares And Territory">
-            <p>Only Conquest Pawns standing on Special Squares control them. A strict majority creates a territory claim at the end of a turn.</p>
-            <p>The opponent receives a full response turn. The claim matures only if the claimant keeps majority control until their next turn.</p>
+          <RuleSection id="territory" title="Special Squares and territory">
+            <p>Only Conquest Pawns standing on Special Squares control them. Holding a strict majority creates a territory claim at the end of the turn.</p>
+            <p>The opponent receives one complete response turn. The claim becomes a victory only if the claimant still holds the majority when their next turn begins.</p>
           </RuleSection>
 
-          <RuleSection id="transform" title="Transform Variant">
-            <p>Transform is optional and disabled by default. When enabled, the engine can generate a Transform Square after the configured movement-round threshold.</p>
-            <p>A pawn landing on the Transform Square may transform into a different pawn type. Kings cannot transform.</p>
+          <RuleSection id="transform" title="Transform">
+            <p>Transform is enabled in every newly started public match. After the configured movement-round threshold, a Transform Square can appear on the board.</p>
+            <p>A pawn that lands on it may change into a different pawn type. Kings cannot transform.</p>
           </RuleSection>
 
-          <RuleSection id="victory" title="Victory Precedence">
-            <p>King capture takes precedence over territory and timeout results. Timeout victory is part of the canonical product scope, but the live web countdown controller remains unfinished.</p>
+          <RuleSection id="victory" title="Victory">
+            <p>A match can end by King capture, a matured territory claim or a player running out of time.</p>
+            <p>King capture takes precedence when more than one victory condition is reached by the same action.</p>
           </RuleSection>
-        </Panel>
+        </article>
       </div>
     </PageShell>
   );
