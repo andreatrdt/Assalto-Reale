@@ -727,8 +727,32 @@ p {
   font-size: 1rem;
 }
 
+/* Turn-transition feedback: the active clock/status gains emphasis, the inactive
+   one recedes. Transitions are neutralised under reduced motion (catch-all below). */
+.playerClock {
+  transition:
+    border-color var(--duration-medium) var(--ease-standard),
+    opacity var(--duration-medium) var(--ease-standard),
+    background var(--duration-medium) var(--ease-standard);
+}
+
+.playerClock:not(.isActive) {
+  opacity: 0.62;
+}
+
 .playerClock.isActive {
+  background: var(--surface-tint);
   border-color: var(--accent);
+}
+
+.statusHeadline {
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.gameStatus .factionBadge {
+  transition:
+    background var(--duration-medium) var(--ease-standard),
+    border-color var(--duration-medium) var(--ease-standard);
 }
 
 .apTrack {
@@ -803,6 +827,104 @@ p {
 .victoryPanel {
   border-top: 2px solid var(--accent);
   padding-top: 0.5rem;
+}
+
+/* ---- Victory presentation ---- */
+.victoryOverlay {
+  align-items: center;
+  /* Subtle vignette: dims the board without hiding the final position. */
+  background: radial-gradient(circle at 50% 40%, rgb(32 38 34 / 0.3), rgb(32 38 34 / 0.62));
+  display: grid;
+  inset: 0;
+  justify-items: center;
+  padding: 1.5rem;
+  position: fixed;
+  z-index: var(--z-modal);
+}
+
+.victoryDialog {
+  align-items: center;
+  animation: victoryIn var(--duration-slow) var(--ease-standard);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 0.85rem;
+  justify-items: center;
+  max-width: 26rem;
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  text-align: center;
+  width: min(100%, 26rem);
+}
+
+.victoryCrest {
+  align-items: center;
+  background: var(--surface-tint);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent-hover);
+  display: inline-flex;
+  height: 3rem;
+  justify-content: center;
+  width: 3rem;
+}
+
+.victoryCrest .icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.victoryDialog.isDefeat .victoryCrest {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.victoryTitle {
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.victoryReason {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.victoryActions {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+.victoryActions .gameButton {
+  width: 100%;
+}
+
+.victoryDismiss {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0.3rem 0.5rem;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.victoryDismiss:hover {
+  color: var(--text);
+}
+
+@keyframes victoryIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ---- Rules / Settings ---- */
