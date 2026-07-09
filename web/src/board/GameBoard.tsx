@@ -1,5 +1,6 @@
 import type { BoardState, Piece, Vec2 } from "../game/engine";
 import { adjacentDefendersForKing, hasPos } from "../game/engine";
+import { useGameStore } from "../game/state/gameStore";
 import "./GameBoard.css";
 
 export interface DefendedKingBoardPreview {
@@ -83,13 +84,22 @@ export function GameBoard({
   defendedKingPreview = null,
   onSquareActivate,
 }: GameBoardProps) {
+  const pendingDefendedKing = useGameStore((state) => state.pendingDefendedKing);
+  const activeDefendedKingPreview =
+    defendedKingPreview ??
+    (pendingDefendedKing
+      ? {
+          ...pendingDefendedKing.preview,
+          defenders: pendingDefendedKing.defenders,
+        }
+      : null);
   const size = 1200;
   const cell = size / board.config.rows;
-  const attackPreviewPath = defendedKingPreview
-    ? previewPath(defendedKingPreview.attackerOrigin, defendedKingPreview.attackPath, defendedKingPreview.kingPosition)
+  const attackPreviewPath = activeDefendedKingPreview
+    ? previewPath(activeDefendedKingPreview.attackerOrigin, activeDefendedKingPreview.attackPath, activeDefendedKingPreview.kingPosition)
     : [];
-  const bouncePreviewPath = defendedKingPreview
-    ? previewPath(defendedKingPreview.kingPosition, defendedKingPreview.bouncePath, defendedKingPreview.landingPosition)
+  const bouncePreviewPath = activeDefendedKingPreview
+    ? previewPath(activeDefendedKingPreview.kingPosition, activeDefendedKingPreview.bouncePath, activeDefendedKingPreview.landingPosition)
     : [];
 
   return (
@@ -206,7 +216,7 @@ export function GameBoard({
           }),
         )}
 
-        {defendedKingPreview && (
+        {activeDefendedKingPreview && (
           <g className="defendedKingPreview" aria-hidden="true">
             <polyline
               className="previewPath previewAttackPath"
@@ -220,23 +230,23 @@ export function GameBoard({
             />
 
             <rect
-              x={defendedKingPreview.attackerOrigin[1] * cell + cell * 0.12}
-              y={defendedKingPreview.attackerOrigin[0] * cell + cell * 0.12}
+              x={activeDefendedKingPreview.attackerOrigin[1] * cell + cell * 0.12}
+              y={activeDefendedKingPreview.attackerOrigin[0] * cell + cell * 0.12}
               width={cell * 0.76}
               height={cell * 0.76}
               rx={cell * 0.12}
               className="previewSquare previewAttacker"
             />
             <rect
-              x={defendedKingPreview.kingPosition[1] * cell + cell * 0.09}
-              y={defendedKingPreview.kingPosition[0] * cell + cell * 0.09}
+              x={activeDefendedKingPreview.kingPosition[1] * cell + cell * 0.09}
+              y={activeDefendedKingPreview.kingPosition[0] * cell + cell * 0.09}
               width={cell * 0.82}
               height={cell * 0.82}
               rx={cell * 0.14}
               className="previewSquare previewKing"
             />
 
-            {defendedKingPreview.defenders.map(([row, col]) => (
+            {activeDefendedKingPreview.defenders.map(([row, col]) => (
               <g key={`preview-defender-${row}-${col}`} className="previewDefender">
                 <rect
                   x={col * cell + cell * 0.14}
@@ -249,17 +259,17 @@ export function GameBoard({
               </g>
             ))}
 
-            <g className={`previewLanding${defendedKingPreview.triggersTransform ? " triggersTransform" : ""}`}>
+            <g className={`previewLanding${activeDefendedKingPreview.triggersTransform ? " triggersTransform" : ""}`}>
               <rect
-                x={defendedKingPreview.landingPosition[1] * cell + cell * 0.08}
-                y={defendedKingPreview.landingPosition[0] * cell + cell * 0.08}
+                x={activeDefendedKingPreview.landingPosition[1] * cell + cell * 0.08}
+                y={activeDefendedKingPreview.landingPosition[0] * cell + cell * 0.08}
                 width={cell * 0.84}
                 height={cell * 0.84}
                 rx={cell * 0.14}
               />
               <circle
-                cx={defendedKingPreview.landingPosition[1] * cell + cell / 2}
-                cy={defendedKingPreview.landingPosition[0] * cell + cell / 2}
+                cx={activeDefendedKingPreview.landingPosition[1] * cell + cell / 2}
+                cy={activeDefendedKingPreview.landingPosition[0] * cell + cell / 2}
                 r={cell * 0.1}
               />
             </g>
