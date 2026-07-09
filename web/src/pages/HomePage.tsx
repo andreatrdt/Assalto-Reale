@@ -1,6 +1,7 @@
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { GameButton, PageShell } from "../ui/components";
+import "../styles/home.css";
 
 interface HomePageProps {
   route: AppRoute;
@@ -13,9 +14,13 @@ export function HomePage({ route, navigate }: HomePageProps) {
   return (
     <PageShell activeRoute={route} navigate={navigate} className="homeShell" variant="home">
       <section className="home" aria-labelledby="home-title">
-        <h1 id="home-title" className="homeTitle">
-          Assalto Reale
-        </h1>
+        <div className="homeIdentity">
+          <h1 id="home-title" className="homeTitle" aria-label="Assalto Reale">
+            <span>Assalto</span>
+            <span className="homeTitleAccent">Reale</span>
+          </h1>
+          <p className="homeMotto">Control. Sacrifice. Conquer.</p>
+        </div>
 
         <div className="homeActions" aria-label="Start actions">
           <GameButton variant="primary" size="lg" onClick={() => navigate("/setup")}>
