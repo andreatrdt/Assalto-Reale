@@ -1,0 +1,35 @@
+name: Home UI check
+
+on:
+  push:
+    branches:
+      - ui/home-wordmark
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Unit tests
+        working-directory: web
+        run: npm run test
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: E2E tests
+        working-directory: web
+        run: npm run e2e
