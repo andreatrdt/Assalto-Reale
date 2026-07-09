@@ -1,8 +1,8 @@
-# Game feel: presentation, audio and victory
+# Game feel: presentation, audio and board motion
 
-This document describes the presentation layer added for animations, sound and
-the victory moment. It does **not** change any game rule, legal-action
-generation, AI, save schema, timer semantics or engine parity — the presentation
+This document describes the presentation layer for board motion, sound and the
+victory moment. It does **not** change any game rule, legal-action generation,
+AI scoring, save schema, timer semantics or engine parity — the presentation
 layer only reads resulting state.
 
 ## Presentation-event architecture
@@ -14,101 +14,122 @@ accepted canonical actions) and derives sequenced events.
 - `src/audio/presentationEvents.ts` — `derivePresentationEvents(prev, next, seq)`
   is a pure function of two `PresentationSnapshot`s. It returns events such as
   `select`, `move`, `capture`, `sacrifice`, `transform`, `turn`, `victory`,
-  `defeat`, each with a monotonically increasing `seq`. Being pure, it is fully
-  unit-tested (`tests/presentationEvents.test.ts`).
+  `defeat`, each with a monotonically increasing `seq`.
 - `src/audio/usePresentationSound.ts` — subscribes to the game store, converts
   each state change into a snapshot, derives events and plays the matching sound.
-  It initialises its "previous" snapshot on mount (so nothing fires on entry),
-  uses a sequence id so a rerender cannot replay handled events, and cancels its
-  subscription on unmount.
+  It initialises its previous snapshot on mount, so nothing fires on entry, and
+  cancels its subscription on unmount.
+- `src/board/boardMotion.ts` — compares the previous and next authoritative
+  boards and derives one visual motion draft: move, capture, placement,
+  defended-King or Transform. The pure derivation is independent of React and is
+  covered by deterministic unit tests.
+- `src/board/useBoardMotion.ts` — turns drafts into short, sequenced visual events
+  with stable IDs, a deliberately bounded queue and cancellation on unmount,
+  undo, load and state restoration.
 
-Why observe state instead of engine events: it keeps animation/sound layers from
-contaminating engine or save state, survives save/load and navigation (a fresh
-mount just re-baselines), and is trivially testable.
+Observing state keeps animation and sound out of engine and save data. A fresh
+mount re-baselines instead of replaying old actions.
+
+## Board-motion rendering
+
+`src/board/GameBoard.tsx` remains the authoritative board renderer. During a
+motion event it temporarily suppresses only the already-committed destination
+piece and draws an SVG overlay above the board:
+
+- **Move:** an overlay copy travels from source to destination, then the
+  authoritative destination piece is revealed.
+- **Capture:** the target contracts/fades while the attacker travels; the
+  captured counter still comes solely from canonical board state.
+- **Placement:** the newly placed piece receives a short fade-and-settle.
+- **Defended King:** the attacker approaches the King, the selected Defense Pawn
+  is emphasised and removed, and the attacker continues to the canonical landing
+  square. The squares come from accepted action context/resulting state; the
+  renderer never invents a bounce destination.
+- **Transform:** the Transform square activates subtly, the old silhouette fades,
+  and the canonical resulting piece appears.
+
+The board uses its fixed SVG viewBox coordinate system (`cell = viewBoxSize /
+rows`), so motion scales automatically with desktop/mobile rendering and browser
+resizes. `squareDelta()` also defines flipped-coordinate mapping for a future
+flipped-board view; the current UI renders in canonical orientation.
+
+Only board-cell activation is ignored while an overlay is active, preventing a
+duplicate action. Navigation and surrounding match controls remain available.
+The authoritative engine transition is never delayed or mutated. Test hooks are
+exposed on the SVG as `data-animation-state`, `data-animation-id` and
+`data-animation-type`.
+
+## Cancellation and concurrency
+
+The controller subscribes once to the Zustand game store, assigns increasing
+motion IDs and clears timers/subscriptions on unmount. It cancels immediately
+when it recognises undo, load/import, new deployment or a large restored-state
+delta. The queue is capped to prevent stale visual work. Existing AI pacing is
+longer than ordinary movement animation, so AI actions remain visually ordered
+without changing AI computation or turn timing.
 
 ## Audio system
 
 `src/audio/audioService.ts` is a small singleton that **synthesizes** short tones
 with the Web Audio API. There are therefore **no audio files** in the bundle, no
-downloads and no third-party/licensed assets — the "asset" is a few oscillator
-specs (`SOUND_SPECS`).
+downloads and no third-party/licensed assets.
 
 - API: `audioService.play(name)`, `setMuted(bool)`, `setVolume(0..1)`, `getState()`.
 - Volume is clamped to `[0,1]`; muting is global; rapid duplicates of the same
-  sound within ~55 ms are suppressed.
-- Fails silently: if Web Audio is unavailable or blocked by autoplay policy,
-  `play()` is a no-op and never throws. The `AudioContext` is created lazily and
-  resumed on demand, so nothing plays before a user gesture.
+  sound within about 55 ms are suppressed.
+- If Web Audio is unavailable or blocked by autoplay policy, playback is a no-op
+  and never blocks gameplay.
 - Preferences (`soundEnabled`, `volume`) live in the existing `uiSettings` store
   and are synced to the service in `AppRouter`.
 
 ### Adding a new sound
 
-1. Add a `SoundName` and a `SOUND_SPECS` entry (frequency, type, duration, gain).
-2. Emit it from `derivePresentationEvents` (or call `audioService.play` directly
-   for a UI confirmation).
-3. Add/extend a test in `tests/audioService.test.ts` /
-   `tests/presentationEvents.test.ts`.
+1. Add a `SoundName` and a `SOUND_SPECS` entry.
+2. Emit it from `derivePresentationEvents`, or call the service directly for a
+   UI confirmation.
+3. Extend the audio and presentation-event tests.
 
 ## Audio settings
 
-Settings gains a **Sound** section (`src/pages/SettingsPage.tsx`): a "Sound
-effects" toggle and a keyboard-accessible volume slider (0–100%, with a visible
-percentage and `aria-valuetext`). Defaults: enabled, 60%. Changing the volume
-previews a single short cue on release (not continuously while dragging). No
+Settings contains a Sound section with an accessible on/off control and volume
+slider. Defaults are enabled and 60%. Volume previews once on release. No
 background music is introduced.
 
 ## Victory presentation
 
 `src/pages/VictoryOverlay.tsx` renders a restrained victory moment:
 
-- A subtle vignette dims the board **without hiding the final position**.
-- `role="alertdialog"` + `aria-modal`, labelled title/description, plus an
-  `aria-live="assertive"` announcement for screen readers.
-- Title "Victory" / "Defeat" (defeat only when the local human lost vs the
-  computer) and a sentence built from canonical outcome data via the pure
-  `describeOutcome()` (king capture / territory / timeout) — outcomes are never
-  hard-coded.
-- Actions: Rematch, New Match, Save, Home. Escape deliberately reveals the final
-  board ("View final board") rather than leaving the match.
+- a vignette dims but preserves the final board;
+- `role="alertdialog"`, labels and an assertive announcement support assistive
+  technology;
+- title and reason are derived from canonical outcome data;
+- actions include Rematch, New Match, Save and Home;
+- Escape deliberately reveals the final board.
 
 ## Reduced motion
 
-All animations respect the existing reduced-motion setting and
-`prefers-reduced-motion`: the global catch-all in `styles/global.css`
-(`html[data-motion="reduced"] *` and the media query) neutralises transition and
-animation durations, so the victory entrance, marker fades and turn-transition
-emphasis collapse to immediate, readable state changes. No critical state is
-conveyed by motion or sound alone (turn/AP/timer/status remain textual; victory
-is announced).
+Board motion respects both the stored reduced-motion setting and
+`prefers-reduced-motion`. Translations and bounce-like sequencing collapse to a
+short opacity presentation; switching reduced motion on cancels an active
+translation and reveals authoritative state immediately. The global catch-all in
+`styles/global.css` also shortens transitions. No critical information is
+communicated through animation or sound alone.
 
 ## Restrained visual feedback
 
-- Selection / legal-action markers fade in once on appearance (they only mount
-  when a piece is selected; React preserves them across the per-tick rerenders,
-  so the fade does not flicker).
-- Turn transition: the active clock/status gains emphasis and the inactive clock
-  recedes (opacity) via CSS transitions on persistent elements.
-
-### Deliberately deferred: piece-translate animation
-
-A full source→destination *translate* of moving/captured pieces is **not**
-included in this slice. The board renders pieces by grid position without a
-stable per-piece identity across renders, so a robust FLIP/overlay translate is a
-larger, board-coupled change that is hard to verify frame-accurately. The
-presentation-event layer already provides the hook points (`move` / `capture` /
-`sacrifice` / `transform` events with squares), so a later slice can add an
-SVG-internal overlay that animates a temporary piece between cells and suppresses
-the destination cell during the tween — without touching engine timing.
+- Selection and legal-action markers fade in once on appearance.
+- The active clock/status receives emphasis while the inactive clock recedes.
+- Board sequences use only transforms, opacity and small restrained highlights;
+  no particles, confetti or animation library is introduced.
 
 ## Testing animations deterministically
 
-Tests assert observable outcomes, not timing:
+Tests assert data and observable lifecycle markers rather than frame timing:
 
-- Pure functions (`derivePresentationEvents`, `describeOutcome`, `clampVolume`,
-  `shouldPlay`) are unit-tested directly.
-- The audio service is tested with an injected mock `AudioContext`
-  (`_setContextFactory`) to assert mute/volume/dedupe without real audio.
-- The victory overlay is asserted via server-render (roles, announcement, copy).
-- Playwright covers audio-setting persistence and reduced-motion application
-  without arbitrary sleeps (`expect.poll` / observable state).
+- `tests/boardMotion.test.ts` covers coordinate mapping, normal/flipped deltas,
+  movement, capture, placement, Transform, defended-King resolution, AI direct
+  resolution, cancellation and reduced-motion duration bounds.
+- Audio and victory tests continue to use pure functions and injected browser
+  APIs.
+- Browser checks can wait for `data-animation-state="running"` and then `idle`
+  rather than sleeping for an arbitrary duration.

@@ -1,0 +1,349 @@
+.boardMotionLayer {
+  pointer-events: none;
+}
+
+.boardMotionLayer .piece {
+  pointer-events: none;
+  transition: none;
+}
+
+.boardMotionLayer .piece:hover {
+  filter: none;
+  transform: none;
+}
+
+.boardFrame.isAnimating .boardCell {
+  cursor: wait;
+}
+
+.boardCellLocked {
+  pointer-events: none;
+}
+
+.motionSprite,
+.motionCaptured,
+.motionTransformSquare,
+.motionDefendedKingTarget {
+  will-change: opacity, transform;
+}
+
+.motionTravel {
+  animation: boardMotionTravel var(--motion-duration) cubic-bezier(0.22, 0.75, 0.24, 1) forwards;
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+@keyframes boardMotionTravel {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(var(--motion-dx), var(--motion-dy));
+  }
+}
+
+.motionCaptured {
+  animation: boardMotionCaptured var(--motion-duration) ease-out forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes boardMotionCaptured {
+  0%,
+  28% {
+    filter: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+  58% {
+    filter: drop-shadow(0 0 12px rgb(148 77 72 / 0.38));
+    opacity: 0.72;
+    transform: scale(0.9);
+  }
+  100% {
+    filter: none;
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+.motionPlace {
+  animation: boardMotionPlace var(--motion-duration) cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+@keyframes boardMotionPlace {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.motionTransformSquare {
+  animation: boardMotionTransformSquare var(--motion-duration) ease-out forwards;
+  fill: rgb(49 91 73 / 0.08);
+  stroke: #315b49;
+  stroke-width: 5;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes boardMotionTransformSquare {
+  0% {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  35% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.motionTransformFrom,
+.motionTransformTo {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+.motionTransformFrom {
+  animation: boardMotionTransformFrom var(--motion-duration) ease-in-out forwards;
+}
+
+.motionTransformTo {
+  animation: boardMotionTransformTo var(--motion-duration) cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+
+@keyframes boardMotionTransformFrom {
+  0%,
+  28% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  62%,
+  100% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+}
+
+@keyframes boardMotionTransformTo {
+  0%,
+  48% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  76% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.motionDefendedTravel {
+  animation: boardMotionDefendedTravel var(--motion-duration) cubic-bezier(0.22, 0.75, 0.24, 1) forwards;
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+
+@keyframes boardMotionDefendedTravel {
+  0% {
+    transform: translate(0, 0);
+  }
+  38% {
+    transform: translate(var(--motion-attack-dx), var(--motion-attack-dy));
+  }
+  59% {
+    transform: translate(var(--motion-attack-dx), var(--motion-attack-dy));
+  }
+  100% {
+    transform: translate(var(--motion-landing-dx), var(--motion-landing-dy));
+  }
+}
+
+.motionSacrifice {
+  animation: boardMotionSacrifice var(--motion-duration) ease-out forwards;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes boardMotionSacrifice {
+  0%,
+  35% {
+    filter: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+  48% {
+    filter: drop-shadow(0 0 14px rgb(119 107 62 / 0.55));
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  70%,
+  100% {
+    filter: none;
+    opacity: 0;
+    transform: scale(0.72);
+  }
+}
+
+.motionDefendedKingTarget {
+  animation: boardMotionKingTarget var(--motion-duration) ease-out forwards;
+  fill: none;
+  stroke: #776b3e;
+  stroke-width: 7;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes boardMotionKingTarget {
+  0%,
+  24% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  42%,
+  64% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+.boardMotionMessage {
+  background: rgb(31 40 34 / 0.92);
+  border: 1px solid rgb(226 232 222 / 0.2);
+  border-radius: var(--radius-control);
+  bottom: clamp(0.65rem, 2vw, 1rem);
+  box-shadow: 0 8px 24px rgb(26 33 29 / 0.24);
+  color: #f1f3ed;
+  font-size: clamp(0.75rem, 1.6vw, 0.9rem);
+  font-weight: 600;
+  left: 50%;
+  margin: 0;
+  max-width: calc(100% - 2rem);
+  padding: 0.55rem 0.8rem;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+html[data-board-contrast="high"] .motionTransformSquare {
+  fill: rgb(15 66 41 / 0.12);
+  stroke: #0f4229;
+  stroke-width: 7;
+}
+
+html[data-board-contrast="high"] .motionDefendedKingTarget {
+  stroke: #5e4e17;
+  stroke-width: 9;
+}
+
+.motionTravel.isReduced {
+  animation-name: boardMotionReducedTravel;
+}
+
+.motionDefendedTravel.isReduced {
+  animation-name: boardMotionReducedDefended;
+}
+
+.motionCaptured.isReduced,
+.motionSacrifice.isReduced {
+  animation-name: boardMotionReducedFade;
+}
+
+.motionPlace.isReduced {
+  animation-name: boardMotionReducedAppear;
+}
+
+.motionTransformFrom.isReduced,
+.motionTransformSquare.isReduced,
+.motionDefendedKingTarget.isReduced {
+  display: none;
+}
+
+.motionTransformTo.isReduced {
+  animation-name: boardMotionReducedAppear;
+}
+
+@keyframes boardMotionReducedTravel {
+  from {
+    opacity: 0.55;
+    transform: translate(var(--motion-dx), var(--motion-dy));
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--motion-dx), var(--motion-dy));
+  }
+}
+
+@keyframes boardMotionReducedDefended {
+  from {
+    opacity: 0.55;
+    transform: translate(var(--motion-landing-dx), var(--motion-landing-dy));
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--motion-landing-dx), var(--motion-landing-dy));
+  }
+}
+
+@keyframes boardMotionReducedFade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes boardMotionReducedAppear {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionTravel {
+    animation-name: boardMotionReducedTravel;
+  }
+
+  .motionDefendedTravel {
+    animation-name: boardMotionReducedDefended;
+  }
+
+  .motionCaptured,
+  .motionSacrifice {
+    animation-name: boardMotionReducedFade;
+  }
+
+  .motionPlace,
+  .motionTransformTo {
+    animation-name: boardMotionReducedAppear;
+  }
+
+  .motionTransformFrom,
+  .motionTransformSquare,
+  .motionDefendedKingTarget {
+    display: none;
+  }
+}
