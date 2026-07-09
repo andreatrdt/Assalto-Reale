@@ -95,37 +95,43 @@
   stroke-width: 3;
 }
 
-.specialMark circle {
-  fill: rgb(94 119 84 / 0.14);
-  opacity: 1;
+.specialSquareInset {
+  fill: rgb(69 93 63 / 0.05);
+  stroke: rgb(62 86 57 / 0.38);
+  stroke-width: 2.5;
 }
 
-.specialMark path {
+.specialCornerMarks {
   fill: none;
   stroke: #526b49;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-width: 5;
 }
 
-.specialMark.controlledBlack path {
+.specialMark.controlledBlack .specialSquareInset,
+.specialMark.controlledBlack .specialCornerMarks {
   stroke: #26312b;
 }
 
-.specialMark.controlledWhite path {
+.specialMark.controlledWhite .specialSquareInset,
+.specialMark.controlledWhite .specialCornerMarks {
   stroke: #f7f5ed;
   filter: drop-shadow(0 0 2px rgb(32 38 34 / 0.55));
 }
 
-.transformMark circle {
-  fill: rgb(65 112 91 / 0.18);
+.transformSquareOuter {
+  fill: rgb(65 112 91 / 0.08);
   stroke: #3f725c;
   stroke-width: 4;
 }
 
-.transformMark path {
+.transformSquareInner {
   fill: none;
   stroke: #315b49;
+  stroke-dasharray: 8 7;
   stroke-linecap: round;
-  stroke-width: 5;
+  stroke-width: 4;
 }
 
 .piece {
@@ -168,6 +174,87 @@
 
 .pieceWhite .pieceLine {
   stroke: rgb(32 38 34 / 0.46);
+}
+
+.defendedKingPreview {
+  pointer-events: none;
+}
+
+.previewPath {
+  fill: none;
+  opacity: 0.92;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 6;
+}
+
+.previewAttackPath {
+  stroke: #9a554f;
+  stroke-dasharray: 13 8;
+}
+
+.previewBouncePath {
+  stroke: #315f59;
+  stroke-dasharray: 5 8;
+}
+
+.attackPreviewArrow {
+  fill: #9a554f;
+}
+
+.bouncePreviewArrow {
+  fill: #315f59;
+}
+
+.previewSquare {
+  fill: none;
+}
+
+.previewAttacker {
+  stroke: #9a554f;
+  stroke-dasharray: 11 7;
+  stroke-width: 5;
+}
+
+.previewKing {
+  stroke: #3f5137;
+  stroke-width: 7;
+}
+
+.previewDefender rect {
+  fill: rgb(122 109 60 / 0.13);
+  stroke: #776b3e;
+  stroke-dasharray: 7 6;
+  stroke-width: 5;
+}
+
+.previewDefender circle {
+  fill: #776b3e;
+  stroke: #f4f2ea;
+  stroke-width: 3;
+}
+
+.previewLanding rect {
+  fill: rgb(47 92 68 / 0.16);
+  stroke: #2f5c44;
+  stroke-dasharray: 15 7;
+  stroke-width: 8;
+}
+
+.previewLanding circle {
+  fill: #2f5c44;
+  stroke: #edf1e9;
+  stroke-width: 4;
+}
+
+.previewLanding.triggersTransform rect {
+  fill: rgb(64 97 126 / 0.14);
+  stroke: #466a8b;
+  stroke-dasharray: 5 6;
+}
+
+.previewLanding.triggersTransform circle {
+  fill: #466a8b;
 }
 
 .capturedBox {
@@ -291,6 +378,44 @@ html[data-board-contrast="high"] .placementValid {
 html[data-board-contrast="high"] .selectedRing {
   stroke: #152f20;
   stroke-width: 7;
+}
+
+html[data-board-contrast="high"] .specialSquareInset,
+html[data-board-contrast="high"] .specialCornerMarks {
+  stroke: #213226;
+  stroke-width: 5;
+}
+
+html[data-board-contrast="high"] .transformSquareOuter,
+html[data-board-contrast="high"] .transformSquareInner {
+  stroke: #163e31;
+  stroke-width: 5;
+}
+
+html[data-board-contrast="high"] .previewAttackPath,
+html[data-board-contrast="high"] .previewAttacker {
+  stroke: #7d211f;
+}
+
+html[data-board-contrast="high"] .attackPreviewArrow {
+  fill: #7d211f;
+}
+
+html[data-board-contrast="high"] .previewBouncePath {
+  stroke: #123f45;
+}
+
+html[data-board-contrast="high"] .bouncePreviewArrow {
+  fill: #123f45;
+}
+
+html[data-board-contrast="high"] .previewLanding rect {
+  stroke: #0f4229;
+  stroke-width: 9;
+}
+
+html[data-board-contrast="high"] .previewLanding circle {
+  fill: #0f4229;
 }
 
 @media (max-width: 1180px) {

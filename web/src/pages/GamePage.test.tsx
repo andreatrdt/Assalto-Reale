@@ -176,6 +176,56 @@ describe("Game decision and control panels", () => {
     expect(html).not.toContain("defendedKingMark");
   });
 
+  it("uses restrained border treatments for Special and Transform Squares", () => {
+    const decoratedBoard = {
+      ...board,
+      transformSquares: [[1, 1]],
+    } as unknown as BoardState;
+
+    const html = renderToStaticMarkup(<GameBoard board={decoratedBoard} />);
+
+    expect(html).toContain("specialSquareInset");
+    expect(html).toContain("specialCornerMarks");
+    expect(html).toContain("transformSquareOuter");
+    expect(html).toContain("transformSquareInner");
+    expect(html).not.toContain("specialGlow");
+  });
+
+  it("renders the defended-King attack, bounce, defenders and landing preview on the board", () => {
+    const html = renderToStaticMarkup(
+      <GameBoard
+        board={board}
+        defendedKingPreview={{
+          attackerOrigin: [5, 3],
+          kingPosition: [4, 3],
+          defenders: [
+            [4, 2],
+            [4, 4],
+          ],
+          attackPath: [
+            [5, 3],
+            [4, 3],
+          ],
+          bouncePath: [
+            [5, 3],
+            [6, 3],
+            [7, 3],
+          ],
+          landingPosition: [7, 3],
+          triggersTransform: true,
+        }}
+      />,
+    );
+
+    expect(html).toContain("defendedKingPreview");
+    expect(html).toContain("previewAttackPath");
+    expect(html).toContain("previewBouncePath");
+    expect(html).toContain("previewAttacker");
+    expect(html).toContain("previewKing");
+    expect(html.match(/previewDefender/g)).toHaveLength(2);
+    expect(html).toContain("previewLanding triggersTransform");
+  });
+
   it("shows victory winner and controls", () => {
     const html = renderToStaticMarkup(<VictoryPanel message="Black wins by king capture." saveGame={noop} rematch={noop} newMatch={noop} home={noop} />);
 
