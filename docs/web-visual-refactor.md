@@ -1,5 +1,7 @@
 # Web Visual Refactor Status
 
+> **Historical design/audit note.** Kept for design history; it may not reflect the current application. The authoritative current status is [`current-product-status.md`](current-product-status.md) — where they disagree, the status doc wins.
+
 ## Product direction
 
 The modern web client should feel like a calm, contemporary digital board game:

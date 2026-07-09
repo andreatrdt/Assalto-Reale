@@ -1,5 +1,7 @@
 # Assalto Reale Web Deployment
 
+> See [`current-product-status.md`](current-product-status.md) for the authoritative feature/limitation list and [`release-checklist.md`](release-checklist.md) for release steps.
+
 ## Product Sources
 
 - Canonical rules reference: `assalto_pygbag_ready/assalto_core.py` and `assalto_pygbag_ready/assalto_app_ai.py`
@@ -105,7 +107,14 @@ This workflow does not push to `andreatrdt/AssaltoRealeWeb` automatically. That 
 
 ## Current public hosting
 
-The legacy public site is hosted on **Vercel**, not GitHub Pages. The Vercel
+The modern React client is **live on GitHub Pages** at
+`https://andreatrdt.github.io/Assalto-Reale/`, deployed from this repository via
+`deploy-pages.yml` (Architecture A below). `release-metadata.json` on the live
+site records the deployed source commit.
+
+### Legacy hosting (historical)
+
+The legacy Pygbag site was hosted on **Vercel**, not GitHub Pages. The Vercel
 project deploys the `public/` folder of `andreatrdt/AssaltoRealeWeb`, which
 contains the old Pygbag build (`index.html` + `AssaltoReale.apk`, loaded from the
 `pygame-web.github.io` CDN). `AssaltoRealeWeb/vercel.json` sets `outputDirectory:
@@ -114,7 +123,7 @@ GitHub Actions workflow in that repository.
 
 ## Deployment architecture
 
-### Architecture A (prepared): GitHub Pages from the source repository
+### Architecture A (active — current production): GitHub Pages from the source repository
 
 `.github/workflows/deploy-pages.yml` builds `web/` and publishes it to GitHub
 Pages directly from `andreatrdt/Assalto-Reale`, using the official

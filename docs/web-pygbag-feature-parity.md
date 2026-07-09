@@ -1,5 +1,7 @@
 # Web/Pygbag Feature Parity Checklist
 
+> **Historical design/audit note.** Kept for design history; it may not reflect the current application. The authoritative current status is [`current-product-status.md`](current-product-status.md) — where they disagree, the status doc wins.
+
 Python/Pygbag remains authoritative for gameplay and product behaviour:
 
 - `assalto_pygbag_ready/assalto_core.py`

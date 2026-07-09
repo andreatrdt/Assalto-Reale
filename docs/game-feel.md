@@ -1,5 +1,7 @@
 # Game feel: presentation, audio and board motion
 
+> See [`current-product-status.md`](current-product-status.md) for the authoritative feature/limitation list and [`release-checklist.md`](release-checklist.md) for release steps.
+
 This document describes the presentation layer for board motion, sound and the
 victory moment. It does **not** change any game rule, legal-action generation,
 AI scoring, save schema, timer semantics or engine parity — the presentation

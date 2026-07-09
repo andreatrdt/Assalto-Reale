@@ -1,5 +1,7 @@
 # Python to Web Parity Matrix
 
+> **Historical design/audit note.** Kept for design history; it may not reflect the current application. The authoritative current status is [`current-product-status.md`](current-product-status.md) — where they disagree, the status doc wins.
+
 Status legend:
 
 - Complete: implemented in TypeScript and covered by parity or controller tests.
