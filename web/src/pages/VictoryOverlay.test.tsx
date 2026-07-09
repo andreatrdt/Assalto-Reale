@@ -6,7 +6,16 @@ const noop = () => undefined;
 
 describe("VictoryOverlay", () => {
   it("announces an accessible victory with canonical outcome and actions", () => {
-    const html = renderToStaticMarkup(<VictoryOverlay message="White wins by king_capture." humanIsWinner={null} rematch={noop} newMatch={noop} home={noop} saveGame={noop} />);
+    const html = renderToStaticMarkup(
+      <VictoryOverlay
+        message="White wins by king_capture."
+        humanIsWinner={null}
+        rematch={noop}
+        newMatch={noop}
+        home={noop}
+        saveGame={noop}
+      />,
+    );
 
     expect(html).toContain('role="alertdialog"');
     expect(html).toContain('aria-modal="true"');
@@ -19,7 +28,9 @@ describe("VictoryOverlay", () => {
   });
 
   it("shows Defeat when the local human lost", () => {
-    const html = renderToStaticMarkup(<VictoryOverlay message="White wins by timeout." humanIsWinner={false} rematch={noop} newMatch={noop} home={noop} saveGame={noop} />);
+    const html = renderToStaticMarkup(
+      <VictoryOverlay message="White wins by timeout." humanIsWinner={false} rematch={noop} newMatch={noop} home={noop} saveGame={noop} />,
+    );
 
     expect(html).toContain(">Defeat<");
     expect(html).toContain("White wins on time.");

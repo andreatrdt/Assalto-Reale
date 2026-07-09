@@ -3,16 +3,7 @@
 // no downloads, and no third-party/licensed assets. Everything fails silently if
 // Web Audio is unavailable or blocked by browser autoplay policy.
 
-export type SoundName =
-  | "select"
-  | "move"
-  | "capture"
-  | "sacrifice"
-  | "transform"
-  | "turn"
-  | "victory"
-  | "defeat"
-  | "confirm";
+export type SoundName = "select" | "move" | "capture" | "sacrifice" | "transform" | "turn" | "victory" | "defeat" | "confirm";
 
 interface ToneSpec {
   /** Base frequency in Hz. */

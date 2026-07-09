@@ -2,6 +2,10 @@
 
 Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository contains the canonical Python rules reference, the native Pygame client and the modern React/TypeScript web client.
 
+**Authoritative status:** [`docs/current-product-status.md`](docs/current-product-status.md) is the single source of truth for what currently ships, what is retained for compatibility, and current limitations. Release steps are in [`docs/release-checklist.md`](docs/release-checklist.md); version history is in [`CHANGELOG.md`](CHANGELOG.md). Other `docs/` files are design/audit history.
+
+The modern web client is deployed to GitHub Pages at `https://andreatrdt.github.io/Assalto-Reale/`.
+
 ## Current public game
 
 The public web experience uses:
@@ -256,22 +260,23 @@ python -m pip install -r PY_Assalto_reale/requirements_web.txt
 python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 ```
 
-Pygbag is the legacy browser runtime. The separate `andreatrdt/AssaltoRealeWeb` repository still serves that build until the modern React artifact is deployed.
+Pygbag is the legacy browser runtime, historically hosted from the separate `andreatrdt/AssaltoRealeWeb` repository. The current public product is the modern React client on GitHub Pages (see above); the Pygbag build is retained only as a legacy/fallback reference.
 
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `main`
-and `release/**`, using **Python 3.12** and **Node 22**. It is split into three
+and `release/**`, using **Python 3.12** and **Node 22**. It is split into
 independent jobs so a failure in one is diagnosable without hiding the others:
 
 - `python-tests` — installs `requirements-dev.txt` (pytest), then `python -m pytest -q`.
-- `web-unit-build` — `npm ci`, `npm run test`, `npm run build`.
-- `web-e2e` — `npm ci`, `npx playwright install --with-deps chromium`, `npm run e2e`.
+- `web-static-quality` — `npm ci`, `typecheck`, `lint`, `format:check`, `audit:prod`.
+- `web-unit-build` — `npm ci`, `test:coverage` (coverage thresholds), `build`.
+- `web-e2e` — `npm ci`, `npx playwright install --with-deps chromium`, `e2e`.
 
-Playwright's Chromium is installed only in the e2e job. The overall workflow
-fails if any required job fails. The authoritative local validation commands are
-`python -m pip install -r requirements-dev.txt && python -m pytest -q` and, in
-`web/`, `npm ci && npm run test && npm run build && npm run e2e`.
+Playwright's Chromium is installed only in the e2e job. The production dependency
+audit (`npm audit --omit=dev`) must report zero vulnerabilities. The overall
+workflow fails if any required job fails. The full local release procedure is in
+[`docs/release-checklist.md`](docs/release-checklist.md).
 
 ## Deployment
 

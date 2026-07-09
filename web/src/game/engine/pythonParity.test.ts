@@ -95,10 +95,12 @@ function normalizePythonResult(result: Record<string, unknown>) {
 }
 
 describe("TypeScript engine parity fixtures", () => {
-  it.each(fixtures.cases.filter((fixture) => fixture.kind === "action" || legacyActionFixtureNames.has(fixture.name)).map((fixture) => fixture.name))(
-    "matches Python action and transition for %s",
-    (name) => {
-      const fixture = findCase(name);
+  it.each(
+    fixtures.cases
+      .filter((fixture) => fixture.kind === "action" || legacyActionFixtureNames.has(fixture.name))
+      .map((fixture) => fixture.name),
+  )("matches Python action and transition for %s", (name) => {
+    const fixture = findCase(name);
     const board = fromPythonSnapshot(fixture.initial as PythonBoardSnapshot);
     const input = fixture.input as unknown as {
       start: Vec2;
@@ -120,13 +122,17 @@ describe("TypeScript engine parity fixtures", () => {
     });
     expect(resultSummary(result)).toEqual(normalizePythonResult(fixture.result as Record<string, unknown>));
     expect(toPythonSnapshot(finalBoard)).toEqual(fixture.final);
-    },
-  );
+  });
 
   it("matches Python placement restriction reasons", () => {
     const fixture = findCase("placement_restrictions");
     const board = fromPythonSnapshot(fixture.initial as PythonBoardSnapshot);
-    for (const check of fixture.checks as unknown as Array<{ pos: Vec2; player: Player; ptype: PieceType; result: { ok: boolean; reason?: string | null } }>) {
+    for (const check of fixture.checks as unknown as Array<{
+      pos: Vec2;
+      player: Player;
+      ptype: PieceType;
+      result: { ok: boolean; reason?: string | null };
+    }>) {
       const result = canPlacePiece(board, check.pos, check.player, check.ptype);
       expect({ ok: result.ok, reason: result.reason ?? null }).toEqual(check.result);
     }

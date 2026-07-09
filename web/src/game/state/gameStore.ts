@@ -324,7 +324,10 @@ function transformEvent(result: TransitionResult): PendingTransform | null {
   };
 }
 
-function advanceHalfTurn(board: BoardState, state: GameStore): { currentPlayer: Player; turnCounter: number; victory: TransitionResult["victory"] } {
+function advanceHalfTurn(
+  board: BoardState,
+  state: GameStore,
+): { currentPlayer: Player; turnCounter: number; victory: TransitionResult["victory"] } {
   const turnCounter = state.turnCounter + 1;
   ensureTransformSquare(board, turnCounter, turnCounter);
   const victory = refreshTerritoryClaim(board, turnCounter);
@@ -868,7 +871,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         kingMoved: false,
         turnCounter,
         pendingTransform: null,
-        phase: victory ? { phase: "gameOver", previousPhase: "transformSelection" } : { phase: "playing", previousPhase: "transformSelection" },
+        phase: victory
+          ? { phase: "gameOver", previousPhase: "transformSelection" }
+          : { phase: "playing", previousPhase: "transformSelection" },
         lastAction: `${pending.player} transformed into ${describePiece(newType)} on ${squareName(pending.pos)}.`,
         message: victory ? `${victory.winner} wins by ${victory.reason}.` : `${currentPlayer} to move.`,
       });

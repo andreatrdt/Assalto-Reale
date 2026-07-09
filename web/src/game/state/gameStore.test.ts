@@ -212,7 +212,12 @@ describe("game store wiring", () => {
     useGameStore.getState().activateSquare([5, 5]);
     useGameStore.getState().activateSquare([5, 6]);
     expect(useGameStore.getState().phase.phase).toBe("transformSelection");
-    expect(useGameStore.getState().pendingTransform).toMatchObject({ owner: "Black", player: "Black", pieceType: "AttackPawn", forceTurnSwitch: true });
+    expect(useGameStore.getState().pendingTransform).toMatchObject({
+      owner: "Black",
+      player: "Black",
+      pieceType: "AttackPawn",
+      forceTurnSwitch: true,
+    });
 
     useGameStore.getState().chooseTransform("DefensePawn");
     const after = useGameStore.getState();

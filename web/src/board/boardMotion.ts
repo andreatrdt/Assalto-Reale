@@ -107,14 +107,7 @@ export function orientedPosition(pos: Vec2, rows: number, cols: number, flipped 
   return flipped ? [rows - 1 - pos[0], cols - 1 - pos[1]] : copyPos(pos);
 }
 
-export function squareDelta(
-  from: Vec2,
-  to: Vec2,
-  cell: number,
-  rows: number,
-  cols: number,
-  flipped = false,
-): { x: number; y: number } {
+export function squareDelta(from: Vec2, to: Vec2, cell: number, rows: number, cols: number, flipped = false): { x: number; y: number } {
   const orientedFrom = orientedPosition(from, rows, cols, flipped);
   const orientedTo = orientedPosition(to, rows, cols, flipped);
   return {
@@ -211,7 +204,8 @@ function deriveDefendedKing(previous: BoardMotionSnapshot, next: BoardMotionSnap
   const landing = context?.action.defendedKing?.landingPosition ?? additions[0]?.pos ?? null;
   const landingPiece = pieceAt(next.board, landing);
 
-  const from = context?.action.start ??
+  const from =
+    context?.action.start ??
     removals.find((change) => change.before && landingPiece && samePiece(change.before, landingPiece))?.pos ??
     null;
   const attacker = pieceAt(previous.board, from) ?? landingPiece;

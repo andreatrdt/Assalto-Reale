@@ -15,7 +15,7 @@ export function canPlacePiece(board: BoardState, pos: Vec2, player: Player, piec
   if (!inBounds(board, pos)) {
     return { ok: false, reason: "outside board" };
   }
-  const [row, col] = pos;
+  const [, col] = pos;
   if (getPiece(board, pos)) {
     return { ok: false, reason: "occupied square" };
   }

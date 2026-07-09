@@ -72,26 +72,98 @@ export function transformPiece(
   const board = cloneBoard(source);
   const action = { kind: "transform" as const, player: "" as const, start: pos, end: pos, cost: 0, capture: false, endsTurn: true };
   if (!inBounds(board, pos)) {
-    return { board, result: { action, events: [], victory: null, specialControl: null, error: "outside board", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "outside board",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
 
   const piece = getPiece(board, pos);
   if (!piece) {
-    return { board, result: { action, events: [], victory: null, specialControl: null, error: "no piece to transform", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "no piece to transform",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
 
   const checked = { ...action, player: piece.player };
   if (!hasPos(board.transformSquares, pos)) {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "piece is not on the Transform Square", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "piece is not on the Transform Square",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
   if (piece.type === "King") {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "King cannot transform", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "King cannot transform",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
   if (!PAWN_TYPES.includes(newType)) {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "invalid transform target", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "invalid transform target",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
   if (newType === piece.type) {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "piece must transform into a different pawn type", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "piece must transform into a different pawn type",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
 
   const oldType = piece.type;

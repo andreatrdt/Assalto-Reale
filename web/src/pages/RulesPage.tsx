@@ -45,13 +45,22 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
         <article className="rulebook">
           <RuleSection id="objective" title="Objective">
             <p>Assalto Reale is a two-player abstract strategy game for Black and White on a 12×12 board.</p>
-            <p>Win by capturing the enemy King, or by keeping strict majority control of the Special Squares through the opponent&apos;s full response turn.</p>
+            <p>
+              Win by capturing the enemy King, or by keeping strict majority control of the Special Squares through the opponent&apos;s full
+              response turn.
+            </p>
           </RuleSection>
 
           <RuleSection id="setup" title="Setup">
             <p>Each player begins with one King, four Attack Pawns, four Defense Pawns and four Conquest Pawns.</p>
-            <p>All new public matches use manual placement. Black places one piece, White places two, the players continue in two-piece groups, and White places the final piece.</p>
-            <p>Kings and Attack Pawns have starting-area restrictions. Conquest Pawns must also begin at least three squares away from every Special Square.</p>
+            <p>
+              All new public matches use manual placement. Black places one piece, White places two, the players continue in two-piece
+              groups, and White places the final piece.
+            </p>
+            <p>
+              Kings and Attack Pawns have starting-area restrictions. Conquest Pawns must also begin at least three squares away from every
+              Special Square.
+            </p>
           </RuleSection>
 
           <RuleSection id="turns" title="Turns and action points">
@@ -83,23 +92,39 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
                 <span>Any pawn</span>
               </div>
             </div>
-            <p>Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. A two-square capture costs both action points, requires a clear intermediate square and must be the first action of the turn.</p>
+            <p>
+              Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. A two-square
+              capture costs both action points, requires a clear intermediate square and must be the first action of the turn.
+            </p>
             <p>Conquest Pawns and Kings capture adjacent targets only. A King cannot capture another King.</p>
           </RuleSection>
 
           <RuleSection id="kings" title="Defended Kings">
             <p>A King is defended while at least one friendly Defense Pawn occupies an adjacent square.</p>
-            <p>When an Attack Pawn attacks a defended King, one eligible Defense Pawn is sacrificed, the King survives and the attacking pawn bounces directly backward along the attack line. The bounce travels up to five squares and stops before the board edge or an occupied square.</p>
+            <p>
+              When an Attack Pawn attacks a defended King, one eligible Defense Pawn is sacrificed, the King survives and the attacking pawn
+              bounces directly backward along the attack line. The bounce travels up to five squares and stops before the board edge or an
+              occupied square.
+            </p>
             <p>If several defenders are eligible, the defending player chooses which one is sacrificed. The attack then ends the turn.</p>
           </RuleSection>
 
           <RuleSection id="territory" title="Special Squares and territory">
-            <p>Only Conquest Pawns standing on Special Squares control them. Holding a strict majority creates a territory claim at the end of the turn.</p>
-            <p>The opponent receives one complete response turn. The claim becomes a victory only if the claimant still holds the majority when their next turn begins.</p>
+            <p>
+              Only Conquest Pawns standing on Special Squares control them. Holding a strict majority creates a territory claim at the end
+              of the turn.
+            </p>
+            <p>
+              The opponent receives one complete response turn. The claim becomes a victory only if the claimant still holds the majority
+              when their next turn begins.
+            </p>
           </RuleSection>
 
           <RuleSection id="transform" title="Transform">
-            <p>Transform is enabled in every newly started public match. After the configured movement-round threshold, a Transform Square can appear on the board.</p>
+            <p>
+              Transform is enabled in every newly started public match. After the configured movement-round threshold, a Transform Square
+              can appear on the board.
+            </p>
             <p>A pawn that lands on it may change into a different pawn type. Kings cannot transform.</p>
           </RuleSection>
 

@@ -17,7 +17,14 @@ const board = {
     [0, 4],
   ],
   transformSquares: [],
-  controlledSquares: { Black: [[0, 0], [0, 1], [0, 2]], White: [] },
+  controlledSquares: {
+    Black: [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+    ],
+    White: [],
+  },
   territoryClaim: null,
   capturedPieces: {
     Black: { AttackPawn: 2, DefensePawn: 1, ConquestPawn: 0, King: 0 },
@@ -114,7 +121,9 @@ describe("Game decision and control panels", () => {
       },
     } as unknown as Parameters<typeof DefendedKingPanel>[0]["pendingDefendedKing"];
 
-    const html = renderToStaticMarkup(<DefendedKingPanel pendingDefendedKing={pendingDefendedKing} message="White: choose a defender." cancel={noop} />);
+    const html = renderToStaticMarkup(
+      <DefendedKingPanel pendingDefendedKing={pendingDefendedKing} message="White: choose a defender." cancel={noop} />,
+    );
 
     expect(html).toContain("Attacking pawn");
     expect(html).toContain("Attacked King");
@@ -134,7 +143,9 @@ describe("Game decision and control panels", () => {
       pos: [0, 0],
     } as unknown as Parameters<typeof TransformPanel>[0]["pendingTransform"];
 
-    const html = renderToStaticMarkup(<TransformPanel pendingTransform={pendingTransform} message="Choose a transform." chooseTransform={noop} />);
+    const html = renderToStaticMarkup(
+      <TransformPanel pendingTransform={pendingTransform} message="Choose a transform." chooseTransform={noop} />,
+    );
 
     expect(html).toContain("Defense Pawn");
     expect(html).toContain("Conquest Pawn");
@@ -142,7 +153,17 @@ describe("Game decision and control panels", () => {
   });
 
   it("shows compact active-play controls and captured pieces", () => {
-    const html = renderToStaticMarkup(<MatchPanel board={board} lastAction="Black moved a pawn." passTurn={noop} undo={noop} saveGame={noop} loadGame={noop} disabled={false} />);
+    const html = renderToStaticMarkup(
+      <MatchPanel
+        board={board}
+        lastAction="Black moved a pawn."
+        passTurn={noop}
+        undo={noop}
+        saveGame={noop}
+        loadGame={noop}
+        disabled={false}
+      />,
+    );
 
     expect(html).toContain("Pass");
     expect(html).toContain("Undo");
@@ -227,7 +248,9 @@ describe("Game decision and control panels", () => {
   });
 
   it("shows victory winner and controls", () => {
-    const html = renderToStaticMarkup(<VictoryPanel message="Black wins by king capture." saveGame={noop} rematch={noop} newMatch={noop} home={noop} />);
+    const html = renderToStaticMarkup(
+      <VictoryPanel message="Black wins by king capture." saveGame={noop} rematch={noop} newMatch={noop} home={noop} />,
+    );
 
     expect(html).toContain("Black wins by king capture.");
     expect(html).toContain("Rematch");

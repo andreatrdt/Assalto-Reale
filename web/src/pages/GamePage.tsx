@@ -50,9 +50,7 @@ export function GamePage({ navigate }: GamePageProps) {
   usePresentationSound();
 
   const humanIsWinner =
-    phase === "gameOver" && aiEnabled && matchConfig?.resolvedHumanSide
-      ? message.split(" ")[0] === matchConfig.resolvedHumanSide
-      : null;
+    phase === "gameOver" && aiEnabled && matchConfig?.resolvedHumanSide ? message.split(" ")[0] === matchConfig.resolvedHumanSide : null;
 
   useEffect(() => {
     const aiOwnsPlacement = phase === "placement" && currentPlacement?.player === aiPlayer;
@@ -247,15 +245,27 @@ export function GamePage({ navigate }: GamePageProps) {
       )}
 
       {confirmHome && (
-        <ConfirmDialog title="Return to menu?" confirmLabel="Return Home" onConfirm={confirmReturnHome} onCancel={() => setConfirmHome(false)}>
+        <ConfirmDialog
+          title="Return to menu?"
+          confirmLabel="Return Home"
+          onConfirm={confirmReturnHome}
+          onCancel={() => setConfirmHome(false)}
+        >
           <p>Your active match remains in memory and can be continued from Home. Save first if you want a local browser save.</p>
         </ConfirmDialog>
       )}
 
       {confirmRestart && (
-        <ConfirmDialog title="Restart this match?" confirmLabel="Restart Match" danger onConfirm={restartMatch} onCancel={() => setConfirmRestart(false)}>
+        <ConfirmDialog
+          title="Restart this match?"
+          confirmLabel="Restart Match"
+          danger
+          onConfirm={restartMatch}
+          onCancel={() => setConfirmRestart(false)}
+        >
           <p>
-            This rebuilds a fresh board from the stored setup: {restartSummary}. The current board, move history and unresolved selections will be cleared.
+            This rebuilds a fresh board from the stored setup: {restartSummary}. The current board, move history and unresolved selections
+            will be cleared.
           </p>
         </ConfirmDialog>
       )}
@@ -317,9 +327,21 @@ export function GameStatus({
 
       {territoryRelevant && (
         <div className="statusTerritory" aria-label="Territory control">
-          {blackControl > 0 && <p>Black controls {blackControl} of {totalSpecial} Special Squares</p>}
-          {whiteControl > 0 && <p>White controls {whiteControl} of {totalSpecial} Special Squares</p>}
-          {board.territoryClaim && <p>{board.territoryClaim.claimant}&apos;s claim matures on turn {board.territoryClaim.matureTurn}</p>}
+          {blackControl > 0 && (
+            <p>
+              Black controls {blackControl} of {totalSpecial} Special Squares
+            </p>
+          )}
+          {whiteControl > 0 && (
+            <p>
+              White controls {whiteControl} of {totalSpecial} Special Squares
+            </p>
+          )}
+          {board.territoryClaim && (
+            <p>
+              {board.territoryClaim.claimant}&apos;s claim matures on turn {board.territoryClaim.matureTurn}
+            </p>
+          )}
         </div>
       )}
 
@@ -408,11 +430,15 @@ export function DefendedKingPanel({
       <dl className="hudList">
         <div>
           <dt>Attacking pawn</dt>
-          <dd>{attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}</dd>
+          <dd>
+            {attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}
+          </dd>
         </div>
         <div>
           <dt>Attacked King</dt>
-          <dd>{defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}</dd>
+          <dd>
+            {defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}
+          </dd>
         </div>
         <div>
           <dt>Attack path</dt>
@@ -569,7 +595,9 @@ const CAPTURED_PIECE_ORDER: PieceType[] = ["King", "AttackPawn", "DefensePawn", 
 export function CapturedPieces({ board }: { board: BoardState }) {
   return (
     <section className="capturedBox" aria-labelledby="captured-title">
-      <h3 id="captured-title" className="capturedTitle">Captured</h3>
+      <h3 id="captured-title" className="capturedTitle">
+        Captured
+      </h3>
       <div className="capturedRows">
         {(["Black", "White"] as const).map((player) => {
           const pieces = CAPTURED_PIECE_ORDER.flatMap((pieceType) =>
@@ -646,7 +674,9 @@ function statusHeadline(
 ): string {
   if (phase === "gameOver") return "Match complete";
   if (phase === "placement") {
-    return currentPlacement ? `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}` : "Manual placement";
+    return currentPlacement
+      ? `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}`
+      : "Manual placement";
   }
   if (phase === "defenderSelection") return "Defended King decision";
   if (phase === "transformSelection") return "Transform decision";

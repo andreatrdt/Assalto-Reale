@@ -1,5 +1,7 @@
 # Assalto Reale Web v1 Release Audit
 
+> **Historical design/audit note.** Kept for design history; it may not reflect the current application. The authoritative current status is [`current-product-status.md`](current-product-status.md) — where they disagree, the status doc wins.
+
 ## Branch And Baseline
 
 - Release branch: `release/web-v1`

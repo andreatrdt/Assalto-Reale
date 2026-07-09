@@ -24,5 +24,20 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "text"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.d.ts", "src/main.tsx", "src/app/App.tsx"],
+      // Honest thresholds set just below the current measured baseline
+      // (statements/lines 76.5%, branches 74.1%, functions 69.9%). Planned
+      // increase towards 80/80/80/75 is tracked in docs/current-product-status.md.
+      thresholds: {
+        statements: 75,
+        lines: 75,
+        branches: 72,
+        functions: 68,
+      },
+    },
   },
 });

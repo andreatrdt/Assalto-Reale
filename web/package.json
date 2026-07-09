@@ -1,20 +1,25 @@
 {
   "name": "assalto-reale-web",
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "preview": "vite preview",
     "e2e": "playwright test",
+    "audit:prod": "npm audit --omit=dev",
     "package:release": "npm run build && node scripts/package-release.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
-    "howler": "^2.2.4",
     "motion": "^12.0.0",
     "vite": "^6.0.0",
     "zustand": "^5.0.2",
@@ -22,14 +27,21 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.49.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
-    "@types/howler": "^2.2.12",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
     "vitest": "^2.1.8"
   }
 }

@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useGameStore } from "../game/state/gameStore";
-import {
-  deriveBoardMotion,
-  motionDuration,
-  type BoardMotionDraft,
-  type BoardMotionEvent,
-  type BoardMotionSnapshot,
-} from "./boardMotion";
+import { deriveBoardMotion, motionDuration, type BoardMotionDraft, type BoardMotionEvent, type BoardMotionSnapshot } from "./boardMotion";
 
 type StoreState = ReturnType<typeof useGameStore.getState>;
 type DefendedKingContext = NonNullable<BoardMotionSnapshot["pendingDefendedKing"]>;
@@ -19,9 +13,7 @@ export function toBoardMotionSnapshot(state: StoreState): BoardMotionSnapshot {
     message: state.message,
     placementCursor: state.placementCursor,
     historyLength: state.history.length,
-    pendingTransform: state.pendingTransform
-      ? { pos: state.pendingTransform.pos, pieceType: state.pendingTransform.pieceType }
-      : null,
+    pendingTransform: state.pendingTransform ? { pos: state.pendingTransform.pos, pieceType: state.pendingTransform.pieceType } : null,
     pendingDefendedKing: state.pendingDefendedKing
       ? {
           action: state.pendingDefendedKing.action as DefendedKingContext["action"],

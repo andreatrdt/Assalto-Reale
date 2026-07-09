@@ -106,7 +106,16 @@ interface GameButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
-export function GameButton({ variant = "secondary", size = "md", icon, selected, loading, className = "", children, ...props }: GameButtonProps) {
+export function GameButton({
+  variant = "secondary",
+  size = "md",
+  icon,
+  selected,
+  loading,
+  className = "",
+  children,
+  ...props
+}: GameButtonProps) {
   return (
     <button
       {...props}
@@ -394,7 +403,15 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ title, children, confirmLabel, cancelLabel = "Cancel", danger = false, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  danger = false,
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
   return (
     <Modal
       title={title}
