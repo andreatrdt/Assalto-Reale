@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog, EmptyState, GameButton, PageHeader, PageShell, Panel, SectionHeader, StatusBadge } from "../ui/components";
+import "../styles/secondary-pages.css";
 
 interface LoadPageProps {
   route: AppRoute;
