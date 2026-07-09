@@ -14,12 +14,16 @@ function renderHome() {
 // "Continue Last Match appears after a match starts" branch is verified in the
 // Playwright e2e (real browser, live store snapshot).
 describe("Home page", () => {
-  it("shows the plain title and the primary Start Match action", () => {
+  it("shows the strong wordmark, value line and primary Start Match action", () => {
     const html = renderHome();
 
-    expect(html).toContain("Assalto Reale");
+    expect(html).toContain("Assalto");
+    expect(html).toContain("Reale");
+    expect(html).toContain("Control. Sacrifice. Conquer.");
     expect(html).toContain("Start Match");
     expect(html).toContain('id="home-title"');
+    expect(html).toContain('aria-label="Assalto Reale"');
+    expect(html).toContain("homeTitleAccent");
   });
 
   it("offers restrained Rules and Settings actions", () => {
@@ -35,7 +39,7 @@ describe("Home page", () => {
     expect(html).not.toContain("Continue Last Match");
   });
 
-  it("drops the rejected decorative homepage elements", () => {
+  it("keeps the homepage minimal and free of rejected decorative elements", () => {
     const html = renderHome();
 
     expect(html).not.toContain("Medieval abstract strategy");
