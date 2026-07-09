@@ -46,6 +46,15 @@ presence as a public feature:
 - The legacy **Pygbag** build lives only in the separate `AssaltoRealeWeb`
   repository (historically hosted on Vercel); it is not part of this product.
 
+## Lifecycle & persistence
+
+The save/restore/undo/timer contract is documented in
+[`match-lifecycle-contract.md`](match-lifecycle-contract.md) and covered by
+characterisation tests (`web/src/game/state/persistence.test.ts`): a supported
+match can be saved, closed, restored and continued across placement, mid-turn,
+pending Defended-King, pending Transform, active territory claim, timed and
+completed phases; imports are validated atomically; storage failures fail safe.
+
 ## Known limitations (currently true)
 
 - **AI is a greedy heuristic** (`gameStore.ts` + `game/ai/evaluation.ts`): it
@@ -54,8 +63,11 @@ presence as a public feature:
 - **Python ⇄ TypeScript parity is structural, not proven seed-identical.** The
   Python engine is the rules reference; parity fixtures exercise shared behaviour
   but exact seeded RNG/Special-Square parity has not been demonstrated.
-- **Save migration** across schema changes is best-effort; there is no formal
-  migration framework.
+- **Save migration** across schema changes is limited to the schema-1→2 path
+  (handled inline in `restoreSavedGame`); there is no general migration framework.
+- **Save confirmation during active play**: the "Game saved locally." message is
+  surfaced only during placement, not in the active-play controls panel — the
+  save itself persists correctly. Presentation-only; tracked for a later UX pass.
 - **No automated visual-regression or accessibility-audit** coverage; a11y is
   hand-verified plus semantic tests.
 - **Browser coverage** in CI is Chromium only (Playwright); Firefox/WebKit are a
