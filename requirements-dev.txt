@@ -3,3 +3,5 @@
 # library, so pytest is the sole third-party requirement. Pinned for reproducible
 # CI runs; keep in sync with the version validated locally.
 pytest==8.3.5
+# Used by the CI/deploy workflow-configuration tests (tests/test_deploy_workflow.py).
+PyYAML==6.0.2

@@ -2,6 +2,14 @@
   max-width: 70rem;
 }
 
+/* Discreet build/version line at the bottom of Settings. */
+.appVersionLine {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  margin: 1.25rem 0 0;
+  text-align: center;
+}
+
 .rulebookLayout {
   align-items: start;
   display: grid;
