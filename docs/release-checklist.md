@@ -41,7 +41,10 @@ deployment specifics are in `docs/deployment.md`.
       `release-metadata.json` is never cached; a new `CACHE_NAME` purges old caches.
 - [ ] Save compatibility: existing local saves still load; JSON import/export
       round-trips. (localStorage is per-origin — moving origin/path gives a
-      separate save store; there is no automatic migration.)
+      separate save store; there is no automatic migration.) The save/restore/undo/
+      timer contract is documented in
+      [`match-lifecycle-contract.md`](match-lifecycle-contract.md) and covered by
+      `web/src/game/state/persistence.test.ts`.
 
 ## Deploy and verify
 

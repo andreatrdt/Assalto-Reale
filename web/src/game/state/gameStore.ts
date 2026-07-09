@@ -373,19 +373,67 @@ function isValidTimeLeft(value: unknown): value is Record<Player, number> {
   return isRecord(value) && typeof value.Black === "number" && typeof value.White === "number" && value.Black >= 0 && value.White >= 0;
 }
 
+const TOTAL_PLACEMENTS = PLACEMENT_SCHEDULE.reduce((sum, step) => sum + step.count, 0);
+const VALID_PIECE_TYPES = new Set<string>(["AttackPawn", "DefensePawn", "ConquestPawn", "King"]);
+const VALID_PHASES = new Set<string>(["home", "setup", "placement", "playing", "defenderSelection", "transformSelection", "gameOver"]);
+
+function isValidPiece(value: unknown): boolean {
+  return isRecord(value) && isPlayer(value.player) && typeof value.type === "string" && VALID_PIECE_TYPES.has(value.type);
+}
+
+function isWithinBounds(pos: unknown, rows: number, cols: number): boolean {
+  return (
+    Array.isArray(pos) &&
+    pos.length === 2 &&
+    Number.isInteger(pos[0]) &&
+    Number.isInteger(pos[1]) &&
+    pos[0] >= 0 &&
+    pos[0] < rows &&
+    pos[1] >= 0 &&
+    pos[1] < cols
+  );
+}
+
+function isValidBoardSnapshot(value: unknown): boolean {
+  if (!isRecord(value) || !isRecord(value.config)) return false;
+  const { rows, cols } = value.config;
+  if (typeof rows !== "number" || typeof cols !== "number" || rows <= 0 || cols <= 0) return false;
+  if (!Array.isArray(value.grid) || value.grid.length !== rows) return false;
+  for (const row of value.grid) {
+    if (!Array.isArray(row) || row.length !== cols) return false;
+    for (const cell of row) {
+      if (cell !== null && !isValidPiece(cell)) return false;
+    }
+  }
+  for (const key of ["special_squares", "transform_squares"] as const) {
+    if (!Array.isArray(value[key])) return false;
+    for (const pos of value[key] as unknown[]) {
+      if (!isWithinBounds(pos, rows, cols)) return false;
+    }
+  }
+  return true;
+}
+
+function isValidPendingOwner(value: unknown): boolean {
+  // Absent/null pending decisions are allowed; when present the owner must be a player.
+  return value == null || (isRecord(value) && isPlayer(value.owner));
+}
+
 function validateSavedGame(value: unknown): SavedGame | null {
   if (!isRecord(value)) return null;
   if (value.schema !== 1 && value.schema !== 2) return null;
-  if (!isRecord(value.board) || !isRecord(value.phase)) return null;
+  if (!isRecord(value.phase) || typeof value.phase.phase !== "string" || !VALID_PHASES.has(value.phase.phase)) return null;
+  if (!isValidBoardSnapshot(value.board)) return null;
   if (!isPlayer(value.currentPlayer) || !isPlayer(value.aiPlayer)) return null;
   if (typeof value.movesThisTurn !== "number" || value.movesThisTurn < 0 || value.movesThisTurn > 2) return null;
   if (typeof value.kingMoved !== "boolean") return null;
   if (typeof value.turnCounter !== "number" || value.turnCounter < 0) return null;
-  if (typeof value.placementCursor !== "number" || value.placementCursor < 0) return null;
+  if (typeof value.placementCursor !== "number" || value.placementCursor < 0 || value.placementCursor > TOTAL_PLACEMENTS) return null;
   if (!isRecord(value.piecesLeft)) return null;
   if (typeof value.lastAction !== "string" || typeof value.message !== "string") return null;
   if (typeof value.aiEnabled !== "boolean" || typeof value.hasActiveMatch !== "boolean") return null;
   if (!isValidTimeLeft(value.timeLeft)) return null;
+  if (!isValidPendingOwner(value.pendingDefendedKing) || !isValidPendingOwner(value.pendingTransform)) return null;
   return value as unknown as SavedGame;
 }
 
@@ -466,7 +514,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         currentPlacement: saved.currentPlacement,
         piecesLeft: clonePiecesLeft(saved.piecesLeft),
         lastAction: saved.lastAction,
-        message,
+        // Preserve the saved victory message for terminal matches so the victory
+        // presentation shows the correct winner/reason; otherwise use the load message.
+        message: saved.phase.phase === "gameOver" ? saved.message : message,
         aiEnabled: saved.aiEnabled,
         aiPlayer: saved.aiPlayer,
         hasActiveMatch: saved.hasActiveMatch ?? true,
@@ -1024,7 +1074,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ message: "Save is not available in this environment." });
         return;
       }
-      window.localStorage.setItem("assalto-reale-save", JSON.stringify(savedGameFromState(state)));
+      try {
+        window.localStorage.setItem("assalto-reale-save", JSON.stringify(savedGameFromState(state)));
+      } catch {
+        // Storage write can throw (e.g. quota exceeded). Never corrupt the
+        // in-memory match; report the failure instead.
+        set({ message: "Could not save: local storage is full or unavailable." });
+        return;
+      }
       set({ message: "Game saved locally." });
     },
 

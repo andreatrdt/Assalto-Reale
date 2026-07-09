@@ -4,6 +4,31 @@ Notable changes to the Assalto Reale web client. The canonical application
 version is `web/package.json`'s `version`; the UI version line and release
 metadata derive from it.
 
+## Unreleased
+
+Lifecycle & persistence hardening — characterisation tests plus two small,
+tested bug fixes. No gameplay rules, AI, timer semantics or UI design changed.
+
+- Added [`docs/match-lifecycle-contract.md`](docs/match-lifecycle-contract.md)
+  and a persistence characterisation suite
+  (`web/src/game/state/persistence.test.ts`, 33 tests): save→restore→continue
+  across placement, mid-turn, pending Defended-King, pending Transform, active
+  territory claim, timed and completed matches; undo across phases; deterministic
+  timer round-trips; atomic import validation with malformed-import rejection;
+  storage-failure handling; AI-owned decision restoration.
+- Fix: `saveGame` now handles a storage write throwing (e.g. quota) without
+  corrupting the in-memory match (returns a message), matching `importSaveJson`.
+- Fix: restoring a completed (`gameOver`) match preserves the saved victory
+  message so the victory presentation shows the correct winner/reason.
+- Strengthened `validateSavedGame` to reject malformed imports atomically
+  (bad/unknown schema, invalid phase, unknown piece type, out-of-bounds squares,
+  out-of-range action points/placement cursor, negative clocks, malformed pending
+  owner) before any restore; the active match is preserved on rejection.
+- Web unit tests 153 → 186; coverage improved (branches 74.1% → 76.6%).
+- Known limitation: during active play the "Game saved locally." confirmation is
+  not surfaced in the controls panel (the save still persists; it is shown during
+  placement). Tracked for a later UX pass.
+
 ## 1.0.0-beta.1
 
 First versioned prerelease of the modern React/TypeScript web client. It
