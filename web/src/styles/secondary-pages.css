@@ -1,0 +1,218 @@
+.rulesShell .pageShellContent {
+  max-width: 70rem;
+}
+
+.rulebookLayout {
+  align-items: start;
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  grid-template-columns: 11rem minmax(0, 1fr);
+}
+
+.ruleToc {
+  align-content: start;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.35rem 0;
+  position: sticky;
+  top: 6rem;
+}
+
+.ruleToc a {
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.65rem;
+  text-decoration: none;
+}
+
+.ruleToc a:hover,
+.ruleToc a:focus-visible {
+  background: var(--surface-2);
+  border-left-color: var(--accent);
+  color: var(--text);
+}
+
+.rulebook {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  display: grid;
+  gap: 0;
+  padding: clamp(1.15rem, 3vw, 2rem);
+}
+
+.ruleSection {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem 0;
+  scroll-margin-top: 7rem;
+}
+
+.ruleSection:first-child {
+  padding-top: 0;
+}
+
+.ruleSection:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.ruleSection .sectionHeader {
+  margin-bottom: 0;
+}
+
+.settingsShell .pageShellContent {
+  max-width: 48rem;
+}
+
+.settingsPanel {
+  margin: 0 auto;
+  max-width: 44rem;
+}
+
+.settingsStack {
+  gap: 0.75rem;
+}
+
+.loadShell .pageShellContent {
+  max-width: 66rem;
+}
+
+.loadPanel {
+  margin: 0 auto;
+  max-width: 62rem;
+}
+
+.saveCard {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.saveDetails {
+  min-width: 0;
+}
+
+.saveNotice {
+  background: color-mix(in srgb, var(--info) 8%, var(--surface));
+  border-left: 3px solid var(--info);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+}
+
+.saveNoticeError {
+  background: color-mix(in srgb, var(--error) 8%, var(--surface));
+  border-left-color: var(--error);
+}
+
+.saveTools {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding-top: 1rem;
+}
+
+.saveTools h3 {
+  font-size: 1rem;
+}
+
+.saveTools p {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  margin: 0.3rem 0 0;
+  max-width: 34rem;
+}
+
+.saveToolActions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.loadMessage {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .rulebookLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .ruleToc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    position: static;
+  }
+
+  .ruleToc .eyebrow {
+    flex-basis: 100%;
+  }
+
+  .ruleToc a {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    padding: 0.45rem 0.6rem;
+  }
+
+  .ruleToc a:hover,
+  .ruleToc a:focus-visible {
+    border-color: var(--accent);
+  }
+
+  .saveTools {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .saveToolActions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .pageHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pageHeaderActions,
+  .pageHeaderActions .gameButton {
+    width: 100%;
+  }
+
+  .saveCard {
+    grid-template-columns: 1fr;
+  }
+
+  .saveActions {
+    grid-template-columns: 1fr;
+  }
+
+  .saveActions .gameButton,
+  .saveToolActions,
+  .saveToolActions .gameButton {
+    width: 100%;
+  }
+
+  .summaryList div {
+    grid-template-columns: 1fr;
+  }
+}
