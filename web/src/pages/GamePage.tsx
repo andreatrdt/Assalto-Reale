@@ -5,6 +5,8 @@ import { canPlacePiece, PAWN_TYPES, type BoardState, type PieceType, type Player
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog, FactionBadge, GameButton, Icon, IconButton, StatusBadge } from "../ui/components";
+import { usePresentationSound } from "../audio/usePresentationSound";
+import { VictoryOverlay } from "./VictoryOverlay";
 
 interface GamePageProps {
   navigate: (route: AppRoute, replace?: boolean) => void;
@@ -44,6 +46,13 @@ export function GamePage({ navigate }: GamePageProps) {
   const runAiTurn = useGameStore((state) => state.runAiTurn);
   const [confirmHome, setConfirmHome] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+
+  usePresentationSound();
+
+  const humanIsWinner =
+    phase === "gameOver" && aiEnabled && matchConfig?.resolvedHumanSide
+      ? message.split(" ")[0] === matchConfig.resolvedHumanSide
+      : null;
 
   useEffect(() => {
     const aiOwnsPlacement = phase === "placement" && currentPlacement?.player === aiPlayer;
@@ -225,6 +234,17 @@ export function GamePage({ navigate }: GamePageProps) {
           )}
         </aside>
       </div>
+
+      {phase === "gameOver" && (
+        <VictoryOverlay
+          message={message}
+          humanIsWinner={humanIsWinner}
+          rematch={() => setConfirmRestart(true)}
+          newMatch={() => navigate("/setup")}
+          home={() => setConfirmHome(true)}
+          saveGame={saveGame}
+        />
+      )}
 
       {confirmHome && (
         <ConfirmDialog title="Return to menu?" confirmLabel="Return Home" onConfirm={confirmReturnHome} onCancel={() => setConfirmHome(false)}>

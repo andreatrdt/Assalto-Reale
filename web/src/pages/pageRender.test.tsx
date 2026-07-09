@@ -46,6 +46,8 @@ describe("route presentation", () => {
     expect(settings).toContain("Reduce motion");
     expect(settings).toContain("High contrast board");
     expect(settings).toContain("Changes apply immediately");
+    expect(settings).toContain("Sound effects");
+    expect(settings).toContain("Volume");
     expect(settings).not.toContain("Coming later");
     expect(settings).not.toContain("Not exposed until implemented");
     expect(settings).not.toContain("Audio And Defaults");

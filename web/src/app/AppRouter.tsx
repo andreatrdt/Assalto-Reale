@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { audioService } from "../audio/audioService";
 import { useGameStore } from "../game/state/gameStore";
 import { useUiSettings } from "../ui/uiSettings";
 import { GamePage } from "../pages/GamePage";
@@ -14,6 +15,8 @@ export function AppRouter() {
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
   const reducedMotion = useUiSettings((state) => state.reducedMotion);
   const highContrastBoard = useUiSettings((state) => state.highContrastBoard);
+  const soundEnabled = useUiSettings((state) => state.soundEnabled);
+  const volume = useUiSettings((state) => state.volume);
   const loadUiSettings = useUiSettings((state) => state.load);
 
   useEffect(() => {
@@ -24,6 +27,11 @@ export function AppRouter() {
     document.documentElement.dataset.motion = reducedMotion ? "reduced" : "standard";
     document.documentElement.dataset.boardContrast = highContrastBoard ? "high" : "standard";
   }, [highContrastBoard, reducedMotion]);
+
+  useEffect(() => {
+    audioService.setMuted(!soundEnabled);
+    audioService.setVolume(volume);
+  }, [soundEnabled, volume]);
 
   useEffect(() => {
     if (route === "/game" && !hasActiveMatch) {

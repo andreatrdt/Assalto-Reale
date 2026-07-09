@@ -70,10 +70,29 @@
   stroke-width: 3;
 }
 
+/* Restrained entrance for selection/legal-action markers. These elements only
+   mount when a piece is selected, so the fade plays once (React preserves them
+   across the per-tick rerenders). Reduced motion neutralises it via the
+   catch-all rules at the end of this file. */
+@keyframes markerIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .selectedRing {
+  animation: markerIn 120ms var(--ease-standard);
   fill: none;
   stroke: #365b43;
   stroke-width: 6;
+}
+
+.moveIndicator,
+.captureIndicator {
+  animation: markerIn 160ms var(--ease-standard);
 }
 
 .moveIndicator circle {

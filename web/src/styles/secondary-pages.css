@@ -10,6 +10,35 @@
   text-align: center;
 }
 
+.volumeField {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.volumeField label {
+  align-items: baseline;
+  color: var(--text);
+  display: flex;
+  font-weight: 600;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.volumeValue {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.volumeField input[type="range"] {
+  accent-color: var(--accent);
+  width: 100%;
+}
+
+.volumeField input[type="range"]:disabled {
+  opacity: 0.5;
+}
+
 .rulebookLayout {
   align-items: start;
   display: grid;
