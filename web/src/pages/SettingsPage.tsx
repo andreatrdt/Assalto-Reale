@@ -1,6 +1,7 @@
 import type { AppRoute } from "../app/routes";
 import { PageHeader, PageShell, Panel, SectionHeader, Toggle } from "../ui/components";
 import { useUiSettings } from "../ui/uiSettings";
+import "../styles/secondary-pages.css";
 
 interface SettingsPageProps {
   route: AppRoute;
