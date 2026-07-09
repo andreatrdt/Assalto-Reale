@@ -1,0 +1,38 @@
+name: Board motion diagnostics
+
+on:
+  push:
+    branches:
+      - feature/board-motion-animations
+
+permissions:
+  contents: read
+
+jobs:
+  typescript-diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Capture TypeScript diagnostics
+        working-directory: web
+        shell: bash
+        run: |
+          set +e
+          npx tsc -b --pretty false > tsc-diagnostics.txt 2>&1
+          status=$?
+          echo "exit_code=$status" >> tsc-diagnostics.txt
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-motion-tsc-diagnostics
+          path: web/tsc-diagnostics.txt
+          if-no-files-found: error
