@@ -139,12 +139,13 @@ describe("game store wiring", () => {
     expect(useGameStore.getState().phase.phase).toBe("playing");
   });
 
-  it("rejects imports that cannot be restored safely", () => {
+  it("rejects imports with a malformed board and preserves the active match", () => {
     const exported = useGameStore.getState().exportSaveJson();
     const broken = { ...JSON.parse(exported ?? "{}"), board: {} };
 
+    // A malformed board is now rejected at validation (atomic, before any restore).
     expect(useGameStore.getState().importSaveJson(JSON.stringify(broken))).toBe(false);
-    expect(useGameStore.getState().message).toBe("Saved data could not be restored safely.");
+    expect(useGameStore.getState().message).toBe("Imported save is invalid or unsupported.");
     expect(useGameStore.getState().phase.phase).toBe("playing");
   });
 
