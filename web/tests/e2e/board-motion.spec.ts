@@ -42,8 +42,8 @@ test.describe("board motion presentation", () => {
     );
 
     await page.locator(".boardCell:has(.placementValid)").first().click();
-    await expect(observedMotion).resolves.toMatchObject({ type: "place" });
     const observed = await observedMotion;
+    expect(observed).toMatchObject({ type: "place" });
     expect(Number(observed.id)).toBeGreaterThan(0);
 
     await expect(board).toHaveAttribute("data-animation-state", "idle");
