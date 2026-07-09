@@ -31,6 +31,8 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // refreshKey is an intentional re-read trigger (bumped after import/delete), not a value used inside the memo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const saveSummary = useMemo(() => readSaveSummary(), [refreshKey]);
 
   function loadAndContinue() {
@@ -129,9 +131,7 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
                   <dd>{saveSummary.currentPlayer ?? "—"}</dd>
                 </div>
               </dl>
-              {saveSummary.issue && (
-                <p className={saveSummary.valid ? "saveNotice" : "saveNotice saveNoticeError"}>{saveSummary.issue}</p>
-              )}
+              {saveSummary.issue && <p className={saveSummary.valid ? "saveNotice" : "saveNotice saveNoticeError"}>{saveSummary.issue}</p>}
             </div>
             <div className="saveActions">
               <GameButton variant="primary" icon="load" onClick={loadAndContinue} disabled={!saveSummary.valid}>
@@ -199,7 +199,13 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
       </Panel>
 
       {deleteOpen && (
-        <ConfirmDialog title="Delete saved match?" confirmLabel="Delete Save" danger onConfirm={deleteLocalSave} onCancel={() => setDeleteOpen(false)}>
+        <ConfirmDialog
+          title="Delete saved match?"
+          confirmLabel="Delete Save"
+          danger
+          onConfirm={deleteLocalSave}
+          onCancel={() => setDeleteOpen(false)}
+        >
           <p>This removes the saved match from this browser. A match currently open in memory is not affected.</p>
         </ConfirmDialog>
       )}
@@ -228,7 +234,8 @@ function readSaveSummary(): SaveSummary | null {
     const schema = typeof parsed.schema === "number" ? parsed.schema : null;
     const config = parsed.matchConfig;
     const opponent = config?.opponent === "Computer" ? "Human vs Computer" : "Human vs Human";
-    const placement = config?.placementMode === "QuickBalanced" ? "Quick setup" : config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
+    const placement =
+      config?.placementMode === "QuickBalanced" ? "Quick setup" : config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
     const transform = config?.transformEnabled === false ? "Transform off" : "Transform on";
     const valid = (schema === 1 || schema === 2) && Boolean(parsed.board);
     const issue =

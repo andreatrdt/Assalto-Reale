@@ -12,33 +12,34 @@ test.describe("board motion presentation", () => {
     const board = page.locator(".assaltoBoard");
     await expect(board).toHaveAttribute("data-animation-state", "idle");
 
-    const observedMotion = page.evaluate(() =>
-      new Promise<{ type: string; id: string }>((resolve, reject) => {
-        const element = document.querySelector<SVGElement>(".assaltoBoard");
-        if (!element) {
-          reject(new Error("Board was not rendered"));
-          return;
-        }
+    const observedMotion = page.evaluate(
+      () =>
+        new Promise<{ type: string; id: string }>((resolve, reject) => {
+          const element = document.querySelector<SVGElement>(".assaltoBoard");
+          if (!element) {
+            reject(new Error("Board was not rendered"));
+            return;
+          }
 
-        const timeout = window.setTimeout(() => {
-          observer.disconnect();
-          reject(new Error("Board animation did not enter the running state"));
-        }, 2_000);
+          const timeout = window.setTimeout(() => {
+            observer.disconnect();
+            reject(new Error("Board animation did not enter the running state"));
+          }, 2_000);
 
-        const observer = new MutationObserver(() => {
-          if (element.dataset.animationState !== "running") return;
-          window.clearTimeout(timeout);
-          observer.disconnect();
-          resolve({
-            type: element.dataset.animationType ?? "",
-            id: element.dataset.animationId ?? "",
+          const observer = new MutationObserver(() => {
+            if (element.dataset.animationState !== "running") return;
+            window.clearTimeout(timeout);
+            observer.disconnect();
+            resolve({
+              type: element.dataset.animationType ?? "",
+              id: element.dataset.animationId ?? "",
+            });
           });
-        });
-        observer.observe(element, {
-          attributes: true,
-          attributeFilter: ["data-animation-state", "data-animation-type", "data-animation-id"],
-        });
-      }),
+          observer.observe(element, {
+            attributes: true,
+            attributeFilter: ["data-animation-state", "data-animation-type", "data-animation-id"],
+          });
+        }),
     );
 
     await page.locator(".boardCell:has(.placementValid)").first().click();

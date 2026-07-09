@@ -42,7 +42,10 @@ describe("derivePresentationEvents", () => {
   });
 
   it("emits capture then turn when the capture also ends the turn", () => {
-    expect(types(base, { ...base, capturedTotal: 1, currentPlayer: "White", lastActionKey: "Black captured a pawn." })).toEqual(["capture", "turn"]);
+    expect(types(base, { ...base, capturedTotal: 1, currentPlayer: "White", lastActionKey: "Black captured a pawn." })).toEqual([
+      "capture",
+      "turn",
+    ]);
   });
 
   it("emits a single sacrifice cue (no duplicate capture) when a defended-King decision appears", () => {

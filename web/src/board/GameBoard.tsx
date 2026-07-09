@@ -321,9 +321,7 @@ export function GameBoard({
                   rx="8"
                   className={(rowIndex + colIndex) % 2 === 0 ? "tileDark" : "tileLight"}
                 />
-                {isPlacementValid && (
-                  <rect x={x + 10} y={y + 10} width={cell - 20} height={cell - 20} rx="12" className="placementValid" />
-                )}
+                {isPlacementValid && <rect x={x + 10} y={y + 10} width={cell - 20} height={cell - 20} rx="12" className="placementValid" />}
                 {isSpecial && (
                   <g className={`specialMark ${controlledBy ? `controlled${controlledBy}` : ""}`} aria-hidden="true">
                     <rect
@@ -411,13 +409,7 @@ export function GameBoard({
 
             {activeDefendedKingPreview.defenders.map(([row, col]) => (
               <g key={`preview-defender-${row}-${col}`} className="previewDefender">
-                <rect
-                  x={col * cell + cell * 0.14}
-                  y={row * cell + cell * 0.14}
-                  width={cell * 0.72}
-                  height={cell * 0.72}
-                  rx={cell * 0.12}
-                />
+                <rect x={col * cell + cell * 0.14} y={row * cell + cell * 0.14} width={cell * 0.72} height={cell * 0.72} rx={cell * 0.12} />
                 <circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * 0.08} />
               </g>
             ))}

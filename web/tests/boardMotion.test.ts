@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cloneBoard, createBoard, createPiece, setPiece, type BoardState } from "../src/game/engine";
-import {
-  deriveBoardMotion,
-  motionDuration,
-  orientedPosition,
-  squareDelta,
-  type BoardMotionSnapshot,
-} from "../src/board/boardMotion";
+import { deriveBoardMotion, motionDuration, orientedPosition, squareDelta, type BoardMotionSnapshot } from "../src/board/boardMotion";
 
 function snapshot(board: BoardState, overrides: Partial<BoardMotionSnapshot> = {}): BoardMotionSnapshot {
   return {
@@ -46,9 +40,12 @@ describe("deriveBoardMotion", () => {
     setPiece(after, [5, 4], null);
     setPiece(after, [5, 6], createPiece("AttackPawn", "Black"));
 
-    expect(
-      deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black moved to G7." })).event,
-    ).toMatchObject({ kind: "move", from: [5, 4], to: [5, 6], piece: { player: "Black", type: "AttackPawn" } });
+    expect(deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black moved to G7." })).event).toMatchObject({
+      kind: "move",
+      from: [5, 4],
+      to: [5, 6],
+      piece: { player: "Black", type: "AttackPawn" },
+    });
   });
 
   it("derives a capture with the removed target piece", () => {
@@ -59,9 +56,7 @@ describe("deriveBoardMotion", () => {
     setPiece(after, [5, 4], null);
     setPiece(after, [5, 6], createPiece("AttackPawn", "Black"));
 
-    expect(
-      deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black captured Defense Pawn on G7." })).event,
-    ).toMatchObject({
+    expect(deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black captured Defense Pawn on G7." })).event).toMatchObject({
       kind: "capture",
       from: [5, 4],
       to: [5, 6],
@@ -149,10 +144,8 @@ describe("deriveBoardMotion", () => {
     setPiece(after, [5, 1], createPiece("AttackPawn", "Black"));
 
     expect(
-      deriveBoardMotion(
-        snapshot(before),
-        snapshot(after, { lastAction: "Black attacked a defended King; Attack Pawn bounced to B7." }),
-      ).event,
+      deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black attacked a defended King; Attack Pawn bounced to B7." }))
+        .event,
     ).toMatchObject({ kind: "defendedKing", king: [5, 4], sacrifice: [4, 4], landing: [5, 1] });
   });
 
@@ -163,12 +156,10 @@ describe("deriveBoardMotion", () => {
     setPiece(after, [5, 4], null);
     setPiece(after, [5, 6], createPiece("AttackPawn", "Black"));
 
-    expect(
-      deriveBoardMotion(
-        snapshot(before, { historyLength: 2 }),
-        snapshot(after, { historyLength: 1, message: "Undone." }),
-      ),
-    ).toEqual({ event: null, reset: true });
+    expect(deriveBoardMotion(snapshot(before, { historyLength: 2 }), snapshot(after, { historyLength: 1, message: "Undone." }))).toEqual({
+      event: null,
+      reset: true,
+    });
   });
 });
 

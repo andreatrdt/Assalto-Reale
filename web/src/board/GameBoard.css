@@ -2,7 +2,9 @@
   background: #edf1e9;
   border: 1px solid #c4cdc0;
   border-radius: var(--radius-panel);
-  box-shadow: 0 1px 3px rgb(32 38 34 / 0.08), 0 12px 30px rgb(32 38 34 / 0.08);
+  box-shadow:
+    0 1px 3px rgb(32 38 34 / 0.08),
+    0 12px 30px rgb(32 38 34 / 0.08);
   box-sizing: border-box;
   display: grid;
   max-width: calc(100dvh - 6rem);

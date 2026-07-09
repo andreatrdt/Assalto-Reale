@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { routeFromPathname } from "../app/routes";
-import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog } from "../ui/components";
 import { GamePage, PlacementPanel } from "./GamePage";
 import { HomePage } from "./HomePage";

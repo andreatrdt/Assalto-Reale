@@ -1,5 +1,5 @@
 import { PAWN_TYPES } from "./config";
-import { cheb, cloneBoard, direction, getPiece, inBounds, samePos, setPiece } from "./board";
+import { cheb, cloneBoard, getPiece, inBounds, samePos, setPiece } from "./board";
 import { adjacentDefendersForKing, getDefendedKingPreviewFromPositions, intermediateClear } from "./defendedKing";
 import { evaluateVictory } from "./victory";
 import { getSpecialControl, updateControl } from "./territory";
@@ -28,7 +28,14 @@ export function isAllowedCaptureType(mover: Piece, target: Piece): boolean {
   return false;
 }
 
-function captureGeometry(board: BoardState, mover: Piece, start: Vec2, end: Vec2, target: Piece, movesThisTurn: number): [boolean, number, string] {
+function captureGeometry(
+  board: BoardState,
+  mover: Piece,
+  start: Vec2,
+  end: Vec2,
+  target: Piece,
+  movesThisTurn: number,
+): [boolean, number, string] {
   const dr = end[0] - start[0];
   const dc = end[1] - start[1];
   const adr = Math.abs(dr);
@@ -127,7 +134,10 @@ export function buildAction(
       capturedPieceType = "DefensePawn";
       capturedPlayer = target.player;
       endsTurn = true;
-      if (options.selectedDefender && !adjacentDefendersForKing(board, end, target.player).some((pos) => samePos(pos, options.selectedDefender!))) {
+      if (
+        options.selectedDefender &&
+        !adjacentDefendersForKing(board, end, target.player).some((pos) => samePos(pos, options.selectedDefender!))
+      ) {
         return invalid(start, end, mover.player, "selected defender is not eligible");
       }
     }
@@ -169,23 +179,62 @@ export function applyAction(
     };
   }
   if (!action.start || !action.end) {
-    return { board, result: { action, events: [], victory: null, specialControl: null, error: "action is missing coordinates", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "action is missing coordinates",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
   const movesThisTurn = options.movesThisTurn ?? 0;
-  const checked = options.validate === false ? action : buildAction(board, action.start, action.end, {
-    movesThisTurn,
-    kingMoved: options.kingMoved ?? false,
-    selectedDefender: action.selectedDefender,
-  });
+  const checked =
+    options.validate === false
+      ? action
+      : buildAction(board, action.start, action.end, {
+          movesThisTurn,
+          kingMoved: options.kingMoved ?? false,
+          selectedDefender: action.selectedDefender,
+        });
   if (checked.error) {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: checked.error, endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: checked.error,
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
   const start = checked.start!;
   const end = checked.end!;
   const mover = getPiece(board, start);
   const target = getPiece(board, end);
   if (!mover) {
-    return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "no piece at start", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+    return {
+      board,
+      result: {
+        action: checked,
+        events: [],
+        victory: null,
+        specialControl: null,
+        error: "no piece at start",
+        endsTurn: false,
+        nextMovesThisTurn: 0,
+        nextKingMoved: false,
+      },
+    };
   }
 
   const events: TransitionEvent[] = [];
@@ -196,7 +245,19 @@ export function applyAction(
     const defenderPos = checked.selectedDefender ?? defenders[0];
     const defenderPiece = getPiece(board, defenderPos);
     if (!defenderPiece || defenderPiece.type !== "DefensePawn") {
-      return { board, result: { action: checked, events: [], victory: null, specialControl: null, error: "defender disappeared before resolution", endsTurn: false, nextMovesThisTurn: 0, nextKingMoved: false } };
+      return {
+        board,
+        result: {
+          action: checked,
+          events: [],
+          victory: null,
+          specialControl: null,
+          error: "defender disappeared before resolution",
+          endsTurn: false,
+          nextMovesThisTurn: 0,
+          nextKingMoved: false,
+        },
+      };
     }
     setPiece(board, start, null);
     setPiece(board, defenderPos, null);

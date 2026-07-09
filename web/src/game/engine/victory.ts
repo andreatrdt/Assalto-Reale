@@ -6,10 +6,7 @@ export function opponent(player: Player): Player {
   return player === "Black" ? "White" : "Black";
 }
 
-export function evaluateVictory(
-  board: BoardState,
-  options: { lastActor?: Player; turnCounter?: number } = {},
-): VictoryResult | null {
+export function evaluateVictory(board: BoardState, options: { lastActor?: Player; turnCounter?: number } = {}): VictoryResult | null {
   const kings: Record<Player, boolean> = { Black: false, White: false };
   for (const row of board.grid) {
     for (const piece of row) {
