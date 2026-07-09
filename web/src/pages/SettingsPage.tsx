@@ -1,6 +1,7 @@
 import type { AppRoute } from "../app/routes";
-import { EmptyState, PageHeader, PageShell, Panel, SectionHeader, StatusBadge, Toggle } from "../ui/components";
+import { PageHeader, PageShell, Panel, SectionHeader, Toggle } from "../ui/components";
 import { useUiSettings } from "../ui/uiSettings";
+import "../styles/secondary-pages.css";
 
 interface SettingsPageProps {
   route: AppRoute;
@@ -15,41 +16,25 @@ export function SettingsPage({ route, navigate }: SettingsPageProps) {
 
   return (
     <PageShell activeRoute={route} navigate={navigate} className="settingsShell">
-      <PageHeader
-        eyebrow="Preferences"
-        title="Settings"
-        description="Only implemented preferences are shown here. Audio, music and gameplay defaults remain future parity work."
-      />
+      <PageHeader title="Settings" description="Adjust how the game looks and moves on this device." />
 
-      <div className="settingsGrid">
-        <Panel tone="strong">
-          <SectionHeader eyebrow="Accessibility" title="Motion And Clarity" description="These preferences apply immediately and are stored in this browser." />
-          <div className="settingsStack">
-            <Toggle
-              label="Reduce motion"
-              description="Minimize route, board and status transitions."
-              checked={reducedMotion}
-              onChange={setReducedMotion}
-            />
-            <Toggle
-              label="High contrast board"
-              description="Increase tile, marker and coordinate contrast."
-              checked={highContrastBoard}
-              onChange={setHighContrastBoard}
-            />
-          </div>
-        </Panel>
-
-        <Panel tone="subtle">
-          <SectionHeader eyebrow="Coming later" title="Audio And Defaults" />
-          <EmptyState icon="warning" title="Not exposed until implemented">
-            <p>Movement sounds, capture sounds, music, and gameplay default presets are tracked in the parity checklist. They are not shown as inactive toggles.</p>
-          </EmptyState>
-          <StatusBadge tone="info" icon="shield">
-            The board remains fully playable with these preferences off.
-          </StatusBadge>
-        </Panel>
-      </div>
+      <Panel tone="strong" className="settingsPanel">
+        <SectionHeader title="Accessibility" description="Changes apply immediately and are saved in this browser." />
+        <div className="settingsStack">
+          <Toggle
+            label="Reduce motion"
+            description="Minimize interface and board transitions."
+            checked={reducedMotion}
+            onChange={setReducedMotion}
+          />
+          <Toggle
+            label="High contrast board"
+            description="Increase contrast between squares, pieces and action markers."
+            checked={highContrastBoard}
+            onChange={setHighContrastBoard}
+          />
+        </div>
+      </Panel>
     </PageShell>
   );
 }

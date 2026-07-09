@@ -21,10 +21,10 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByRole("heading", { name: "Start a Match" })).toBeVisible();
 
     await page.goto("/rules");
-    await expect(page.getByRole("heading", { name: "Rules Of Assalto Reale" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "How to Play" })).toBeVisible();
 
     await page.goto("/load");
-    await expect(page.getByRole("heading", { name: "Continue A Match" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saved Matches" })).toBeVisible();
 
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();

@@ -1,44 +1,58 @@
 # Assalto Reale
 
-Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository is the authoritative source for the native Python/Pygame game, the canonical headless rules engine, and the modern React/TypeScript web client.
+Assalto Reale is a two-player tactical abstract strategy game for Black and White. This repository contains the canonical Python rules reference, the native Pygame client and the modern React/TypeScript web client.
 
-The canonical product is:
+## Current public game
 
-- 12x12 board
-- Black vs White only
-- Human vs Human and Human vs Computer
-- Manual placement by default
-- Optional Quick Balanced setup
-- Optional Transform variant, disabled by default
+The public web experience uses:
 
-Four-player mode, 2v2, Red/Blue factions, and 18x18 standard play are not active product modes.
+- a 12×12 board
+- Black vs White
+- Human vs Human or Human vs Computer
+- manual placement for every new match
+- Transform enabled for every new match
+- timed or untimed play
+- local save/load and save-file import/export
 
-## Current Entry Point
+The internal `QuickBalanced` setup path and older configuration values remain in the codebase for tests, fixtures and save compatibility. They are not offered in the public setup screen.
 
-The active browser/native entry point is:
+Four-player mode, 2v2, Red/Blue factions and 18×18 standard play are not active product modes.
+
+## Entry points
+
+### Modern web client
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+The React application in `web/` is the current product interface under active development.
+
+### Canonical Python implementation
 
 ```bash
 python assalto_pygbag_ready/main.py
 ```
 
-`main.py` loads `assalto_pygbag_ready/assalto_app_ai.py`, which uses the Pygame UI shell and the headless canonical engine in `assalto_pygbag_ready/assalto_core.py`.
+`assalto_pygbag_ready/assalto_core.py` is the canonical Python rules reference used for parity fixtures and headless tests.
 
 ## Architecture
 
-The rules engine lives in `assalto_pygbag_ready/assalto_core.py` and does not import Pygame. It owns:
+The Python rules engine owns:
 
-- board state
-- pieces
+- board state and pieces
 - legal action generation
 - deterministic state transitions
 - defended-King previews and bounce resolution
-- capture costs
+- action-point and capture costs
 - placement restrictions
-- Special Square control
-- territory claims
-- snapshots, undo support, and JSON serialization
+- Special Square control and territory claims
+- Transform state
+- snapshots, undo and serialization
 
-The Pygame layer consumes engine results for live moves, AI simulation, highlights, undo snapshots, and save/load-facing state.
+The React client mirrors the rules in TypeScript under `web/src/game/engine/`. Zustand state in `web/src/game/state/` coordinates the match lifecycle, timers, AI turns, undo and browser persistence.
 
 ## Pieces
 
@@ -53,9 +67,9 @@ Each player starts with 13 pieces:
 
 ## Movement
 
-All pieces may move one adjacent empty square in any of the eight directions.
+Every piece may move one square to any adjacent empty square, including diagonally.
 
-The King may act at most once per turn. Non-King pieces may act twice in the same turn if action points remain.
+The King may act at most once per turn. A non-King piece may act twice when action points and legal actions remain.
 
 ## Captures
 
@@ -66,13 +80,17 @@ The King may act at most once per turn. Non-King pieces may act twice in the sam
 | Conquest Pawn | Attack Pawn |
 | King | Attack Pawn, Defense Pawn, Conquest Pawn |
 
-Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. Two-square captures cost both action points, require a clear intermediate square, and must be the first action of the turn.
+Attack Pawns capture orthogonally at range one or two. Defense Pawns capture diagonally at range one or two. A two-square capture:
+
+- costs both action points
+- requires a clear intermediate square
+- must be the first action of the turn
 
 Conquest Pawns and Kings capture adjacent targets only. A King cannot capture another King.
 
 ## Turns
 
-Each turn starts with two action points.
+Each turn begins with two action points.
 
 | Action | Cost |
 | --- | ---: |
@@ -83,35 +101,37 @@ Each turn starts with two action points.
 
 ## Defended King
 
-A King is defended when at least one friendly Defense Pawn occupies any adjacent square. If an Attack Pawn attacks a defended King:
+A King is defended while at least one friendly Defense Pawn occupies an adjacent square. If an Attack Pawn attacks a defended King:
 
 - one eligible Defense Pawn is sacrificed
-- the King remains alive
-- the Attack Pawn survives
-- the Attack Pawn bounces directly backward along the attack line
+- the King survives
+- the attacking pawn survives
+- the attacking pawn bounces directly backward along the attack line
 - the bounce travels up to five squares from the King
 - the bounce stops before the board edge or an occupied square
-- the attacker's origin is treated as empty during bounce calculation
+- the attacker’s origin is treated as empty during bounce calculation
 - the turn ends immediately
 
-The engine returns a `DefendedKingPreview` before resolution. The preview includes attack path, bounce path, landing square, eligible defenders, action cost, and whether the landing square triggers Transform.
+When several Defense Pawns are eligible, the defending player chooses which one is sacrificed.
+
+The engine produces a `DefendedKingPreview` before resolution. It includes the attacker, King, eligible defenders, attack path, bounce path, landing square, action cost, Transform trigger and turn result.
 
 ## Placement
 
-Manual placement is the default. Players place pieces in this order:
+Every newly started public match uses manual placement. Pieces are placed in this order:
 
 1. King
-2. Four Attack Pawns
-3. Four Defense Pawns
-4. Four Conquest Pawns
+2. four Attack Pawns
+3. four Defense Pawns
+4. four Conquest Pawns
 
-The placement schedule is explicit snake order:
+The snake schedule is:
 
 ```text
-Black 1, White 2, Black 2, White 2, ... Black 2, White 1
+Black 1, White 2, Black 2, White 2, … Black 2, White 1
 ```
 
-Restrictions:
+Placement restrictions:
 
 - no occupied squares
 - no Special Squares
@@ -122,73 +142,57 @@ Restrictions:
 - White Attack Pawns in the final two columns
 - Conquest Pawns at Chebyshev distance at least three from every Special Square
 
-Quick Balanced setup uses the same legality checks and deterministic scoring.
+`QuickBalanced` remains an internal compatibility path and is not shown in the public setup interface.
 
-## Territory Victory
+## Special Squares and territory victory
 
-Special control is derived from Conquest Pawn positions on Special Squares. A player must hold a strict majority of Special Squares. A claim is created at the end of a turn, the opponent receives a complete response turn, and the claim matures on the claimant's next turn only if continuous majority control is retained.
+Only Conquest Pawns standing on Special Squares control them. Holding a strict majority creates a territory claim at the end of the turn.
 
-King capture takes precedence over territory and timeout outcomes.
+The opponent receives one complete response turn. The claim matures on the claimant’s next turn only if the majority has been maintained continuously.
 
-## Transform Variant
+## Transform
 
-Transform is optional and disabled by default. When enabled, the engine can generate a Transform Square after the configured movement-round threshold. A pawn landing on it may transform into a different pawn type; Kings cannot transform.
+Transform is enabled for every newly started public web match. After the configured movement-round threshold, the engine may generate a Transform Square.
 
-## AI
+A pawn that lands on the Transform Square may change into a different pawn type. Kings cannot transform.
 
-Human vs Computer supports human side selection:
+The serialized configuration still retains the Transform flag so older saves with Transform disabled remain loadable.
+
+## Victory
+
+A match can end through:
+
+- King capture
+- a matured territory claim
+- timeout
+
+King capture takes precedence when more than one victory condition is reached by the same action.
+
+## Computer opponent
+
+Human vs Computer supports selecting the human side:
 
 - Black
 - White
 - Random
 
-AI difficulty levels:
+The public setup screen intentionally does not show AI difficulty levels. The current web AI generates legal actions through the shared engine and chooses among them with deterministic scoring. Older difficulty values remain accepted in saved configurations for compatibility.
 
-- Easy: shallow, fast search
-- Medium: balanced turn search
-- Hard: deeper turn search with higher candidate limits and a browser time budget
+## Web save and load
 
-AI legal moves and simulations are routed through the same engine transitions used by human moves.
+The modern web client stores one local save in the browser and supports:
 
-## Save Format
+- save during placement or play
+- load and continue
+- delete local save
+- export a saved match to JSON
+- export the current in-memory match
+- import a compatible JSON save
+- schema-1 and schema-2 compatibility
+- pending defended-King and Transform decisions
+- timer and undo state where present in the save format
 
-The engine supports exact JSON serialization through `Board.to_json()` and `Board.from_json()`. The active UI Save/Load buttons write `moves.txt` as a versioned `assalto_reale_snapshot` JSON document containing the canonical board state, clocks, placement state, mid-turn action state, territory claim, transform state, mode settings, and snapshot-backed undo history. Legacy text `moves.txt` logs are still accepted as a fallback loader.
-
-## Run Native
-
-Install dependencies:
-
-```bash
-python -m pip install -r PY_Assalto_reale/requirements.txt
-```
-
-Run:
-
-```bash
-python assalto_pygbag_ready/main.py
-```
-
-## Run Tests
-
-```bash
-python -m pytest -q
-```
-
-The core tests are headless and do not open a Pygame window.
-
-## Headless Benchmarks
-
-Run seeded engine simulations without Pygame:
-
-```bash
-python assalto_pygbag_ready/assalto_benchmarks.py --games 4 --seed 1234 --max-turns 160
-```
-
-The benchmark reports win counts, victory reasons, average and median game length, captures, Defense Pawn sacrifices, bounces, average bounce distance, transform availability/use, Special Square control-turn totals, and illegal-action count. Add `--transform` to enable the optional Transform variant during simulations.
-
-## Modern Web Client
-
-The modern browser product lives in `web/`. It uses React, TypeScript and Vite while the Python implementation remains the canonical rules reference during parity work.
+## Run the web client
 
 ```bash
 cd web
@@ -205,7 +209,7 @@ Parity fixtures are generated from the Python engine with:
 python web/scripts/generate_engine_fixtures.py
 ```
 
-To package the modern web artifact for review:
+To package a reviewable static artifact:
 
 ```bash
 cd web
@@ -214,40 +218,58 @@ npm run package:release
 
 The package is written to `release/assalto-reale-web-v1/` with source commit metadata.
 
-## Pygbag Build
+## Run the Python client
 
-Install browser build dependencies:
+Install dependencies:
+
+```bash
+python -m pip install -r PY_Assalto_reale/requirements.txt
+```
+
+Run:
+
+```bash
+python assalto_pygbag_ready/main.py
+```
+
+Run the headless Python tests:
+
+```bash
+python -m pytest -q
+```
+
+## Headless benchmarks
+
+```bash
+python assalto_pygbag_ready/assalto_benchmarks.py --games 4 --seed 1234 --max-turns 160
+```
+
+The benchmark reports wins, victory reasons, game length, captures, Defense Pawn sacrifices, bounces, Transform activity, Special Square control and illegal-action counts.
+
+## Legacy Pygbag build
 
 ```bash
 python -m pip install -r PY_Assalto_reale/requirements_web.txt
-```
-
-Build:
-
-```bash
 python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 ```
 
-Generated browser output belongs in the deployment repository `andreatrdt/AssaltoRealeWeb`. Do not manually patch gameplay logic in compiled Pygbag output.
+Pygbag is the legacy browser runtime. The separate `andreatrdt/AssaltoRealeWeb` repository still serves that build until the modern React artifact is deployed.
 
-The Pygbag build is the legacy browser runtime, not the modern React web product.
+## Deployment
 
-## Deployment Workflow
+The modern deployment path is documented in `docs/deployment.md`.
 
-The modern web deployment path is documented in `docs/deployment.md`.
+1. Finish and test source changes in this repository.
+2. Run the Python and web validation suites.
+3. Package the web artifact with `npm run package:release`.
+4. Publish the reviewed static files to the chosen host.
+5. Record the source commit from `release-metadata.json`.
 
-1. Finish and test source changes in `andreatrdt/Assalto-Reale`.
-2. Run `python -m pytest -q`.
-3. Run the web validation commands in `web/`.
-4. Package with `npm run package:release`.
-5. Publish the reviewed static artifact to the chosen host.
-6. Record the source commit from `release-metadata.json`.
+The manual `Package Web Artifact` workflow creates a reviewable artifact. It does not automatically overwrite the legacy deployment repository.
 
-The manual GitHub Actions workflow `Package Web Artifact` builds and uploads a reviewable static artifact. It does not automatically overwrite `andreatrdt/AssaltoRealeWeb`.
+## Known limitations
 
-## Known Limitations
-
-- The current Pygame UI has been partially restructured around the canonical engine, but a full visual redesign and modal system remains ongoing.
-- Save/Load now uses canonical JSON snapshots, but cloud/browser storage behavior still depends on the runtime environment.
-- Defended-King preview and defender choice are implemented in the active UI; broader animation polish remains ongoing.
-- A local Pygbag build has been verified from this branch; deployment output has not yet been copied to `andreatrdt/AssaltoRealeWeb`.
+- The public deployment still serves the legacy Pygbag build rather than the React client.
+- The web AI is functional but intentionally basic; difficulty levels are not yet meaningfully distinct.
+- Board and interface animation/audio polish is still in progress.
+- Exact Python/TypeScript parity continues to be validated through fixtures and tests.

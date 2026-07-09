@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { ConfirmDialog, EmptyState, GameButton, PageHeader, PageShell, Panel, SectionHeader, StatusBadge } from "../ui/components";
+import "../styles/secondary-pages.css";
 
 interface LoadPageProps {
   route: AppRoute;
@@ -60,14 +61,14 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
   function exportCurrentSave() {
     const json = exportSaveJson();
     if (json) {
-      downloadSaveJson(json, "current-save");
+      downloadSaveJson(json, "current-match");
     }
   }
 
   function exportLocalSave() {
     const raw = window.localStorage.getItem(SAVE_KEY);
     if (raw) {
-      downloadSaveJson(raw, "local-save");
+      downloadSaveJson(raw, "saved-match");
     }
   }
 
@@ -83,7 +84,7 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
       }
     };
     reader.onerror = () => {
-      useGameStore.setState({ message: "Save import failed because the file could not be read." });
+      useGameStore.setState({ message: "The save could not be read." });
       setRefreshKey((value) => value + 1);
     };
     reader.readAsText(file);
@@ -92,56 +93,49 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
   return (
     <PageShell activeRoute={route} navigate={navigate} className="loadShell">
       <PageHeader
-        eyebrow="Saved games"
-        title="Continue A Match"
-        description="Local saves are available in this browser. The current web save schema is still a parity work item, so incomplete fields are called out plainly."
+        title="Saved Matches"
+        description="Continue a match stored in this browser, or move a save between devices."
         actions={
           <GameButton variant="primary" icon="play" onClick={() => navigate(hasActiveMatch ? "/game" : "/setup")}>
-            {hasActiveMatch ? "Resume Current" : "New Match"}
+            {hasActiveMatch ? "Resume Current Match" : "Start a Match"}
           </GameButton>
         }
       />
 
       <Panel tone="strong" className="loadPanel">
-        <SectionHeader eyebrow="Local storage" title="Saved Match" />
+        <SectionHeader title="This browser" description="One local save is kept at a time." />
         {saveSummary ? (
           <article className={saveSummary.valid ? "saveCard" : "saveCard saveCardInvalid"}>
-            <div>
+            <div className="saveDetails">
               <StatusBadge tone={saveSummary.valid ? "success" : "danger"} icon={saveSummary.valid ? "save" : "warning"}>
-                {saveSummary.valid ? "Local save found" : "Needs attention"}
+                {saveSummary.valid ? "Ready to continue" : "Save unavailable"}
               </StatusBadge>
               <h2>{saveSummary.mode}</h2>
               <dl className="summaryList">
                 <div>
                   <dt>Saved</dt>
-                  <dd>{saveSummary.savedAt ?? "Date not stored by current schema"}</dd>
+                  <dd>{saveSummary.savedAt ?? "Date unavailable"}</dd>
                 </div>
                 <div>
                   <dt>Phase</dt>
-                  <dd>{saveSummary.phase ?? "Unknown"}</dd>
+                  <dd>{formatPhase(saveSummary.phase)}</dd>
                 </div>
                 <div>
                   <dt>Turn</dt>
-                  <dd>{saveSummary.turnCounter ?? "Not stored"}</dd>
+                  <dd>{saveSummary.turnCounter ?? "—"}</dd>
                 </div>
                 <div>
                   <dt>Current player</dt>
-                  <dd>{saveSummary.currentPlayer ?? "Unknown"}</dd>
-                </div>
-                <div>
-                  <dt>Schema</dt>
-                  <dd>{saveSummary.schema ? `v${saveSummary.schema}` : "Unknown"}</dd>
+                  <dd>{saveSummary.currentPlayer ?? "—"}</dd>
                 </div>
               </dl>
               {saveSummary.issue && (
-                <StatusBadge tone="info" icon="warning">
-                  {saveSummary.issue}
-                </StatusBadge>
+                <p className={saveSummary.valid ? "saveNotice" : "saveNotice saveNoticeError"}>{saveSummary.issue}</p>
               )}
             </div>
             <div className="saveActions">
               <GameButton variant="primary" icon="load" onClick={loadAndContinue} disabled={!saveSummary.valid}>
-                Load
+                Continue
               </GameButton>
               <GameButton variant="secondary" icon="save" onClick={exportLocalSave} disabled={!saveSummary.valid}>
                 Export
@@ -154,49 +148,75 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
         ) : (
           <EmptyState
             icon="load"
-            title="No local save yet"
+            title="No saved match"
             actions={
               <>
                 <GameButton variant="primary" icon="play" onClick={() => navigate("/setup")}>
-                  Start New Match
+                  Start a Match
                 </GameButton>
-                <GameButton variant="secondary" icon="board" onClick={() => navigate(hasActiveMatch ? "/game" : "/")}>
-                  {hasActiveMatch ? "Current Match" : "Home"}
-                </GameButton>
+                {hasActiveMatch && (
+                  <GameButton variant="secondary" icon="board" onClick={() => navigate("/game")}>
+                    Return to Current Match
+                  </GameButton>
+                )}
               </>
             }
           >
-            <p>Save from the game screen to create a local match card here.</p>
+            <p>Use Save during a match to keep it in this browser.</p>
           </EmptyState>
         )}
-        <div className="saveActions" aria-label="Save import and export">
-          <GameButton variant="secondary" icon="load" onClick={() => fileInputRef.current?.click()}>
-            Import JSON
-          </GameButton>
-          <GameButton variant="secondary" icon="save" onClick={exportCurrentSave} disabled={!hasActiveMatch}>
-            Export Current
-          </GameButton>
-          <input
-            ref={fileInputRef}
-            className="srOnly"
-            type="file"
-            accept="application/json,.json"
-            onChange={(event) => {
-              importSave(event.currentTarget.files?.[0]);
-              event.currentTarget.value = "";
-            }}
-          />
+
+        <div className="saveTools">
+          <div>
+            <h3>Transfer a save</h3>
+            <p>Import a saved match from a file, or export the match currently in progress.</p>
+          </div>
+          <div className="saveToolActions" aria-label="Save import and export">
+            <GameButton variant="secondary" icon="load" onClick={() => fileInputRef.current?.click()}>
+              Import Save
+            </GameButton>
+            <GameButton variant="secondary" icon="save" onClick={exportCurrentSave} disabled={!hasActiveMatch}>
+              Export Current Match
+            </GameButton>
+            <input
+              ref={fileInputRef}
+              className="srOnly"
+              type="file"
+              accept="application/json,.json"
+              onChange={(event) => {
+                importSave(event.currentTarget.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+            />
+          </div>
         </div>
-        <p className="statusLine">{message}</p>
+
+        {message && (
+          <p className="loadMessage" role="status">
+            {message}
+          </p>
+        )}
       </Panel>
 
       {deleteOpen && (
-        <ConfirmDialog title="Delete local save?" confirmLabel="Delete Save" danger onConfirm={deleteLocalSave} onCancel={() => setDeleteOpen(false)}>
-          <p>This removes the saved match from this browser only. Any active match currently in memory is not changed.</p>
+        <ConfirmDialog title="Delete saved match?" confirmLabel="Delete Save" danger onConfirm={deleteLocalSave} onCancel={() => setDeleteOpen(false)}>
+          <p>This removes the saved match from this browser. A match currently open in memory is not affected.</p>
         </ConfirmDialog>
       )}
     </PageShell>
   );
+}
+
+function formatPhase(phase: string | null): string {
+  if (!phase) return "Unknown";
+  const labels: Record<string, string> = {
+    placement: "Placement",
+    playing: "In progress",
+    defenderSelection: "Defender choice",
+    transformSelection: "Transform choice",
+    gameOver: "Finished",
+  };
+  return labels[phase] ?? phase;
 }
 
 function readSaveSummary(): SaveSummary | null {
@@ -207,15 +227,16 @@ function readSaveSummary(): SaveSummary | null {
     const parsed = JSON.parse(raw);
     const schema = typeof parsed.schema === "number" ? parsed.schema : null;
     const config = parsed.matchConfig;
-    const opponent = config?.opponent === "Computer" ? `${config.aiDifficulty ?? "Unknown"} AI` : "Human vs Human";
-    const placement = config?.placementMode === "QuickBalanced" ? "Quick Balanced" : config?.placementMode === "Manual" ? "Manual" : "Unknown placement";
+    const opponent = config?.opponent === "Computer" ? "Human vs Computer" : "Human vs Human";
+    const placement = config?.placementMode === "QuickBalanced" ? "Quick setup" : config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
+    const transform = config?.transformEnabled === false ? "Transform off" : "Transform on";
     const valid = (schema === 1 || schema === 2) && Boolean(parsed.board);
     const issue =
       schema === 1
-        ? "This is an older schema-1 web save. It can be loaded, but modal decisions and undo history may be incomplete."
+        ? "This save was created by an older version. It can still be loaded, but some in-progress choices or undo history may be unavailable."
         : parsed.savedAt
           ? undefined
-          : "The save is missing saved-at metadata.";
+          : "This save does not include a saved date.";
     return {
       valid,
       schema,
@@ -223,8 +244,8 @@ function readSaveSummary(): SaveSummary | null {
       phase: parsed.phase?.phase ?? parsed.phase ?? null,
       currentPlayer: parsed.currentPlayer ?? null,
       turnCounter: typeof parsed.turnCounter === "number" ? parsed.turnCounter : null,
-      mode: `${opponent}, ${placement}`,
-      issue: valid ? issue : "This local save uses an unsupported or incomplete schema.",
+      mode: `${opponent} · ${placement} · ${transform}`,
+      issue: valid ? issue : "This save was created by an unsupported version or is missing required game data.",
     };
   } catch {
     return {
@@ -234,8 +255,8 @@ function readSaveSummary(): SaveSummary | null {
       phase: null,
       currentPlayer: null,
       turnCounter: null,
-      mode: "Unreadable local save",
-      issue: "The saved data could not be parsed as JSON.",
+      mode: "Unreadable saved match",
+      issue: "The saved data is not a valid Assalto Reale save.",
     };
   }
 }

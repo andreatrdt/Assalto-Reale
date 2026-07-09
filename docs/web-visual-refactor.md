@@ -1,105 +1,151 @@
-# Web Visual Refactor Checklist
+# Web Visual Refactor Status
 
-## Baseline Issues
+## Product direction
 
-- Home, Setup, Rules, Load and Settings share theme colors but not a mature application shell or active navigation.
-- Setup is a functional form, but it reads as a grid of generic controls rather than a deliberate pre-match configuration table.
-- Game route puts the board below a tall top bar; desktop HUDs make the board smaller than it should be, and tablet/mobile place the board too low.
-- Text panels are plain and sparse; Rules does not yet feel like a digital rulebook.
-- Load and Settings expose implementation limitations, but the states are not presented as polished player-facing experiences.
-- Buttons, selected states, badges, clocks, section headers, and panels are duplicated through ad hoc CSS classes.
-- Board states exist, but the visual language for Special Squares, legal moves, selected pieces, defended Kings, and faction ownership needs stronger non-color cues.
+The modern web client should feel like a calm, contemporary digital board game:
 
-## Components To Introduce
+- board-first during play
+- muted green and neutral surfaces
+- clear sans-serif typography
+- restrained borders and shadows
+- plain player-facing language
+- no medieval, heraldic, gold-heavy or fantasy decoration
+- no duplicated dashboard information
 
-- `PageShell`, `PageHeader`, `SectionHeader`
-- `GameButton`, `IconButton`
-- `Panel`, `GameCard`
-- `SegmentedControl`, `FormField`, `Toggle`
-- `StatusBadge`, `FactionBadge`, `EmptyState`
-- `Modal`, `ConfirmDialog`, `Tooltip`
+The visual layer must not recompute game rules. Engine and store state remain the source of truth.
 
-## Routes To Redesign
+## Locked public setup
 
-- `/`: game landing screen with compact identity, immediate New Match action, Continue/Load, Rules and Settings.
-- `/setup`: pre-match configuration with grouped sections, faction previews, concise helper text and strong summary/start action.
-- `/game`: board-first command table with top status, side/bottom HUD, compact controls and readable messages.
-- `/rules`: rulebook layout with contents, sections, and canonical README-aligned explanations.
-- `/load`: saved-match card/empty-state experience with schema limitation messaging.
-- `/settings`: implemented settings only, grouped by visual/accessibility preferences.
+Every newly started public web match uses:
 
-## Board And HUD Improvements
+- manual placement
+- Transform enabled
+- Human vs Human or Human vs Computer
+- Black, White or Random side selection for Computer matches
+- timed or untimed play
 
-- Make board the central focus on desktop and prevent tablet/mobile from pushing it below all HUD content.
-- Add a stronger stone/wood frame, coordinate labels, clearer legal move and capture indicators, and a non-color defended-King shield mark.
-- Use faction badges, AP counters, timer slots, captured-piece rows and territory language in the HUD.
-- Keep current engine-provided legal targets and placement highlights unchanged.
+`QuickBalanced`, AI difficulty values and older Transform configurations remain internally compatible for tests and saved games, but are not exposed in the public setup screen.
 
-## Responsive Requirements
+## Completed
 
-- Verify 360x800, 768x1024, 1366x768 and 1920x1080.
-- Avoid horizontal scrolling.
-- Keep the board readable and touch targets at usable sizes.
-- Stack secondary HUD below the board on small screens while keeping current action status above or near the board.
+### Shared foundation
 
-## Accessibility Requirements
+- muted green/neutral design tokens
+- shared shell, buttons, panels, form controls, badges, empty states and confirmation dialogs
+- persisted reduced-motion and high-contrast-board preferences
+- responsive layouts at mobile, tablet and desktop sizes
 
-- Preserve semantic buttons, headings, fieldsets and board grid cells.
-- Keep visible focus states and selected states that do not rely only on color.
-- Add clear labels for navigation, setup groups, status badges and modal controls.
-- Respect `prefers-reduced-motion`.
+### Home
 
-## Animation Opportunities
+- single Assalto Reale title
+- dominant Start Match action
+- conditional Continue Last Match action
+- restrained Load, Rules and Settings utilities
+- no decorative board preview or promotional dashboard content
 
-- Short route/page entrance movement.
-- Board legal-target reveal and piece hover/selection lift.
-- AI thinking pulse.
-- Modal fade/scale.
-- No animation may delay game logic or recompute game rules.
+### Match setup
 
-## Functionality To Preserve
+- minimal centred layout
+- Human / Computer selector
+- side selection shown only for Computer
+- compact timer selector
+- Manual placement and Transform displayed as fixed public rules
+- no public Quick Balanced, Transform toggle or AI difficulty selector
 
-- Existing routes and route guards.
-- `MatchConfig`, resolved human/AI side behavior, timer presets and production seed fix.
-- Current game store commands and engine state ownership.
-- Manual and Quick Balanced start flows.
-- AI-owned placement and AI turn wiring.
-- Save/load commands, with current schema limitations clearly disclosed.
+### Game layout
 
-## Completed In This Slice
+- compact game-specific header
+- board-first desktop layout
+- one compact status/control panel
+- panel below the board on smaller screens
+- placement, active play, defended-King, Transform and victory states retained
+- timers, action points, save, load, undo, restart and rematch retained
 
-- Added a shared presentation layer in `web/src/ui/components.tsx` with buttons, panels, shell navigation, badges, segmented controls, toggles, empty states and confirmation dialogs.
-- Added persisted visual/accessibility settings for reduced motion and high-contrast board mode.
-- Reworked Home into a game landing screen with a tactical identity, quick actions and non-playable board preview.
-- Reworked Setup into grouped pre-match sections with independent `MatchConfig` controls and a sticky summary/start panel.
-- Reworked Game into a board-first command table with compact top status, player clocks, side HUDs, command panels, confirmation dialogs and AI-thinking status.
-- Improved board presentation with a stronger frame, coordinate labels, clearer legal/capture/placement markers and non-color defended-King shield marks.
-- Reworked Rules into a responsive rulebook with contents and README-aligned explanations.
-- Reworked Load into a local-save card/empty-state experience with invalid/incomplete save messaging and delete confirmation.
-- Reworked Settings to expose only implemented preferences.
-- Added server-render presentation tests covering route rendering, setup selected states, game HUD rendering, confirmation dialogs and empty save state.
-- Fixed SPA navigation scroll reset so `/game` does not inherit scroll from the Setup route.
-- Follow-up UX slice: exposed Save during manual placement because the current save schema includes placement phase, board, cursor, current placement, remaining pieces, clocks and match config; added a store test proving placement save/load resumes the deployment state.
-- Follow-up UX slice: added placement save helper copy noting unresolved Defended-King or Transform modal decisions still need fuller serialization before they can safely be saved.
-- Release hardening slice: Load now recognizes schema-2 web saves, shows the save schema, exports either the stored local save or the active current match, imports JSON with validation, and keeps schema-1 warnings visible.
-- Follow-up UX slice: expanded the Defended-King panel to show attacking pawn, attacked King, eligible defender squares, engine-provided attack path, bounce path, landing square, AP cost, Transform trigger and turn-ending status.
-- Follow-up UX slice: Defended-King attacks now enter the preview state even when only one defender is eligible, so the sacrifice is visible before confirmation.
-- Follow-up UX slice: added visible Rematch action to victory state, clarified restart/rematch confirmation copy, and disabled restart when no stored match setup exists.
+### Board foundation
 
-## Remaining Visual/UX Limitations
+- larger board sizing
+- lighter sage/neutral square palette
+- clearer Black and White pieces
+- improved movement, capture, placement and selection markers
+- visual captured-piece rows using piece glyphs
+- defended-King shield removed
+- high-contrast board variant retained
 
-- Full Defended-King animation still needs engine/store state for ordered animation steps: attack, defender sacrifice, bounce path, landing, optional Transform. The current preview shows available positions and paths but does not animate them.
-- Defended-King decision ownership is still inferred from the attacking side in UI copy. The parity work should add explicit `PendingDecision.owner` so AI/human ownership is not inferred from `currentPlayer` or attacker.
-- Timer countdown UI is now backed by a monotonic active-human clock with timeout victory, but full Python pause/save/load policy remains release parity work.
-- Load cards can now show saved-at metadata and schema for new saves; older schema-1 local saves remain loadable with limitation messaging.
-- Victory/rematch now has visible actions and confirmation, but exact rematch lifecycle parity and random-side rematch policy still belong to the match-controller work.
-- Audio feedback is not implemented in this slice.
+### Secondary pages
 
-## Screenshot Report
+- Rules rewritten around the actual public product and canonical rules
+- Settings reduced to implemented preferences only
+- Saved Matches rewritten with player-facing load, import, export and compatibility messages
+- README aligned with the current React product, internal compatibility paths and legacy deployment status
 
-- `docs/web-visual-refactor-screenshots/home.png`
-- `docs/web-visual-refactor-screenshots/setup.png`
-- `docs/web-visual-refactor-screenshots/game.png`
-- `docs/web-visual-refactor-screenshots/rules.png`
-- `docs/web-visual-refactor-screenshots/load.png`
-- `docs/web-visual-refactor-screenshots/settings.png`
+## Accessibility requirements
+
+The current redesign preserves or improves:
+
+- semantic buttons and headings
+- board grid and grid-cell semantics
+- keyboard square activation
+- visible focus states
+- selected/action states that use shape as well as colour
+- reduced-motion support
+- high-contrast board support
+- screen-reader labels for pieces, squares and defended Kings
+
+## Functionality that must remain unchanged
+
+- canonical movement and capture rules
+- action-point rules and King action restriction
+- manual placement order and restrictions
+- defended-King sacrifice and bounce resolution
+- Transform eligibility and timing
+- Special Square control and territory claims
+- victory precedence
+- AI ownership and turn lifecycle
+- timers and timeout victory
+- undo
+- save/load and old-save compatibility
+- route protection, PWA and packaging behaviour
+
+## Remaining visual and UX work
+
+### Board-state clarity
+
+- replace the remaining central Special Square symbol with a restrained border/corner treatment
+- replace the Transform emblem with a distinct minimal border treatment
+- show defended-King attack path, eligible defenders, bounce path and landing square directly on the board
+- keep these overlays driven by the existing pending-decision preview data
+
+### Game feel
+
+- movement and capture transitions
+- defended-King sacrifice and bounce sequence
+- Transform transition
+- stronger victory presentation
+- move, capture, Transform and victory audio
+- mute and volume controls
+
+### Technical/release work
+
+- resolve the Linux/Python CI failure
+- improve the computer opponent as a separate project
+- expand exact Python/TypeScript parity coverage
+- deploy the React artifact instead of the legacy Pygbag build
+- verify production routing, persistence and PWA installation
+
+### Later features
+
+- recent completed matches
+- match history
+- replay and step-through controls
+- match statistics
+
+## Validation baseline
+
+The established pre-cleanup baseline is:
+
+- 37 Python tests
+- more than 100 web unit tests
+- 20 Playwright executions
+- successful production build
+
+All visual slices should preserve or increase those totals and must not remove or silently skip existing coverage.
