@@ -1,0 +1,71 @@
+name: Deploy web to GitHub Pages
+
+# Publishes the modern React/Vite client (web/) to GitHub Pages from the
+# authoritative source repository. Manual dispatch only for now — nothing
+# deploys automatically. Requires a one-time repository setting:
+# Settings -> Pages -> Source = "GitHub Actions".
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_path:
+        description: "Vite base path — must match the Pages URL subpath (repo project site)."
+        required: true
+        default: "/Assalto-Reale/"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deployments at once; let an in-progress publish finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Web unit tests
+        working-directory: web
+        run: npm run test
+      - name: Production build (with Pages base path)
+        working-directory: web
+        run: npm run build -- --base "${{ inputs.base_path }}"
+      - name: Write release metadata
+        working-directory: web
+        run: node scripts/write-release-metadata.mjs
+      - name: Verify build output
+        working-directory: web
+        run: |
+          set -e
+          for f in index.html 404.html manifest.webmanifest sw.js release-metadata.json; do
+            test -f "dist/$f" || { echo "Missing dist/$f"; exit 1; }
+          done
+          grep -q "${{ inputs.base_path }}assets/" dist/index.html
+          echo "Build output verified for base ${{ inputs.base_path }}"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
