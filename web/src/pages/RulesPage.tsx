@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { AppRoute } from "../app/routes";
 import { GameButton, PageHeader, PageShell, SectionHeader } from "../ui/components";
+import "../styles/secondary-pages.css";
 
 interface RulesPageProps {
   route: AppRoute;
