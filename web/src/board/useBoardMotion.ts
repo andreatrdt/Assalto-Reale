@@ -9,6 +9,7 @@ import {
 } from "./boardMotion";
 
 type StoreState = ReturnType<typeof useGameStore.getState>;
+type DefendedKingContext = NonNullable<BoardMotionSnapshot["pendingDefendedKing"]>;
 
 export function toBoardMotionSnapshot(state: StoreState): BoardMotionSnapshot {
   return {
@@ -23,7 +24,7 @@ export function toBoardMotionSnapshot(state: StoreState): BoardMotionSnapshot {
       : null,
     pendingDefendedKing: state.pendingDefendedKing
       ? {
-          action: state.pendingDefendedKing.action,
+          action: state.pendingDefendedKing.action as DefendedKingContext["action"],
           defenders: state.pendingDefendedKing.defenders,
         }
       : null,
