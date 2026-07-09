@@ -18,7 +18,7 @@ describe("route presentation", () => {
     expect(routeFromPathname("/setup")).toBe("/setup");
   });
 
-  it("renders the non-game routes with the shared shell", () => {
+  it("renders the streamlined non-game routes with the shared shell", () => {
     const home = renderToStaticMarkup(<HomePage route="/" navigate={navigate} />);
     const rules = renderToStaticMarkup(<RulesPage route="/rules" navigate={navigate} />);
     const load = renderToStaticMarkup(<LoadPage route="/load" navigate={navigate} />);
@@ -26,14 +26,29 @@ describe("route presentation", () => {
 
     expect(home).toContain("Assalto Reale");
     expect(home).toContain("Start Match");
-    expect(rules).toContain("Rules Of Assalto Reale");
+
+    expect(rules).toContain("How to Play");
     expect(rules).toContain("Capture hierarchy");
-    expect(load).toContain("Continue A Match");
-    expect(load).toContain("No local save yet");
-    expect(load).toContain("Import JSON");
-    expect(load).toContain("Export Current");
+    expect(rules).toContain("All new public matches use manual placement");
+    expect(rules).toContain("Transform is enabled in every newly started public match");
+    expect(rules).not.toContain("Field manual");
+    expect(rules).not.toContain("Quick Balanced");
+    expect(rules).not.toContain("parity");
+    expect(rules).not.toContain("shield");
+
+    expect(load).toContain("Saved Matches");
+    expect(load).toContain("No saved match");
+    expect(load).toContain("Import Save");
+    expect(load).toContain("Export Current Match");
+    expect(load).not.toContain("parity work item");
+    expect(load).not.toContain("Schema");
+
     expect(settings).toContain("Reduce motion");
     expect(settings).toContain("High contrast board");
+    expect(settings).toContain("Changes apply immediately");
+    expect(settings).not.toContain("Coming later");
+    expect(settings).not.toContain("Not exposed until implemented");
+    expect(settings).not.toContain("Audio And Defaults");
   });
 
   it("renders the minimal public setup with fixed match rules", () => {
