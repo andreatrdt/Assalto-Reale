@@ -248,22 +248,23 @@ function derivePlacement(next: BoardMotionSnapshot, changes: PieceChange[]): Pla
 
 function deriveMoveOrCapture(changes: PieceChange[]): MoveMotion | CaptureMotion | null {
   const additions = changes.filter((change) => change.after !== null);
-  if (additions.length !== 1 || !additions[0].after) return null;
+  const destination = additions.length === 1 ? additions[0] : undefined;
+  const movingPiece = destination?.after ?? null;
+  if (!destination || !movingPiece) return null;
 
-  const destination = additions[0];
   const source = changes.find(
     (change) =>
       !samePosition(change.pos, destination.pos) &&
       change.before !== null &&
-      samePiece(change.before, destination.after) &&
-      (change.after === null || !samePiece(change.after, destination.after)),
+      samePiece(change.before, movingPiece) &&
+      (change.after === null || !samePiece(change.after, movingPiece)),
   );
   if (!source || !source.before) return null;
 
-  if (destination.before && destination.before.player !== destination.after.player) {
+  if (destination.before && destination.before.player !== movingPiece.player) {
     return {
       kind: "capture",
-      piece: destination.after,
+      piece: movingPiece,
       captured: destination.before,
       from: copyPos(source.pos),
       to: copyPos(destination.pos),
@@ -272,7 +273,7 @@ function deriveMoveOrCapture(changes: PieceChange[]): MoveMotion | CaptureMotion
 
   return {
     kind: "move",
-    piece: destination.after,
+    piece: movingPiece,
     from: copyPos(source.pos),
     to: copyPos(destination.pos),
   };
