@@ -191,7 +191,11 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
           </div>
         </div>
 
-        {message && <p className="loadMessage" role="status">{message}</p>}
+        {message && (
+          <p className="loadMessage" role="status">
+            {message}
+          </p>
+        )}
       </Panel>
 
       {deleteOpen && (
@@ -205,13 +209,14 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
 
 function formatPhase(phase: string | null): string {
   if (!phase) return "Unknown";
-  return {
+  const labels: Record<string, string> = {
     placement: "Placement",
     playing: "In progress",
     defenderSelection: "Defender choice",
     transformSelection: "Transform choice",
     gameOver: "Finished",
-  }[phase] ?? phase;
+  };
+  return labels[phase] ?? phase;
 }
 
 function readSaveSummary(): SaveSummary | null {
