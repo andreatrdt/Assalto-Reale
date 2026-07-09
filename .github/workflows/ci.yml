@@ -41,17 +41,7 @@ jobs:
         run: npm run test
       - name: Web build
         working-directory: web
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build 2>&1 | tee build-diagnostics.txt
-      - name: Upload web build diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-build-diagnostics
-          path: web/build-diagnostics.txt
-          if-no-files-found: ignore
+        run: npm run build
 
   web-e2e:
     runs-on: ubuntu-latest
