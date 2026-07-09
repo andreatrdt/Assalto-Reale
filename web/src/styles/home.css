@@ -1,0 +1,79 @@
+.homeShell .pageShellContent {
+  min-height: calc(100dvh - 5.5rem);
+  padding-top: clamp(2.25rem, 11vh, 7rem);
+}
+
+.home {
+  gap: clamp(2rem, 5vw, 3.5rem);
+  max-width: min(92vw, 48rem);
+}
+
+.homeIdentity {
+  display: grid;
+  gap: 1.2rem;
+  justify-items: center;
+}
+
+.homeTitle {
+  display: grid;
+  font-size: clamp(4rem, 11vw, 8rem);
+  font-weight: 800;
+  letter-spacing: -0.065em;
+  line-height: 0.78;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.homeTitle span {
+  display: block;
+}
+
+.homeTitleAccent {
+  color: var(--accent-strong);
+}
+
+.homeMotto {
+  color: var(--text-muted);
+  font-size: clamp(0.78rem, 1.6vw, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.homeMotto::after {
+  background: var(--accent);
+  content: "";
+  display: block;
+  height: 2px;
+  margin: 0.9rem auto 0;
+  opacity: 0.75;
+  width: 3.25rem;
+}
+
+.home .homeActions {
+  width: min(22rem, 100%);
+}
+
+.home .homeActions .gameButton {
+  min-height: 3.5rem;
+}
+
+@media (max-width: 560px) {
+  .homeShell .pageShellContent {
+    padding-top: clamp(2rem, 8vh, 4rem);
+  }
+
+  .home {
+    gap: 2.25rem;
+  }
+
+  .homeTitle {
+    font-size: clamp(3.35rem, 18vw, 5.3rem);
+    line-height: 0.82;
+  }
+
+  .homeMotto {
+    letter-spacing: 0.1em;
+  }
+}
