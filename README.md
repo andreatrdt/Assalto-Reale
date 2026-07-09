@@ -232,9 +232,12 @@ Run:
 python assalto_pygbag_ready/main.py
 ```
 
-Run the headless Python tests:
+Run the headless Python tests. The rules-engine suite only needs `pytest`
+(the engine itself uses the standard library only), pinned in
+`requirements-dev.txt`:
 
 ```bash
+python -m pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
@@ -254,6 +257,21 @@ python -m pygbag --build --ume_block 0 assalto_pygbag_ready
 ```
 
 Pygbag is the legacy browser runtime. The separate `andreatrdt/AssaltoRealeWeb` repository still serves that build until the modern React artifact is deployed.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`
+and `release/**`, using **Python 3.12** and **Node 22**. It is split into three
+independent jobs so a failure in one is diagnosable without hiding the others:
+
+- `python-tests` — installs `requirements-dev.txt` (pytest), then `python -m pytest -q`.
+- `web-unit-build` — `npm ci`, `npm run test`, `npm run build`.
+- `web-e2e` — `npm ci`, `npx playwright install --with-deps chromium`, `npm run e2e`.
+
+Playwright's Chromium is installed only in the e2e job. The overall workflow
+fails if any required job fails. The authoritative local validation commands are
+`python -m pip install -r requirements-dev.txt && python -m pytest -q` and, in
+`web/`, `npm ci && npm run test && npm run build && npm run e2e`.
 
 ## Deployment
 

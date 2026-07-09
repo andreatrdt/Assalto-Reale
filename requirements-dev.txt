@@ -1,0 +1,5 @@
+# Python test/development dependencies for the canonical rules-engine test suite.
+# The engine itself (assalto_pygbag_ready/assalto_core.py) uses only the standard
+# library, so pytest is the sole third-party requirement. Pinned for reproducible
+# CI runs; keep in sync with the version validated locally.
+pytest==8.3.5
