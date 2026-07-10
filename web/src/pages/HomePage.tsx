@@ -24,7 +24,10 @@ export function HomePage({ route, navigate }: HomePageProps) {
 
         <div className="homeActions" aria-label="Start actions">
           <GameButton variant="primary" size="lg" onClick={() => navigate("/setup")}>
-            Start Match
+            Local Match
+          </GameButton>
+          <GameButton variant="secondary" size="lg" onClick={() => navigate("/online")}>
+            Online Match
           </GameButton>
           {hasActiveMatch && (
             <GameButton variant="secondary" size="lg" onClick={() => navigate("/game")}>
