@@ -97,8 +97,21 @@ jobs:
         run: npm ci
 
       - name: Typecheck
+        id: transport-typecheck
+        continue-on-error: true
         working-directory: packages/server-transport
-        run: npm run typecheck
+        run: npm run typecheck > transport-typecheck.log 2>&1
+
+      - name: Upload typecheck diagnostics
+        if: steps.transport-typecheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: transport-typecheck-diagnostics
+          path: packages/server-transport/transport-typecheck.log
+
+      - name: Enforce typecheck result
+        if: steps.transport-typecheck.outcome == 'failure'
+        run: exit 1
 
       - name: Architecture lint
         working-directory: packages/server-transport
