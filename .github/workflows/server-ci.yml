@@ -1,0 +1,52 @@
+name: Authoritative Server CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release/**
+
+jobs:
+  authoritative-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install repository toolchain
+        working-directory: web
+        run: npm ci
+
+      - name: Install authoritative server dependencies
+        working-directory: packages/authoritative-server
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: packages/authoritative-server
+        run: npm run typecheck
+
+      - name: Architecture lint
+        working-directory: packages/authoritative-server
+        run: npm run lint
+
+      - name: Formatting check
+        working-directory: packages/authoritative-server
+        run: npm run format:check
+
+      - name: Unit and integration coverage
+        working-directory: packages/authoritative-server
+        run: npm run test:coverage
+
+      - name: ESM build and plain-Node smoke
+        working-directory: packages/authoritative-server
+        run: npm run smoke
+
+      - name: Production dependency audit
+        working-directory: packages/authoritative-server
+        run: npm run audit:prod

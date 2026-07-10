@@ -3,7 +3,8 @@
 **This is the canonical source of truth for the current application.** Other
 documents in `docs/` are design history or task-specific notes; where they
 disagree with this file, this file wins. Last reconciled through the full-rules
-parity and game-store decomposition passes (see `CHANGELOG.md` for the version).
+parity, game-store decomposition, pure game-core, multiplayer-protocol and
+authoritative-server application-core passes (see `CHANGELOG.md`).
 
 ## What ships publicly
 
@@ -29,6 +30,8 @@ user-facing app (verified from implementation and tests):
 - Responsive **board-first** desktop and mobile layouts.
 - Installable **PWA** (manifest, icons, service worker, `404.html` SPA fallback)
   and a packaged production build.
+
+Online multiplayer is not exposed in the client yet.
 
 ## Retained for compatibility / internal use (not public UI)
 
@@ -58,11 +61,37 @@ completed phases; imports are validated atomically; storage failures fail safe.
 
 ## State architecture
 
-`useGameStore` remains the only public Zustand entry point. The store now acts as
-a coordinator while pure placement, turn, clock, history and persistence logic
-lives in focused modules under `web/src/game/`. The public runtime surface is
-frozen by `storeContract.test.ts`; rules remain owned by the engine. See
-[`game-store-contract.md`](game-store-contract.md).
+`useGameStore` remains the only public Zustand entry point. The store acts as a
+browser/UI coordinator while pure placement, turn, clock, history and persistence
+logic lives in focused modules under `web/src/game/`. Its public runtime surface
+is frozen by `storeContract.test.ts`.
+
+Gameplay authority now lives in the browser-independent
+`packages/game-core`. The web app consumes it through adapters; the future
+server consumes the same public package. See [`game-store-contract.md`](game-store-contract.md)
+and [`game-core-extraction.md`](game-core-extraction.md).
+
+## Multiplayer architecture status
+
+The transport-independent wire contract is implemented by
+`packages/multiplayer-protocol`. It defines versioned command/event envelopes,
+runtime validation, semantic command IDs, expected match versions, ordered event
+streams and canonical reconnect snapshots. It does not implement networking.
+
+Phase C.8.1 adds `packages/authoritative-server`, an application/domain core that:
+
+- authenticates an injected transport principal and matches it to the declared actor;
+- enforces semantic command idempotency, membership and optimistic match versions;
+- generates match IDs, invite codes and deterministic setup seeds server-side;
+- invokes `game-core` as the only gameplay-rules authority;
+- atomically commits match state and command receipts;
+- returns ordered `multiplayer-protocol` event envelopes;
+- supports invite-code join, resignation and canonical `RequestSync`;
+- exposes repository/unit-of-work ports plus a deterministic in-memory adapter.
+
+It deliberately has no HTTP/WebSocket transport, PostgreSQL adapter, production
+authentication provider, account system or multiplayer UI. See
+[`authoritative-server.md`](authoritative-server.md).
 
 ## Known limitations (currently true)
 
@@ -84,7 +113,9 @@ frozen by `storeContract.test.ts`; rules remain owned by the engine. See
   (see `docs/browser-quality.md`).
 - **Board keyboard navigation** is per-square tab stops with Enter/Space
   activation; arrow-key roving grid navigation is not yet implemented.
-- No online multiplayer, no Android packaging, no authentication/matchmaking.
+- The server foundation is not a deployable online product until persistence,
+  transport, accounts and client integration are added.
+- No Android packaging, public matchmaking or ratings.
 
 ## Deployment status
 
@@ -93,34 +124,38 @@ Live on **GitHub Pages** from this repository via
 `workflow_run` after CI succeeds on `main`). `release-metadata.json` records the
 deployed source commit. See `docs/deployment.md` and `docs/release-checklist.md`.
 
+The authoritative-server package is validated in CI but is not deployed.
+
 ## Validation baseline
 
-Recorded at the release-hardening pass (exact executed results are in the pull
-request / final report; keep this list as the shape of the required gates):
+Required repository gates:
 
 - Python: `pytest` (rules-engine + workflow-config tests).
+- Python–TypeScript deterministic parity fixtures and tests.
 - Web unit: `vitest` with coverage thresholds.
-- Static quality: `tsc` typecheck, ESLint, Prettier check.
-- Production build: `tsc -b && vite build`.
-- Playwright: Chromium full suite + Pixel-5 mobile (fast gate); Firefox/WebKit
-  cross-browser smoke; axe accessibility gate; Chromium visual regression
-  (Linux baselines, containerised CI job).
-- Production dependency audit: `npm audit --omit=dev` (must be clean).
+- Web static quality: TypeScript, ESLint, Prettier and production audit.
+- Web production build and package smokes.
+- Playwright Chromium/mobile, Firefox/WebKit and visual-gate contract.
+- Authoritative server: strict TypeScript, architecture lint, Prettier, coverage
+  thresholds, ESM build, plain-Node smoke and production dependency audit.
 
-## Future milestones (not in scope here)
+## Roadmap position
 
-1. Broader generated-sequence budgets and exhaustive/property-based parity beyond
-   the committed deterministic fixture suite.
-2. A pure shared TypeScript `game-core` module.
-3. A stronger AI (search/evaluation).
-4. Online multiplayer.
-5. Arrow-key board navigation and bfcache/mobile-suspension lifecycle coverage
-   (deferred from browser-quality hardening; see `docs/browser-quality.md`).
-6. Android packaging.
+```text
+Phase A                               completed
+Phase B.5 Store decomposition         completed
+Phase B.6 Pure game-core              completed
+Phase B.7 Multiplayer protocol        completed
+Phase C.8 Authoritative server
+  C.8.1 Application core              completed by this phase
+  C.8.2 PostgreSQL adapter            next
+  C.8.3 Transport adapter             pending
+Phase C.9 Invite multiplayer          pending
+Phase C.10 Accounts/continuity        pending
+Phase C.11 Timed online matches       pending
+Android packaging                     later
+Matchmaking/ratings/social            later
+```
 
-Delivered since: persistence & match-lifecycle hardening; browser-quality
-hardening (accessibility/axe, keyboard, cross-browser, visual regression,
-reduced-motion/high-contrast, PWA/offline); the Python⇄TypeScript shared PRNG
-and seeded-generation parity; complete-turn + special-mechanic parity
-(`docs/rules-parity-contract.md`); and the behaviour-preserving game-store
-decomposition (`docs/game-store-contract.md`).
+Optional parallel work remains: stronger AI, broader generated parity, arrow-key
+board navigation and mobile lifecycle hardening.

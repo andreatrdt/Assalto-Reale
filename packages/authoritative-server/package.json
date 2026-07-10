@@ -1,0 +1,44 @@
+{
+  "name": "@assalto-reale/authoritative-server",
+  "version": "1.0.0-beta.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "deps:build": "npm --prefix ../multiplayer-protocol run build && node ../../web/node_modules/typescript/bin/tsc -p ../game-core/tsconfig.json --pretty false",
+    "typecheck": "npm run deps:build && tsc -p tsconfig.json --noEmit --pretty false",
+    "build": "npm run deps:build && tsc -p tsconfig.build.json --pretty false",
+    "test": "npm run deps:build && vitest run --config vitest.config.ts",
+    "test:coverage": "npm run deps:build && vitest run --config vitest.config.ts --coverage",
+    "lint": "node ../../web/node_modules/eslint/bin/eslint.js --config ../../web/eslint.config.js src tests scripts --max-warnings 0",
+    "format:check": "prettier --check .",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "audit:prod": "npm audit --omit=dev"
+  },
+  "dependencies": {
+    "@assalto-reale/game-core": "file:../game-core",
+    "@assalto-reale/multiplayer-protocol": "file:../multiplayer-protocol"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
