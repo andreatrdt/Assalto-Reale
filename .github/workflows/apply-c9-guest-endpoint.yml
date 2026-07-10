@@ -1,0 +1,194 @@
+name: Apply C9 guest endpoint
+
+on:
+  push:
+    branches:
+      - feat/c9-invite-multiplayer
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, 'add guest session http endpoint') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/c9-invite-multiplayer
+      - name: Patch transport server
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('packages/server-transport/src/transportServer.ts')
+          source = path.read_text()
+          source = source.replace(
+              'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\n',
+              'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\nimport type { GuestSessionIssuer } from "./guestSessions.js";\n',
+              1,
+          )
+          source = source.replace(
+              '  authenticateConnection: ConnectionAuthenticator;\n  readiness?: ReadinessProbe;\n',
+              '  authenticateConnection: ConnectionAuthenticator;\n  guestSessions?: GuestSessionIssuer;\n  readiness?: ReadinessProbe;\n',
+              1,
+          )
+          start = source.index('  private async handleHttp(')
+          end = source.index('  private async handleUpgrade(', start)
+          replacement = '''  private async handleHttp(
+              request: IncomingMessage,
+              response: ServerResponse,
+            ): Promise<void> {
+              const path = parsePath(request);
+              const origin =
+                typeof request.headers.origin === "string"
+                  ? request.headers.origin
+                  : null;
+
+              if (path === "/session") {
+                if (!this.options.guestSessions) {
+                  this.sendJson(response, 404, { status: "not_found" }, false, origin);
+                  return;
+                }
+                if (!this.isOriginAllowed(origin)) {
+                  this.sendJson(response, 403, { status: "forbidden" }, false, null);
+                  return;
+                }
+                if (request.method === "OPTIONS") {
+                  response.writeHead(204, this.corsHeaders(origin));
+                  response.end();
+                  return;
+                }
+                if (request.method !== "POST") {
+                  this.sendJson(
+                    response,
+                    405,
+                    { status: "method_not_allowed" },
+                    request.method === "HEAD",
+                    origin,
+                  );
+                  return;
+                }
+                try {
+                  const session = await this.options.guestSessions.issue();
+                  this.sendJson(response, 201, session, false, origin);
+                } catch (error) {
+                  this.logger.error("Guest session issuance failed.", {
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                  this.sendJson(
+                    response,
+                    503,
+                    { status: "service_unavailable" },
+                    false,
+                    origin,
+                  );
+                }
+                return;
+              }
+
+              if (request.method !== "GET" && request.method !== "HEAD") {
+                this.sendJson(
+                  response,
+                  405,
+                  { status: "method_not_allowed" },
+                  request.method === "HEAD",
+                );
+                return;
+              }
+              if (path === "/healthz") {
+                this.sendJson(
+                  response,
+                  200,
+                  { status: "ok" },
+                  request.method === "HEAD",
+                );
+                return;
+              }
+              if (path === "/readyz") {
+                let ready = true;
+                try {
+                  ready = (await this.options.readiness?.check()) ?? true;
+                } catch (error) {
+                  ready = false;
+                  this.logger.error("Readiness probe failed.", {
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                }
+                this.sendJson(
+                  response,
+                  ready ? 200 : 503,
+                  { status: ready ? "ready" : "not_ready" },
+                  request.method === "HEAD",
+                );
+                return;
+              }
+              this.sendJson(
+                response,
+                404,
+                { status: "not_found" },
+                request.method === "HEAD",
+              );
+            }
+
+            private isOriginAllowed(origin: string | null): boolean {
+              return !this.allowedOrigins || !origin || this.allowedOrigins.has(origin);
+            }
+
+            private corsHeaders(origin: string | null): Record<string, string> {
+              if (!origin) return {};
+              return {
+                "access-control-allow-origin": origin,
+                "access-control-allow-methods": "POST, OPTIONS",
+                "access-control-allow-headers": "content-type, accept",
+                vary: "Origin",
+              };
+            }
+
+            private sendJson(
+              response: ServerResponse,
+              statusCode: number,
+              payload: unknown,
+              headOnly: boolean,
+              origin: string | null = null,
+            ): void {
+              const body = JSON.stringify(payload);
+              response.writeHead(statusCode, {
+                "content-type": "application/json; charset=utf-8",
+                "cache-control": "no-store",
+                "content-length": Buffer.byteLength(body),
+                ...this.corsHeaders(origin),
+              });
+              response.end(headOnly ? undefined : body);
+            }
+
+          '''
+          source = source[:start] + replacement + source[end:]
+          old_origin = '''    const origin = request.headers.origin;
+              if (
+                this.allowedOrigins &&
+                typeof origin === "string" &&
+                !this.allowedOrigins.has(origin)
+              ) {
+          '''
+          new_origin = '''    const origin = request.headers.origin;
+              if (
+                !this.isOriginAllowed(typeof origin === "string" ? origin : null)
+              ) {
+          '''
+          if old_origin not in source:
+              raise SystemExit('upgrade origin block not found')
+          source = source.replace(old_origin, new_origin, 1)
+          path.write_text(source)
+          PY
+      - name: Format transport source
+        run: |
+          npm ci --prefix web
+          npm ci --prefix packages/server-transport
+          npm --prefix packages/server-transport exec prettier -- --write src/transportServer.ts
+      - name: Commit endpoint
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/server-transport/src/transportServer.ts
+          git commit -m "feat: add guest session http endpoint"
+          git push origin HEAD:feat/c9-invite-multiplayer
