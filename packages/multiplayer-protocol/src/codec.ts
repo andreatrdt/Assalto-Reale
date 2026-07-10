@@ -19,12 +19,16 @@ function decodeJson(raw: string): ValidationResult<unknown> {
   }
 }
 
-export function decodeClientMessage(raw: string): ValidationResult<ClientCommandEnvelope> {
+export function decodeClientMessage(
+  raw: string,
+): ValidationResult<ClientCommandEnvelope> {
   const decoded = decodeJson(raw);
   return decoded.ok ? validateClientMessage(decoded.value) : decoded;
 }
 
-export function decodeServerMessage(raw: string): ValidationResult<ServerEventEnvelope> {
+export function decodeServerMessage(
+  raw: string,
+): ValidationResult<ServerEventEnvelope> {
   const decoded = decodeJson(raw);
   return decoded.ok ? validateServerMessage(decoded.value) : decoded;
 }

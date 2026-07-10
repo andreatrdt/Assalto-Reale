@@ -24,14 +24,14 @@ const message: ClientCommandEnvelope = {
   sentAt: new Date().toISOString(),
   actor: {
     playerId: "player_01HZY8R7",
-    sessionId: "session_01HZY8R7"
+    sessionId: "session_01HZY8R7",
   },
   matchId: "match_01HZY8R7",
   expectedMatchVersion: 12,
   command: {
     type: "SubmitAction",
     start: [5, 5],
-    end: [5, 6]
-  }
+    end: [5, 6],
+  },
 };
 ```

@@ -9,7 +9,8 @@ export type PlacementMode = "Manual" | "QuickBalanced";
 export type Coordinate = [number, number];
 
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue =
+  JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
 export interface CanonicalMatchSnapshot extends JsonObject {
@@ -53,7 +54,9 @@ export type ClientCommand =
   | { type: "RespondToRematch"; accept: boolean }
   | { type: "RequestSync"; lastSeenMatchVersion: number | null };
 
-export interface ClientCommandEnvelope<C extends ClientCommand = ClientCommand> {
+export interface ClientCommandEnvelope<
+  C extends ClientCommand = ClientCommand,
+> {
   protocol: ProtocolName;
   protocolVersion: ProtocolVersion;
   messageType: "command";
@@ -82,7 +85,8 @@ export type PendingDecisionWire =
       options: PawnType[];
     };
 
-export type MatchEndReason = "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
+export type MatchEndReason =
+  "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
 
 export type CommandRejectionCode =
   | "invalid_message"
@@ -171,9 +175,15 @@ export interface ServerEventEnvelope<E extends ServerEvent = ServerEvent> {
 }
 
 export interface ProtocolValidationError {
-  code: "invalid_json" | "invalid_envelope" | "unsupported_protocol_version" | "invalid_command" | "invalid_event";
+  code:
+    | "invalid_json"
+    | "invalid_envelope"
+    | "unsupported_protocol_version"
+    | "invalid_command"
+    | "invalid_event";
   path: string;
   message: string;
 }
 
-export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: ProtocolValidationError };
+export type ValidationResult<T> =
+  { ok: true; value: T } | { ok: false; error: ProtocolValidationError };

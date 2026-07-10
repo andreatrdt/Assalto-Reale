@@ -18,13 +18,7 @@ import {
 type ProtocolCoreCommand = Extract<
   ClientCommand,
   {
-    type:
-      | "PlacePiece"
-      | "SubmitAction"
-      | "ChooseDefender"
-      | "CancelDefendedKing"
-      | "ChooseTransform"
-      | "PassTurn";
+    type: "PlacePiece" | "SubmitAction" | "ChooseDefender" | "CancelDefendedKing" | "ChooseTransform" | "PassTurn";
   }
 >;
 type Assert<T extends true> = T;
