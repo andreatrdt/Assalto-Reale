@@ -1,6 +1,6 @@
-// Authoritative multiplayer server — application/domain core (Phase C.8.1).
-// Transport-, database- and framework-independent. The only game-rules authority
-// is @assalto-reale/game-core; the wire contract is @assalto-reale/multiplayer-protocol.
+// Authoritative multiplayer server — application/domain core (Phase C.8).
+// Transport-independent. Game rules belong to @assalto-reale/game-core and the
+// wire contract belongs to @assalto-reale/multiplayer-protocol.
 export { CommandHandler, type CommandHandlerDeps } from "./commandHandler.js";
 export type {
   AuthenticatedPrincipal,
@@ -26,6 +26,17 @@ export {
   createInMemoryPersistence,
   type InMemoryPersistence,
 } from "./persistence/inMemory.js";
+export {
+  PostgresMatchRepository,
+  PostgresUnitOfWork,
+  createPostgresPersistence,
+  type PostgresPersistence,
+} from "./persistence/postgres/postgresPersistence.js";
+export {
+  POSTGRES_MIGRATIONS,
+  runPostgresMigrations,
+  type PostgresMigration,
+} from "./persistence/postgres/migrations.js";
 export type {
   Emission,
   MatchAggregate,
