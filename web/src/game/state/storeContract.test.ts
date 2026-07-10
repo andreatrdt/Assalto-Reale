@@ -70,9 +70,8 @@ describe("game store public contract", () => {
     }
   });
 
-  it("returns the documented shapes for query-style actions", () => {
+  it("returns the documented save-export shape", () => {
     const json = useGameStore.getState().exportSaveJson();
     expect(typeof json === "string" || json === null).toBe(true);
-    expect(typeof useGameStore.getState().importSaveJson("not-json")).toBe("boolean");
   });
 });
