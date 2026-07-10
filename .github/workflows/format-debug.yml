@@ -1,9 +1,7 @@
 name: Format Debug
 
 on:
-  push:
-    branches:
-      - refactor/decompose-game-store
+  pull_request:
 
 jobs:
   prettier-offenders:
