@@ -64,7 +64,7 @@ describe("game store public contract", () => {
   });
 
   it("keeps every action a callable function", () => {
-    const state = useGameStore.getState() as Record<string, unknown>;
+    const state = useGameStore.getState();
     for (const action of ACTIONS) {
       expect(typeof state[action], action).toBe("function");
     }
