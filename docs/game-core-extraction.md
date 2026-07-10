@@ -1,5 +1,9 @@
 # Pure TypeScript game-core extraction
 
+## Status
+
+Phase B.6 is in progress on `refactor/extract-game-core`. Checkpoint 6.1 (standalone package boundary) is implemented on this branch and under full CI validation; checkpoint 6.2 (canonical match-command API) follows after 6.1 is merged and verified.
+
 ## Big-plan position
 
 This work is Phase B.6 of the Assalto Reale roadmap. Release hardening, lifecycle/persistence hardening, browser-quality hardening, Python–TypeScript parity and the behaviour-preserving `gameStore.ts` decomposition are complete.
@@ -89,6 +93,21 @@ Every extraction checkpoint must keep green:
 - Chromium/mobile Playwright
 - Firefox/WebKit smoke
 - visual job contract
+
+### Checkpoint 6.1 local validation
+
+Before publication to the branch, checkpoint 6.1 passed:
+
+- 44 Python tests
+- 264 web unit tests
+- 141 Python–TypeScript parity tests
+- unchanged coverage thresholds, with the external package explicitly included
+- standalone core typecheck and ESM build without DOM libraries
+- plain Node.js import and serialization smoke test
+- TypeScript typecheck, ESLint, Prettier and production web build
+- production dependency audit with zero vulnerabilities
+
+The browser and cross-browser suites are verified by the pull-request CI.
 
 ## Completion criteria for Phase 6
 

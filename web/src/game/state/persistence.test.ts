@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildAction, createBoard, getPiece, setPiece, updateControl, type BoardState, type Vec2 } from "../engine";
 import { DEFAULT_MATCH_CONFIG } from "../setup/matchConfig";
 import { useGameStore } from "./gameStore";
@@ -232,7 +232,15 @@ describe("persistence round-trip across match phases", () => {
     s().tickClock(6000); // 5s elapsed
     expect(s().timeLeft.Black).toBe(295);
 
-    expect(exportDisturbImport()).toBe(true);
+    // Keep the save-time clock in the same synthetic timeline as startClock/tickClock.
+    // Otherwise a long-running coverage process can make performance.now() exceed
+    // 6000 and turn this characterization test into an uptime-dependent flake.
+    const nowSpy = vi.spyOn(performance, "now").mockReturnValue(6000);
+    try {
+      expect(exportDisturbImport()).toBe(true);
+    } finally {
+      nowSpy.mockRestore();
+    }
     // Remaining time preserved; clock is not running after load (no elapsed deduction).
     expect(s().timeLeft.Black).toBe(295);
     expect(s().timeLeft.White).toBe(300);
