@@ -179,10 +179,14 @@ export function boardWith(
   // fixtures often specify only the transforming pawn, so add distant kings when
   // the scenario did not provide them explicitly.
   if (transformSquares.length > 0) {
-    if (!pieces.some(([player, type]) => player === "Black" && type === "King")) {
+    if (
+      !pieces.some(([player, type]) => player === "Black" && type === "King")
+    ) {
       setPiece(board, [10, 1], { player: "Black", type: "King" });
     }
-    if (!pieces.some(([player, type]) => player === "White" && type === "King")) {
+    if (
+      !pieces.some(([player, type]) => player === "White" && type === "King")
+    ) {
       setPiece(board, [1, 10], { player: "White", type: "King" });
     }
   }
