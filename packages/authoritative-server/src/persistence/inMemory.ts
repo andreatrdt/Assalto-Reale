@@ -73,7 +73,9 @@ class InMemoryTransaction implements Transaction {
     return found ? cloneAggregate(found) : null;
   }
 
-  async findMatchByInviteCode(inviteCode: string): Promise<MatchAggregate | null> {
+  async findMatchByInviteCode(
+    inviteCode: string,
+  ): Promise<MatchAggregate | null> {
     const found = this.store.getByInvite(inviteCode);
     return found ? cloneAggregate(found) : null;
   }
@@ -84,7 +86,10 @@ class InMemoryTransaction implements Transaction {
   }
 
   saveMatch(aggregate: MatchAggregate, precondition: MatchPrecondition): void {
-    this.stagedMatches.push({ aggregate: cloneAggregate(aggregate), precondition });
+    this.stagedMatches.push({
+      aggregate: cloneAggregate(aggregate),
+      precondition,
+    });
   }
 
   saveReceipt(receipt: StoredCommandReceipt): void {
@@ -111,7 +116,10 @@ export class InMemoryUnitOfWork implements UnitOfWork {
     for (const staged of tx.stagedReceipts) {
       const existing = this.store.receipts.get(staged.commandId);
       if (!existing) continue;
-      if (existing.payloadHash !== staged.payloadHash || existing.playerId !== staged.playerId) {
+      if (
+        existing.payloadHash !== staged.payloadHash ||
+        existing.playerId !== staged.playerId
+      ) {
         throw new ReceiptConflictError();
       }
       throw new CommandAlreadyProcessedError(cloneReceipt(existing));
@@ -121,7 +129,9 @@ export class InMemoryUnitOfWork implements UnitOfWork {
       const current = this.store.matches.get(staged.aggregate.matchId);
       if (staged.precondition.kind === "create") {
         if (current || this.store.invites.has(staged.aggregate.inviteCode)) {
-          throw new ConcurrencyConflictError("A match with this id or invite code already exists.");
+          throw new ConcurrencyConflictError(
+            "A match with this id or invite code already exists.",
+          );
         }
       } else if (!current || current.version !== staged.precondition.version) {
         throw new ConcurrencyConflictError();
@@ -145,7 +155,9 @@ export interface InMemoryPersistence {
   unitOfWork: UnitOfWork;
 }
 
-export function createInMemoryPersistence(store: InMemoryStore = new InMemoryStore()): InMemoryPersistence {
+export function createInMemoryPersistence(
+  store: InMemoryStore = new InMemoryStore(),
+): InMemoryPersistence {
   return {
     store,
     matches: new InMemoryMatchRepository(store),

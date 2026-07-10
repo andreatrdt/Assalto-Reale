@@ -2,7 +2,13 @@
 // Transport-, database- and framework-independent. The only game-rules authority
 // is @assalto-reale/game-core; the wire contract is @assalto-reale/multiplayer-protocol.
 export { CommandHandler, type CommandHandlerDeps } from "./commandHandler.js";
-export type { AuthenticatedPrincipal, Authenticator, Clock, IdGenerator, SeedGenerator } from "./ports.js";
+export type {
+  AuthenticatedPrincipal,
+  Authenticator,
+  Clock,
+  IdGenerator,
+  SeedGenerator,
+} from "./ports.js";
 export {
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
@@ -20,4 +26,10 @@ export {
   createInMemoryPersistence,
   type InMemoryPersistence,
 } from "./persistence/inMemory.js";
-export type { Emission, MatchAggregate, MatchMembers, MatchStatus, OperationOutcome } from "./domain/matchAggregate.js";
+export type {
+  Emission,
+  MatchAggregate,
+  MatchMembers,
+  MatchStatus,
+  OperationOutcome,
+} from "./domain/matchAggregate.js";

@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { ServerEvent, ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
-import { ALICE, BOB, ONLINE_CONFIG, boardWith, harness, message, playingState, seedMatch } from "./support.js";
+import type {
+  ServerEvent,
+  ServerEventEnvelope,
+} from "@assalto-reale/multiplayer-protocol";
+import {
+  ALICE,
+  BOB,
+  ONLINE_CONFIG,
+  boardWith,
+  harness,
+  message,
+  playingState,
+  seedMatch,
+} from "./support.js";
 
 function only<T extends ServerEvent["type"]>(
   envelopes: ServerEventEnvelope[],
@@ -15,12 +27,18 @@ describe("authoritative idempotency and optimistic concurrency", () => {
   it("joins by invitation code without trusting a client-supplied match id", async () => {
     const { handler, store } = harness();
     const created = await handler.handle(
-      message({ type: "CreateMatch", config: ONLINE_CONFIG }, { commandId: "cmd_invite01", playerId: ALICE }),
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_invite01", playerId: ALICE },
+      ),
     );
     const inviteCode = only(created, "MatchCreated").inviteCode;
 
     const joined = await handler.handle(
-      message({ type: "JoinMatch", inviteCode }, { commandId: "cmd_invite02", playerId: BOB }),
+      message(
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_invite02", playerId: BOB },
+      ),
     );
 
     expect(only(joined, "PlayerJoined").playerId).toBe(BOB);
@@ -34,7 +52,10 @@ describe("authoritative idempotency and optimistic concurrency", () => {
       { commandId: "cmd_race0001", playerId: ALICE },
     );
 
-    const [first, second] = await Promise.all([handler.handle(command), handler.handle(command)]);
+    const [first, second] = await Promise.all([
+      handler.handle(command),
+      handler.handle(command),
+    ]);
 
     expect(second).toEqual(first);
     expect(store.matches.size).toBe(1);
@@ -43,7 +64,15 @@ describe("authoritative idempotency and optimistic concurrency", () => {
 
   it("treats match target and expected version as part of command identity", async () => {
     const { handler, store } = harness();
-    seedMatch(store, playingState(boardWith([["Black", "King", [10, 1]], ["White", "King", [1, 10]]])));
+    seedMatch(
+      store,
+      playingState(
+        boardWith([
+          ["Black", "King", [10, 1]],
+          ["White", "King", [1, 10]],
+        ]),
+      ),
+    );
 
     await handler.handle(
       message(
@@ -73,7 +102,15 @@ describe("authoritative idempotency and optimistic concurrency", () => {
 
   it("makes RequestSync retry-safe and replays the exact event envelope", async () => {
     const { handler, store } = harness();
-    seedMatch(store, playingState(boardWith([["Black", "King", [10, 1]], ["White", "King", [1, 10]]])));
+    seedMatch(
+      store,
+      playingState(
+        boardWith([
+          ["Black", "King", [10, 1]],
+          ["White", "King", [1, 10]],
+        ]),
+      ),
+    );
     const command = message(
       { type: "RequestSync", lastSeenMatchVersion: null },
       { commandId: "cmd_syncdup1", playerId: ALICE, matchId: "match_seed01" },
@@ -103,22 +140,36 @@ describe("authoritative idempotency and optimistic concurrency", () => {
       handler.handle(
         message(
           { type: "PassTurn" },
-          { commandId: "cmd_concur01", playerId: ALICE, matchId: "match_seed01", expectedMatchVersion: 1 },
+          {
+            commandId: "cmd_concur01",
+            playerId: ALICE,
+            matchId: "match_seed01",
+            expectedMatchVersion: 1,
+          },
         ),
       ),
       handler.handle(
         message(
           { type: "PassTurn" },
-          { commandId: "cmd_concur02", playerId: ALICE, matchId: "match_seed01", expectedMatchVersion: 1 },
+          {
+            commandId: "cmd_concur02",
+            playerId: ALICE,
+            matchId: "match_seed01",
+            expectedMatchVersion: 1,
+          },
         ),
       ),
     ]);
 
     const all = [...first, ...second];
-    expect(all.some((envelope) => envelope.event.type === "MatchUpdated")).toBe(true);
+    expect(all.some((envelope) => envelope.event.type === "MatchUpdated")).toBe(
+      true,
+    );
     expect(
       all.some(
-        (envelope) => envelope.event.type === "CommandRejected" && envelope.event.code === "stale_match_version",
+        (envelope) =>
+          envelope.event.type === "CommandRejected" &&
+          envelope.event.code === "stale_match_version",
       ),
     ).toBe(true);
     expect(store.matches.get("match_seed01")?.version).toBe(2);
@@ -126,12 +177,25 @@ describe("authoritative idempotency and optimistic concurrency", () => {
 
   it("addresses authenticated rejections only to the issuing player", async () => {
     const { handler, store } = harness();
-    seedMatch(store, playingState(boardWith([["Black", "King", [10, 1]], ["White", "King", [1, 10]]])));
+    seedMatch(
+      store,
+      playingState(
+        boardWith([
+          ["Black", "King", [10, 1]],
+          ["White", "King", [1, 10]],
+        ]),
+      ),
+    );
 
     const rejected = await handler.handle(
       message(
         { type: "PassTurn" },
-        { commandId: "cmd_recip001", playerId: BOB, matchId: "match_seed01", expectedMatchVersion: 1 },
+        {
+          commandId: "cmd_recip001",
+          playerId: BOB,
+          matchId: "match_seed01",
+          expectedMatchVersion: 1,
+        },
       ),
     );
 

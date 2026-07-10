@@ -59,9 +59,18 @@ export interface Emission {
 
 export type OperationOutcome =
   | { ok: true; aggregate: MatchAggregate; emissions: Emission[] }
-  | { ok: false; code: CommandRejectionCode; message: string; version: number | null; snapshot: CanonicalMatchSnapshot | null };
+  | {
+      ok: false;
+      code: CommandRejectionCode;
+      message: string;
+      version: number | null;
+      snapshot: CanonicalMatchSnapshot | null;
+    };
 
-export function memberSide(aggregate: MatchAggregate, playerId: string): PlayerSide | null {
+export function memberSide(
+  aggregate: MatchAggregate,
+  playerId: string,
+): PlayerSide | null {
   if (aggregate.members.Black === playerId) return "Black";
   if (aggregate.members.White === playerId) return "White";
   return null;
@@ -76,8 +85,12 @@ function cloneAggregate(aggregate: MatchAggregate): MatchAggregate {
 }
 
 /** Deterministic side for a "Random" preference, derived from the server seed. */
-function resolvePreferredSide(config: OnlineMatchConfig, seed: number): PlayerSide {
-  if (config.preferredSide === "Black" || config.preferredSide === "White") return config.preferredSide;
+function resolvePreferredSide(
+  config: OnlineMatchConfig,
+  seed: number,
+): PlayerSide {
+  if (config.preferredSide === "Black" || config.preferredSide === "White")
+    return config.preferredSide;
   return (seed >>> 0) % 2 === 0 ? "Black" : "White";
 }
 
@@ -89,7 +102,10 @@ export interface CreateMatchInput {
   creatorPlayerId: string;
 }
 
-export function createMatchAggregate(input: CreateMatchInput): { aggregate: MatchAggregate; emissions: Emission[] } {
+export function createMatchAggregate(input: CreateMatchInput): {
+  aggregate: MatchAggregate;
+  emissions: Emission[];
+} {
   const state = coreCreateMatch({
     placementMode: input.config.placementMode,
     transformEnabled: input.config.transformEnabled,
@@ -114,7 +130,12 @@ export function createMatchAggregate(input: CreateMatchInput): { aggregate: Matc
 
   const emissions: Emission[] = [
     {
-      event: { type: "MatchCreated", inviteCode: input.inviteCode, assignedSide: creatorSide, snapshot: snapshotOf(state) },
+      event: {
+        type: "MatchCreated",
+        inviteCode: input.inviteCode,
+        assignedSide: creatorSide,
+        snapshot: snapshotOf(state),
+      },
       recipient: { playerId: input.creatorPlayerId },
       matchVersion: aggregate.version,
       streamSequence: aggregate.streamSequence,
@@ -123,13 +144,29 @@ export function createMatchAggregate(input: CreateMatchInput): { aggregate: Matc
   return { aggregate, emissions };
 }
 
-export function joinMatchAggregate(aggregate: MatchAggregate, joinerPlayerId: string): OperationOutcome {
+export function joinMatchAggregate(
+  aggregate: MatchAggregate,
+  joinerPlayerId: string,
+): OperationOutcome {
   if (memberSide(aggregate, joinerPlayerId)) {
-    return reject(aggregate, "match_full", "This player is already a member of the match.");
+    return reject(
+      aggregate,
+      "match_full",
+      "This player is already a member of the match.",
+    );
   }
-  const openSide: PlayerSide | null = aggregate.members.Black === null ? "Black" : aggregate.members.White === null ? "White" : null;
+  const openSide: PlayerSide | null =
+    aggregate.members.Black === null
+      ? "Black"
+      : aggregate.members.White === null
+        ? "White"
+        : null;
   if (!openSide) {
-    return reject(aggregate, "match_full", "The match already has two players.");
+    return reject(
+      aggregate,
+      "match_full",
+      "The match already has two players.",
+    );
   }
 
   const next = cloneAggregate(aggregate);
@@ -143,7 +180,12 @@ export function joinMatchAggregate(aggregate: MatchAggregate, joinerPlayerId: st
     aggregate: next,
     emissions: [
       {
-        event: { type: "PlayerJoined", playerId: joinerPlayerId, assignedSide: openSide, snapshot: snapshotOf(next.state) },
+        event: {
+          type: "PlayerJoined",
+          playerId: joinerPlayerId,
+          assignedSide: openSide,
+          snapshot: snapshotOf(next.state),
+        },
         recipient: "all",
         matchVersion: next.version,
         streamSequence: next.streamSequence,
@@ -153,8 +195,14 @@ export function joinMatchAggregate(aggregate: MatchAggregate, joinerPlayerId: st
 }
 
 /** The side that must own the actor for a given game command in the current state. */
-function requiredActorSide(state: MatchState, command: ProtocolGameCommand): PlayerSide {
-  if (command.type === "ChooseDefender" || command.type === "CancelDefendedKing") {
+function requiredActorSide(
+  state: MatchState,
+  command: ProtocolGameCommand,
+): PlayerSide {
+  if (
+    command.type === "ChooseDefender" ||
+    command.type === "CancelDefendedKing"
+  ) {
     return state.pendingDefendedKing?.owner ?? state.currentPlayer;
   }
   if (command.type === "ChooseTransform") {
@@ -163,18 +211,30 @@ function requiredActorSide(state: MatchState, command: ProtocolGameCommand): Pla
   return state.currentPlayer;
 }
 
-export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSide, command: ProtocolGameCommand): OperationOutcome {
+export function applyGameCommand(
+  aggregate: MatchAggregate,
+  actorSide: PlayerSide,
+  command: ProtocolGameCommand,
+): OperationOutcome {
   if (aggregate.status === "ended" || aggregate.state.phase === "gameOver") {
     return reject(aggregate, "match_ended", "The match has already ended.");
   }
   if (actorSide !== requiredActorSide(aggregate.state, command)) {
-    return reject(aggregate, "not_your_turn", "It is not this player's turn to act.");
+    return reject(
+      aggregate,
+      "not_your_turn",
+      "It is not this player's turn to act.",
+    );
   }
 
   const coreCommand: GameCommand = toCoreCommand(command);
   const result = applyCommand(aggregate.state, coreCommand);
   if (!result.ok) {
-    return reject(aggregate, rejectionForCoreError(result.error.code), result.error.message);
+    return reject(
+      aggregate,
+      rejectionForCoreError(result.error.code),
+      result.error.message,
+    );
   }
 
   const next = cloneAggregate(aggregate);
@@ -187,17 +247,32 @@ export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSid
 
   const snapshot = snapshotOf(next.state);
   const emissions: Emission[] = [];
-  const emit = (event: ServerEvent, recipient: Emission["recipient"] = "all"): void => {
+  const emit = (
+    event: ServerEvent,
+    recipient: Emission["recipient"] = "all",
+  ): void => {
     next.streamSequence += 1;
-    emissions.push({ event, recipient, matchVersion: next.version, streamSequence: next.streamSequence });
+    emissions.push({
+      event,
+      recipient,
+      matchVersion: next.version,
+      streamSequence: next.streamSequence,
+    });
   };
 
-  emit({ type: "MatchUpdated", snapshot, domainEvents: result.events.map(coreEventToJson) });
+  emit({
+    type: "MatchUpdated",
+    snapshot,
+    domainEvents: result.events.map(coreEventToJson),
+  });
   for (const event of result.events) {
     if (event.type === "TurnChanged") {
       emit({ type: "TurnChanged", currentPlayer: event.player });
     } else if (event.type === "DecisionRequired") {
-      emit({ type: "DecisionRequired", decision: pendingDecisionToWire(event.decision) });
+      emit({
+        type: "DecisionRequired",
+        decision: pendingDecisionToWire(event.decision),
+      });
     } else if (event.type === "MatchEnded") {
       emit({ type: "MatchEnded", ...victoryToEnd(event.victory), snapshot });
     }
@@ -206,7 +281,10 @@ export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSid
   return { ok: true, aggregate: next, emissions };
 }
 
-export function resignAggregate(aggregate: MatchAggregate, actorSide: PlayerSide): OperationOutcome {
+export function resignAggregate(
+  aggregate: MatchAggregate,
+  actorSide: PlayerSide,
+): OperationOutcome {
   if (aggregate.status === "ended" || aggregate.state.phase === "gameOver") {
     return reject(aggregate, "match_ended", "The match has already ended.");
   }
@@ -222,7 +300,13 @@ export function resignAggregate(aggregate: MatchAggregate, actorSide: PlayerSide
     aggregate: next,
     emissions: [
       {
-        event: { type: "MatchEnded", winner, loser: actorSide, reason: "resignation", snapshot: snapshotOf(next.state) },
+        event: {
+          type: "MatchEnded",
+          winner,
+          loser: actorSide,
+          reason: "resignation",
+          snapshot: snapshotOf(next.state),
+        },
         recipient: "all",
         matchVersion: next.version,
         streamSequence: next.streamSequence,
@@ -232,7 +316,10 @@ export function resignAggregate(aggregate: MatchAggregate, actorSide: PlayerSide
 }
 
 /** A read-only canonical snapshot for RequestSync; never mutates the aggregate. */
-export function syncEmission(aggregate: MatchAggregate, requesterPlayerId: string): Emission {
+export function syncEmission(
+  aggregate: MatchAggregate,
+  requesterPlayerId: string,
+): Emission {
   return {
     event: { type: "MatchSnapshot", snapshot: snapshotOf(aggregate.state) },
     recipient: { playerId: requesterPlayerId },
@@ -241,7 +328,11 @@ export function syncEmission(aggregate: MatchAggregate, requesterPlayerId: strin
   };
 }
 
-function reject(aggregate: MatchAggregate | null, code: CommandRejectionCode, message: string): OperationOutcome {
+function reject(
+  aggregate: MatchAggregate | null,
+  code: CommandRejectionCode,
+  message: string,
+): OperationOutcome {
   return {
     ok: false,
     code,

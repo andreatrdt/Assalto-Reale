@@ -13,7 +13,8 @@ export interface StoredCommandReceipt {
   envelopes: ServerEventEnvelope[];
 }
 
-export type MatchPrecondition = { kind: "create" } | { kind: "expectedVersion"; version: number };
+export type MatchPrecondition =
+  { kind: "create" } | { kind: "expectedVersion"; version: number };
 
 export class ConcurrencyConflictError extends Error {
   constructor(message = "The match changed since it was loaded.") {
@@ -23,7 +24,9 @@ export class ConcurrencyConflictError extends Error {
 }
 
 export class ReceiptConflictError extends Error {
-  constructor(message = "The commandId is already associated with a different command.") {
+  constructor(
+    message = "The commandId is already associated with a different command.",
+  ) {
     super(message);
     this.name = "ReceiptConflictError";
   }

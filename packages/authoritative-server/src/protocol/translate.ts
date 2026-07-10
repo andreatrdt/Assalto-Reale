@@ -24,10 +24,20 @@ import type {
 /** Protocol commands that map directly onto a game-core command. */
 export type ProtocolGameCommand = Extract<
   ClientCommand,
-  { type: "PlacePiece" | "SubmitAction" | "ChooseDefender" | "CancelDefendedKing" | "ChooseTransform" | "PassTurn" }
+  {
+    type:
+      | "PlacePiece"
+      | "SubmitAction"
+      | "ChooseDefender"
+      | "CancelDefendedKing"
+      | "ChooseTransform"
+      | "PassTurn";
+  }
 >;
 
-export function isProtocolGameCommand(command: ClientCommand): command is ProtocolGameCommand {
+export function isProtocolGameCommand(
+  command: ClientCommand,
+): command is ProtocolGameCommand {
   switch (command.type) {
     case "PlacePiece":
     case "SubmitAction":
@@ -60,7 +70,9 @@ export function toCoreCommand(command: ProtocolGameCommand): GameCommand {
 }
 
 /** Map a game-core rejection code onto the protocol wire rejection code. */
-export function rejectionForCoreError(code: CommandError["code"]): CommandRejectionCode {
+export function rejectionForCoreError(
+  code: CommandError["code"],
+): CommandRejectionCode {
   switch (code) {
     case "wrong_player":
       return "not_your_turn";
@@ -85,7 +97,9 @@ export function snapshotOf(state: MatchState): CanonicalMatchSnapshot {
   return JSON.parse(serializeState(state)) as CanonicalMatchSnapshot;
 }
 
-export function pendingDecisionToWire(decision: PendingDecision): PendingDecisionWire {
+export function pendingDecisionToWire(
+  decision: PendingDecision,
+): PendingDecisionWire {
   if (decision.kind === "defendedKing") {
     const { value } = decision;
     return {
@@ -103,7 +117,9 @@ export function pendingDecisionToWire(decision: PendingDecision): PendingDecisio
     owner: value.owner,
     position: coordinate(value.pos),
     currentType: value.pieceType,
-    options: PAWN_TYPES.filter((type): type is PawnType => type !== value.pieceType).map((type) => type),
+    options: PAWN_TYPES.filter(
+      (type): type is PawnType => type !== value.pieceType,
+    ).map((type) => type),
   };
 }
 

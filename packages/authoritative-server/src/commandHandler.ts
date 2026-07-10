@@ -21,7 +21,12 @@ import {
   type MatchAggregate,
   type OperationOutcome,
 } from "./domain/matchAggregate.js";
-import type { Authenticator, Clock, IdGenerator, SeedGenerator } from "./ports.js";
+import type {
+  Authenticator,
+  Clock,
+  IdGenerator,
+  SeedGenerator,
+} from "./ports.js";
 import {
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
@@ -44,7 +49,9 @@ export interface CommandHandlerDeps {
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));
+    const entries = Object.entries(value as Record<string, unknown>).sort(
+      ([a], [b]) => a.localeCompare(b),
+    );
     return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`).join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
@@ -66,8 +73,12 @@ function commandFingerprint(envelope: ClientCommandEnvelope): string {
   });
 }
 
-function validationRejectionCode(error: ProtocolValidationError): CommandRejectionCode {
-  return error.code === "unsupported_protocol_version" ? "unsupported_protocol_version" : "invalid_message";
+function validationRejectionCode(
+  error: ProtocolValidationError,
+): CommandRejectionCode {
+  return error.code === "unsupported_protocol_version"
+    ? "unsupported_protocol_version"
+    : "invalid_message";
 }
 
 export class CommandHandler {
@@ -77,7 +88,17 @@ export class CommandHandler {
     const parsed = validateClientMessage(rawMessage);
     if (!parsed.ok) {
       const commandId = this.correlationId(rawMessage);
-      return [this.rejection(commandId, null, validationRejectionCode(parsed.error), parsed.error.message, null, null, "all")];
+      return [
+        this.rejection(
+          commandId,
+          null,
+          validationRejectionCode(parsed.error),
+          parsed.error.message,
+          null,
+          null,
+          "all",
+        ),
+      ];
     }
     const envelope = parsed.value;
 
@@ -112,13 +133,19 @@ export class CommandHandler {
     return this.handleAuthenticated(envelope, principal.playerId);
   }
 
-  private async handleAuthenticated(envelope: ClientCommandEnvelope, playerId: string): Promise<ServerEventEnvelope[]> {
+  private async handleAuthenticated(
+    envelope: ClientCommandEnvelope,
+    playerId: string,
+  ): Promise<ServerEventEnvelope[]> {
     const payloadHash = commandFingerprint(envelope);
     try {
       return await this.deps.unitOfWork.run(async (tx) => {
         const existing = await tx.findReceipt(envelope.commandId);
         if (existing) {
-          if (existing.payloadHash !== payloadHash || existing.playerId !== playerId) {
+          if (
+            existing.payloadHash !== payloadHash ||
+            existing.playerId !== playerId
+          ) {
             return [this.duplicateRejection(envelope, playerId)];
           }
           return existing.envelopes;
@@ -136,7 +163,10 @@ export class CommandHandler {
       });
     } catch (error) {
       if (error instanceof CommandAlreadyProcessedError) {
-        if (error.receipt.payloadHash === payloadHash && error.receipt.playerId === playerId) {
+        if (
+          error.receipt.payloadHash === payloadHash &&
+          error.receipt.playerId === playerId
+        ) {
           return error.receipt.envelopes;
         }
         return [this.duplicateRejection(envelope, playerId)];
@@ -145,7 +175,9 @@ export class CommandHandler {
         return [this.duplicateRejection(envelope, playerId)];
       }
       if (error instanceof ConcurrencyConflictError) {
-        const current = envelope.matchId ? await this.deps.matches.load(envelope.matchId) : null;
+        const current = envelope.matchId
+          ? await this.deps.matches.load(envelope.matchId)
+          : null;
         return [
           this.rejection(
             envelope.commandId,
@@ -162,7 +194,11 @@ export class CommandHandler {
     }
   }
 
-  private async process(tx: Transaction, envelope: ClientCommandEnvelope, playerId: string): Promise<ServerEventEnvelope[]> {
+  private async process(
+    tx: Transaction,
+    envelope: ClientCommandEnvelope,
+    playerId: string,
+  ): Promise<ServerEventEnvelope[]> {
     const command = envelope.command;
     const recipient = { playerId } as const;
 
@@ -175,7 +211,11 @@ export class CommandHandler {
         creatorPlayerId: playerId,
       });
       tx.saveMatch(created.aggregate, { kind: "create" });
-      return this.envelopesFor(created.emissions, created.aggregate.matchId, envelope.commandId);
+      return this.envelopesFor(
+        created.emissions,
+        created.aggregate.matchId,
+        envelope.commandId,
+      );
     }
 
     if (command.type === "JoinMatch") {
@@ -188,7 +228,9 @@ export class CommandHandler {
             envelope.commandId,
             envelope.matchId,
             envelope.matchId ? "match_not_found" : "invite_invalid",
-            envelope.matchId ? "The match does not exist." : "The invitation code is invalid.",
+            envelope.matchId
+              ? "The match does not exist."
+              : "The invitation code is invalid.",
             null,
             null,
             recipient,
@@ -208,16 +250,42 @@ export class CommandHandler {
           ),
         ];
       }
-      return this.commit(tx, aggregate, joinMatchAggregate(aggregate, playerId), envelope, recipient);
+      return this.commit(
+        tx,
+        aggregate,
+        joinMatchAggregate(aggregate, playerId),
+        envelope,
+        recipient,
+      );
     }
 
     const matchId = envelope.matchId;
     if (!matchId) {
-      return [this.rejection(envelope.commandId, null, "match_not_found", "No match was targeted.", null, null, recipient)];
+      return [
+        this.rejection(
+          envelope.commandId,
+          null,
+          "match_not_found",
+          "No match was targeted.",
+          null,
+          null,
+          recipient,
+        ),
+      ];
     }
     const aggregate = await tx.loadMatch(matchId);
     if (!aggregate) {
-      return [this.rejection(envelope.commandId, matchId, "match_not_found", "The match does not exist.", null, null, recipient)];
+      return [
+        this.rejection(
+          envelope.commandId,
+          matchId,
+          "match_not_found",
+          "The match does not exist.",
+          null,
+          null,
+          recipient,
+        ),
+      ];
     }
     const actorSide = memberSide(aggregate, playerId);
     if (!actorSide) {
@@ -235,7 +303,13 @@ export class CommandHandler {
     }
 
     if (command.type === "RequestSync") {
-      return [this.envelopeFor(syncEmission(aggregate, playerId), matchId, envelope.commandId)];
+      return [
+        this.envelopeFor(
+          syncEmission(aggregate, playerId),
+          matchId,
+          envelope.commandId,
+        ),
+      ];
     }
 
     if (envelope.expectedMatchVersion !== aggregate.version) {
@@ -253,10 +327,22 @@ export class CommandHandler {
     }
 
     if (command.type === "Resign") {
-      return this.commit(tx, aggregate, resignAggregate(aggregate, actorSide), envelope, recipient);
+      return this.commit(
+        tx,
+        aggregate,
+        resignAggregate(aggregate, actorSide),
+        envelope,
+        recipient,
+      );
     }
     if (isProtocolGameCommand(command)) {
-      return this.commit(tx, aggregate, applyGameCommand(aggregate, actorSide, command), envelope, recipient);
+      return this.commit(
+        tx,
+        aggregate,
+        applyGameCommand(aggregate, actorSide, command),
+        envelope,
+        recipient,
+      );
     }
 
     return [
@@ -292,15 +378,32 @@ export class CommandHandler {
         ),
       ];
     }
-    tx.saveMatch(outcome.aggregate, { kind: "expectedVersion", version: previous.version });
-    return this.envelopesFor(outcome.emissions, outcome.aggregate.matchId, envelope.commandId);
+    tx.saveMatch(outcome.aggregate, {
+      kind: "expectedVersion",
+      version: previous.version,
+    });
+    return this.envelopesFor(
+      outcome.emissions,
+      outcome.aggregate.matchId,
+      envelope.commandId,
+    );
   }
 
-  private envelopesFor(emissions: Emission[], matchId: string, commandId: string): ServerEventEnvelope[] {
-    return emissions.map((emission) => this.envelopeFor(emission, matchId, commandId));
+  private envelopesFor(
+    emissions: Emission[],
+    matchId: string,
+    commandId: string,
+  ): ServerEventEnvelope[] {
+    return emissions.map((emission) =>
+      this.envelopeFor(emission, matchId, commandId),
+    );
   }
 
-  private envelopeFor(emission: Emission, matchId: string, commandId: string): ServerEventEnvelope {
+  private envelopeFor(
+    emission: Emission,
+    matchId: string,
+    commandId: string,
+  ): ServerEventEnvelope {
     return {
       protocol: PROTOCOL_NAME,
       protocolVersion: PROTOCOL_VERSION,
@@ -316,7 +419,10 @@ export class CommandHandler {
     };
   }
 
-  private duplicateRejection(envelope: ClientCommandEnvelope, playerId: string): ServerEventEnvelope {
+  private duplicateRejection(
+    envelope: ClientCommandEnvelope,
+    playerId: string,
+  ): ServerEventEnvelope {
     return this.rejection(
       envelope.commandId,
       envelope.matchId,
@@ -363,7 +469,11 @@ export class CommandHandler {
   private correlationId(rawMessage: unknown): string {
     if (rawMessage && typeof rawMessage === "object") {
       const candidate = (rawMessage as Record<string, unknown>).commandId;
-      if (typeof candidate === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(candidate)) return candidate;
+      if (
+        typeof candidate === "string" &&
+        /^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(candidate)
+      )
+        return candidate;
     }
     return this.deps.ids.eventId();
   }

@@ -15,8 +15,17 @@ function walk(dir: string): string[] {
   return files;
 }
 
-const ALLOWED_BARE = new Set(["@assalto-reale/game-core", "@assalto-reale/multiplayer-protocol"]);
-const FORBIDDEN_GLOBALS = ["window", "document", "localStorage", "navigator", "performance"];
+const ALLOWED_BARE = new Set([
+  "@assalto-reale/game-core",
+  "@assalto-reale/multiplayer-protocol",
+]);
+const FORBIDDEN_GLOBALS = [
+  "window",
+  "document",
+  "localStorage",
+  "navigator",
+  "performance",
+];
 
 function importSpecifiers(source: string): string[] {
   const specifiers: string[] = [];
@@ -38,8 +47,13 @@ describe("architecture boundaries", () => {
   it("only imports game-core, multiplayer-protocol, node builtins or local modules", () => {
     for (const file of files) {
       for (const specifier of importSpecifiers(readFileSync(file, "utf8"))) {
-        const ok = specifier.startsWith(".") || specifier.startsWith("node:") || ALLOWED_BARE.has(specifier);
-        expect(ok, `${file} imports disallowed module "${specifier}"`).toBe(true);
+        const ok =
+          specifier.startsWith(".") ||
+          specifier.startsWith("node:") ||
+          ALLOWED_BARE.has(specifier);
+        expect(ok, `${file} imports disallowed module "${specifier}"`).toBe(
+          true,
+        );
       }
     }
   });
@@ -48,9 +62,16 @@ describe("architecture boundaries", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       for (const specifier of importSpecifiers(source)) {
-        expect(/^(react|react-dom|zustand)/.test(specifier), `${file} -> ${specifier}`).toBe(false);
-        expect(specifier.includes("/web/"), `${file} -> ${specifier}`).toBe(false);
-        expect(specifier.includes("motion"), `${file} -> ${specifier}`).toBe(false);
+        expect(
+          /^(react|react-dom|zustand)/.test(specifier),
+          `${file} -> ${specifier}`,
+        ).toBe(false);
+        expect(specifier.includes("/web/"), `${file} -> ${specifier}`).toBe(
+          false,
+        );
+        expect(specifier.includes("motion"), `${file} -> ${specifier}`).toBe(
+          false,
+        );
       }
     }
   });
@@ -59,7 +80,10 @@ describe("architecture boundaries", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       for (const global of FORBIDDEN_GLOBALS) {
-        expect(new RegExp(`\\b${global}\\b`).test(source), `${file} references browser global "${global}"`).toBe(false);
+        expect(
+          new RegExp(`\\b${global}\\b`).test(source),
+          `${file} references browser global "${global}"`,
+        ).toBe(false);
       }
     }
   });

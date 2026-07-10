@@ -7,7 +7,10 @@ import {
   type MatchState,
   type Player,
 } from "@assalto-reale/game-core";
-import type { ClientCommand, OnlineMatchConfig } from "@assalto-reale/multiplayer-protocol";
+import type {
+  ClientCommand,
+  OnlineMatchConfig,
+} from "@assalto-reale/multiplayer-protocol";
 import {
   CommandHandler,
   InMemoryStore,
@@ -58,8 +61,13 @@ export class SequentialSeeds implements SeedGenerator {
 
 /** Trusts the declared actor as the authenticated principal. */
 export class TrustingAuthenticator implements Authenticator {
-  async authenticate(envelope: { actor: AuthenticatedPrincipal }): Promise<AuthenticatedPrincipal | null> {
-    return { playerId: envelope.actor.playerId, sessionId: envelope.actor.sessionId };
+  async authenticate(envelope: {
+    actor: AuthenticatedPrincipal;
+  }): Promise<AuthenticatedPrincipal | null> {
+    return {
+      playerId: envelope.actor.playerId,
+      sessionId: envelope.actor.sessionId,
+    };
   }
 }
 
@@ -75,7 +83,12 @@ export interface HarnessOptions {
   store?: InMemoryStore;
 }
 
-export function harness(options: HarnessOptions = {}): { handler: CommandHandler; store: InMemoryStore; ids: SequentialIds; seeds: SequentialSeeds } {
+export function harness(options: HarnessOptions = {}): {
+  handler: CommandHandler;
+  store: InMemoryStore;
+  ids: SequentialIds;
+  seeds: SequentialSeeds;
+} {
   const store = options.store ?? new InMemoryStore();
   const persistence = createInMemoryPersistence(store);
   const ids = new SequentialIds();
@@ -99,14 +112,20 @@ export interface MessageOptions {
   expectedMatchVersion?: number | null;
 }
 
-export function message(command: ClientCommand, options: MessageOptions): unknown {
+export function message(
+  command: ClientCommand,
+  options: MessageOptions,
+): unknown {
   return {
     protocol: "assalto-reale",
     protocolVersion: 1,
     messageType: "command",
     commandId: options.commandId,
     sentAt: "2026-01-01T00:00:00.000Z",
-    actor: { playerId: options.playerId, sessionId: options.sessionId ?? `${options.playerId}_session` },
+    actor: {
+      playerId: options.playerId,
+      sessionId: options.sessionId ?? `${options.playerId}_session`,
+    },
     matchId: options.matchId ?? null,
     expectedMatchVersion: options.expectedMatchVersion ?? null,
     command,
@@ -121,7 +140,10 @@ export const ONLINE_CONFIG: OnlineMatchConfig = {
   timeControl: { kind: "untimed" },
 };
 
-export function playingState(board: BoardState, overrides: Partial<MatchState> = {}): MatchState {
+export function playingState(
+  board: BoardState,
+  overrides: Partial<MatchState> = {},
+): MatchState {
   return {
     board,
     phase: "playing",
@@ -139,7 +161,16 @@ export function playingState(board: BoardState, overrides: Partial<MatchState> =
   };
 }
 
-export function boardWith(pieces: Array<[Player, "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn", [number, number]]>, transformSquares: Array<[number, number]> = []): BoardState {
+export function boardWith(
+  pieces: Array<
+    [
+      Player,
+      "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn",
+      [number, number],
+    ]
+  >,
+  transformSquares: Array<[number, number]> = [],
+): BoardState {
   const board = createBoard({ transformEnabled: transformSquares.length > 0 });
   for (const [player, type, pos] of pieces) {
     setPiece(board, pos, { player, type });
@@ -151,7 +182,14 @@ export function boardWith(pieces: Array<[Player, "King" | "AttackPawn" | "Defens
 export function seedMatch(
   store: InMemoryStore,
   state: MatchState,
-  options: { matchId?: string; inviteCode?: string; version?: number; streamSequence?: number; members?: MatchMembers; transformEnabled?: boolean } = {},
+  options: {
+    matchId?: string;
+    inviteCode?: string;
+    version?: number;
+    streamSequence?: number;
+    members?: MatchMembers;
+    transformEnabled?: boolean;
+  } = {},
 ): MatchAggregate {
   const aggregate: MatchAggregate = {
     matchId: options.matchId ?? "match_seed01",
@@ -159,7 +197,10 @@ export function seedMatch(
     version: options.version ?? 1,
     streamSequence: options.streamSequence ?? 1,
     seed: 42,
-    config: { ...ONLINE_CONFIG, transformEnabled: options.transformEnabled ?? false },
+    config: {
+      ...ONLINE_CONFIG,
+      transformEnabled: options.transformEnabled ?? false,
+    },
     members: options.members ?? { Black: ALICE, White: BOB },
     status: "active",
     state,

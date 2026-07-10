@@ -15,7 +15,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@assalto-reale/game-core": abs("../game-core/dist/index.js"),
-      "@assalto-reale/multiplayer-protocol": abs("../multiplayer-protocol/dist/index.js"),
+      "@assalto-reale/multiplayer-protocol": abs(
+        "../multiplayer-protocol/dist/index.js",
+      ),
     },
   },
   test: {

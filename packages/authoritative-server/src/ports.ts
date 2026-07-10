@@ -16,7 +16,9 @@ export interface AuthenticatedPrincipal {
  * returns and separately verifies it against the envelope's declared actor.
  */
 export interface Authenticator {
-  authenticate(envelope: ClientCommandEnvelope): Promise<AuthenticatedPrincipal | null>;
+  authenticate(
+    envelope: ClientCommandEnvelope,
+  ): Promise<AuthenticatedPrincipal | null>;
 }
 
 export interface Clock {

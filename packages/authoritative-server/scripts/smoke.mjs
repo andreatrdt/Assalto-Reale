@@ -7,7 +7,10 @@ const handler = new CommandHandler({
   unitOfWork: persistence.unitOfWork,
   authenticator: {
     async authenticate(envelope) {
-      return { playerId: envelope.actor.playerId, sessionId: envelope.actor.sessionId };
+      return {
+        playerId: envelope.actor.playerId,
+        sessionId: envelope.actor.sessionId,
+      };
     },
   },
   clock: { now: () => new Date("2026-01-01T00:00:00.000Z") },
@@ -45,7 +48,9 @@ if (events.length !== 1 || events[0]?.event.type !== "MatchCreated") {
 }
 const aggregate = persistence.store.matches.get("match_smoke01");
 if (!aggregate || aggregate.seed !== 424242 || aggregate.version !== 1) {
-  throw new Error("Authoritative server did not persist canonical server-owned state.");
+  throw new Error(
+    "Authoritative server did not persist canonical server-owned state.",
+  );
 }
 
 console.log("authoritative-server Node smoke passed");
