@@ -1,0 +1,58 @@
+name: Finalize transport CI
+
+on:
+  push:
+    branches:
+      - feat/transport-adapter
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, 'finalize transport validation') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/transport-adapter
+
+      - name: Remove temporary typecheck diagnostics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/server-ci.yml')
+          source = path.read_text()
+          old = '''      - name: Typecheck
+                id: transport-typecheck
+                continue-on-error: true
+                working-directory: packages/server-transport
+                run: npm run typecheck > transport-typecheck.log 2>&1
+
+              - name: Upload typecheck diagnostics
+                if: steps.transport-typecheck.outcome == 'failure'
+                uses: actions/upload-artifact@v4
+                with:
+                  name: transport-typecheck-diagnostics
+                  path: packages/server-transport/transport-typecheck.log
+
+              - name: Enforce typecheck result
+                if: steps.transport-typecheck.outcome == 'failure'
+                run: exit 1
+          '''
+          new = '''      - name: Typecheck
+                working-directory: packages/server-transport
+                run: npm run typecheck
+          '''
+          if old not in source:
+              raise SystemExit('temporary diagnostic block not found')
+          path.write_text(source.replace(old, new, 1))
+          PY
+
+      - name: Commit permanent CI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/server-ci.yml
+          git commit -m "ci: finalize transport validation job"
+          git push origin HEAD:feat/transport-adapter
