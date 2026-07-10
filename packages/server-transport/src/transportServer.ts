@@ -14,6 +14,7 @@ import {
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { ConnectionAuthenticator } from "./connectionAuth.js";
 import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";
+import type { GuestSessionIssuer } from "./guestSessions.js";
 
 const DEFAULT_WEBSOCKET_PATH = "/ws";
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -50,6 +51,7 @@ const silentLogger: TransportLogger = {
 export interface TransportServerOptions {
   executor: AuthenticatedCommandExecutor;
   authenticateConnection: ConnectionAuthenticator;
+  guestSessions?: GuestSessionIssuer;
   readiness?: ReadinessProbe;
   logger?: TransportLogger;
   websocketPath?: string;
@@ -238,6 +240,53 @@ export class AuthoritativeTransportServer {
     response: ServerResponse,
   ): Promise<void> {
     const path = parsePath(request);
+    const origin =
+      typeof request.headers.origin === "string"
+        ? request.headers.origin
+        : null;
+
+    if (path === "/session") {
+      if (!this.options.guestSessions) {
+        this.sendJson(response, 404, { status: "not_found" }, false, origin);
+        return;
+      }
+      if (!this.isOriginAllowed(origin)) {
+        this.sendJson(response, 403, { status: "forbidden" }, false);
+        return;
+      }
+      if (request.method === "OPTIONS") {
+        response.writeHead(204, this.corsHeaders(origin));
+        response.end();
+        return;
+      }
+      if (request.method !== "POST") {
+        this.sendJson(
+          response,
+          405,
+          { status: "method_not_allowed" },
+          request.method === "HEAD",
+          origin,
+        );
+        return;
+      }
+      try {
+        const session = await this.options.guestSessions.issue();
+        this.sendJson(response, 201, session, false, origin);
+      } catch (error) {
+        this.logger.error("Guest session issuance failed.", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        this.sendJson(
+          response,
+          503,
+          { status: "service_unavailable" },
+          false,
+          origin,
+        );
+      }
+      return;
+    }
+
     if (request.method !== "GET" && request.method !== "HEAD") {
       this.sendJson(
         response,
@@ -277,17 +326,33 @@ export class AuthoritativeTransportServer {
     );
   }
 
+  private isOriginAllowed(origin: string | null): boolean {
+    return !this.allowedOrigins || !origin || this.allowedOrigins.has(origin);
+  }
+
+  private corsHeaders(origin: string | null): Record<string, string> {
+    if (!origin) return {};
+    return {
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type, accept",
+      vary: "Origin",
+    };
+  }
+
   private sendJson(
     response: ServerResponse,
     statusCode: number,
-    payload: Record<string, string>,
+    payload: unknown,
     headOnly: boolean,
+    origin: string | null = null,
   ): void {
     const body = JSON.stringify(payload);
     response.writeHead(statusCode, {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "content-length": Buffer.byteLength(body),
+      ...this.corsHeaders(origin),
     });
     response.end(headOnly ? undefined : body);
   }
@@ -306,11 +371,7 @@ export class AuthoritativeTransportServer {
       return;
     }
     const origin = request.headers.origin;
-    if (
-      this.allowedOrigins &&
-      typeof origin === "string" &&
-      !this.allowedOrigins.has(origin)
-    ) {
+    if (!this.isOriginAllowed(typeof origin === "string" ? origin : null)) {
       this.rejectUpgrade(socket, 403, "Forbidden");
       return;
     }

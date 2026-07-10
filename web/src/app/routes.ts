@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-export type AppRoute = "/" | "/setup" | "/game" | "/rules" | "/load" | "/settings";
+export type AppRoute = "/" | "/setup" | "/online" | "/game" | "/rules" | "/load" | "/settings";
 
-const ROUTES = new Set<AppRoute>(["/", "/setup", "/game", "/rules", "/load", "/settings"]);
+const ROUTES = new Set<AppRoute>(["/", "/setup", "/online", "/game", "/rules", "/load", "/settings"]);
 const REDIRECT_PATH_KEY = "assalto:redirect-path";
 
 function basePath(): string {

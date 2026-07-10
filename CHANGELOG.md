@@ -6,6 +6,31 @@ metadata derive from it.
 
 ## Unreleased
 
+Invite-based untimed multiplayer — completes Phase C.9 at the code and validation
+level. The online UI is visible in the web client; a deployed and configured
+backend is still required for public online matches. See
+[`docs/invite-multiplayer.md`](docs/invite-multiplayer.md).
+
+- Added **Play Online** and **Resume Online Match** entry points, private host and
+  join-by-code cards, a shareable invite waiting room and responsive connection
+  status UX.
+- Added a reconnecting browser WebSocket client with persistent browser-session
+  identity, command ordering, exponential retry and canonical `RequestSync`.
+- Added canonical snapshot projection into the existing board UI and an online
+  action bridge for placement, movement, Defended King, Transform, pass and
+  resignation while preventing local undo/save/load/import from becoming online
+  authority.
+- Added short-lived HMAC-signed anonymous guest sessions, optional `POST /session`
+  CORS bootstrap and browser-compatible query-token WebSocket authentication.
+- Added structured pending-command, rejection, side/turn and reconnect feedback,
+  plus an in-game server-version/status HUD and resignation confirmation.
+- Added focused client/store/projection/guest-session tests and Playwright online
+  route coverage. The web suite now has 308 passing tests and retains the existing
+  global coverage thresholds.
+- Preserved local Human-v-Human and Human-v-Computer behavior. Accounts,
+  cross-device identity, deployment, matchmaking, ratings and timed online play
+  remain later phases.
+
 Authoritative HTTP/WebSocket transport — completes Phase C.8.3 without selecting
 a production identity provider, deployment platform or multiplayer UI. See
 [`docs/transport-adapter.md`](docs/transport-adapter.md).
@@ -23,7 +48,7 @@ a production identity provider, deployment platform or multiplayer UI. See
   command ordering and shutdown.
 - Split permanent server CI into independent authoritative/PostgreSQL and
   transport jobs, each with strict typecheck, architecture, formatting, coverage,
-  build/smoke and production-audit gates. Invite multiplayer is now Phase C.9.
+  build/smoke and production-audit gates.
 
 Authoritative PostgreSQL persistence — completes Phase C.8.2 without adding a
 network transport, production authentication provider or multiplayer UI. See

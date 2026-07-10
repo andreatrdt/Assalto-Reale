@@ -3,9 +3,9 @@
 **This is the canonical source of truth for the current application.** Other
 documents in `docs/` are design history or task-specific notes; where they
 disagree with this file, this file wins. Last reconciled through the full-rules
-parity, game-store decomposition, pure game-core, multiplayer-protocol,
-authoritative application-core, PostgreSQL persistence and HTTP/WebSocket
-transport passes (see `CHANGELOG.md`).
+parity, game-store decomposition, pure game-core, multiplayer protocol,
+authoritative application core, PostgreSQL persistence, HTTP/WebSocket
+transport and invite-multiplayer client passes (see `CHANGELOG.md`).
 
 ## What ships publicly
 
@@ -15,156 +15,142 @@ The public product is the modern **React + TypeScript + Vite** client under
 `/Assalto-Reale/`). All of the following are exposed and working in the
 user-facing app (verified from implementation and tests):
 
-- 12×12 board, Black versus White, one King + Attack/Defense/Conquest pawns each.
-- **Human vs Human** and **Human vs Computer** (single computer side).
-- **Manual placement** (snake schedule) — the only public placement mode.
-- **Transform enabled** for every new public match (no public on/off toggle).
-- **Timed and untimed** matches (Untimed, 5/10/12/15/20 minutes).
+- 12×12 board, Black versus White, one King + Attack/Defense/Conquest pawn each.
+- **Human vs Human** and **Human vs Computer** local play.
+- **Manual placement** (snake schedule) — the only public local placement mode.
+- **Transform enabled** for every new public local match.
+- **Timed and untimed** local matches (Untimed, 5/10/12/15/20 minutes).
 - **Defended King** sacrifice-and-bounce, with an on-board preview and a
   contextual decision panel.
-- **Victory**: king-capture, territory majority, and timeout — with an
-  accessible victory overlay.
-- **Undo**, **local save/load**, and **JSON import/export** of a match.
-- **Board-motion animations** (move, capture, placement, Defended-King, Transform)
-  and a synthesized **audio** layer with mute + volume.
+- **Victory** by king capture, territory majority and timeout, with an accessible
+  victory overlay.
+- **Undo**, **local save/load**, and **JSON import/export** for local matches.
+- **Board-motion animations** and a synthesized audio layer with mute + volume.
 - **Reduced-motion** and **high-contrast board** accessibility settings.
 - Responsive **board-first** desktop and mobile layouts.
-- Installable **PWA** (manifest, icons, service worker, `404.html` SPA fallback)
-  and a packaged production build.
+- Installable **PWA** with manifest, icons, service worker and SPA fallback.
+- A visible **Play Online** route with private host/join choices, invite-code
+  waiting room, reconnect status and an in-game server-authority HUD.
 
-Online multiplayer is not exposed in the client yet.
+The GitHub Pages deployment does not currently provide
+`VITE_MULTIPLAYER_WS_URL`, so its online route deliberately shows **Server not
+configured** and disables host/join actions. The client becomes functional when
+built against a deployed C.8 backend; no fake local fallback is used.
 
-## Retained for compatibility / internal use (not public UI)
+## Retained for compatibility / internal use (not public local UI)
 
-These exist in code for old saves, tests, parity or internal tooling and are
-**intentionally not exposed** in the public interface — do not treat their
-presence as a public feature:
+These exist in code for old saves, tests, parity, online setup or internal
+tooling and are intentionally not exposed in the local-match setup interface:
 
-- `QuickBalanced` placement mode — retained in `matchConfig` and the store's
-  `startQuickMatch` helper (used by tests/internal), removed from public setup.
-- `transformEnabled: false` — supported when loading older saves; public matches
-  always create with Transform on.
-- `aiDifficulty` (`Easy/Medium/Hard`) — retained in the config model, **hidden**
-  from public setup because the AI does not yet differentiate by difficulty.
+- `QuickBalanced` placement mode — used by authoritative invite matches and
+  internal helpers, but not offered in public local setup.
+- `transformEnabled: false` — supported when loading older saves; newly created
+  public matches use Transform.
+- `aiDifficulty` (`Easy/Medium/Hard`) — retained in the config model but hidden
+  because the current AI does not meaningfully differentiate difficulty.
 - Older/legacy save handling in `serialization` and
   `web/src/game/persistence/saveGame.ts`.
-- The legacy **Pygbag** build lives only in the separate `AssaltoRealeWeb`
-  repository (historically hosted on Vercel); it is not part of this product.
+- The legacy **Pygbag** build in the separate `AssaltoRealeWeb` repository.
 
 ## Lifecycle & persistence
 
-The save/restore/undo/timer contract is documented in
+The local save/restore/undo/timer contract is documented in
 [`match-lifecycle-contract.md`](match-lifecycle-contract.md) and covered by
-characterisation tests (`web/src/game/state/persistence.test.ts`): a supported
-match can be saved, closed, restored and continued across placement, mid-turn,
-pending Defended-King, pending Transform, active territory claim, timed and
-completed phases; imports are validated atomically; storage failures fail safe.
+characterisation tests. Online matches intentionally disable local undo,
+save/load and JSON import/export: the authoritative server snapshot is the only
+accepted online state.
 
 ## State architecture
 
-`useGameStore` remains the only public Zustand entry point. The store acts as a
-browser/UI coordinator while pure placement, turn, clock, history and persistence
-logic lives in focused modules under `web/src/game/`. Its public runtime surface
-is frozen by `storeContract.test.ts`.
+`useGameStore` remains the public board/UI coordinator. Pure placement, turn,
+clock, history and persistence logic lives under `web/src/game/`, while gameplay
+authority lives in browser-independent `packages/game-core`.
 
-Gameplay authority lives in the browser-independent `packages/game-core`. The
-web app and authoritative server consume the same public package through their
-respective adapters. See [`game-store-contract.md`](game-store-contract.md) and
-[`game-core-extraction.md`](game-core-extraction.md).
+For an online match, `onlineStore` owns connection/session state and projects
+validated canonical snapshots into the existing board presentation. The
+`onlineActionBridge` temporarily redirects board interactions to versioned
+protocol commands and restores the original local actions when the user starts a
+local match. The browser never commits an online move speculatively.
 
 ## Multiplayer architecture status
 
-The transport-independent wire contract is implemented by
-`packages/multiplayer-protocol`. It defines versioned command/event envelopes,
+`packages/multiplayer-protocol` defines versioned command/event envelopes,
 runtime validation, semantic command IDs, expected match versions, ordered event
 streams and canonical reconnect snapshots.
 
-Phase C.8.1 added `packages/authoritative-server`, an application/domain core that:
+Phase C.8 delivered the authoritative backend foundation:
 
-- authenticates an injected transport principal and matches it to the declared actor;
-- enforces semantic command idempotency, membership and optimistic match versions;
-- generates match IDs, invite codes and deterministic setup seeds server-side;
-- invokes `game-core` as the only gameplay-rules authority;
-- atomically commits match state and command receipts;
-- returns ordered `multiplayer-protocol` event envelopes;
-- supports invite-code join, resignation and canonical `RequestSync`;
-- exposes repository/unit-of-work ports plus a deterministic in-memory adapter.
+- `packages/authoritative-server` validates principals, idempotency, membership
+  and optimistic versions, invokes `game-core`, and emits canonical events;
+- the PostgreSQL adapter persists canonical aggregates and exact command receipts
+  atomically with compare-and-swap concurrency;
+- `packages/server-transport` provides liveness/readiness HTTP endpoints,
+  authenticated WebSocket upgrades, event routing, reconnect subscriptions,
+  origin/payload/backpressure safeguards and graceful shutdown.
 
-Phase C.8.2 implements those ports with PostgreSQL:
+Phase C.9 adds invite-based untimed client integration:
 
-- versioned and checksum-verified migrations protected by an advisory lock;
-- canonical `game-core` state and exact command results stored as validated JSONB;
-- unique invitation codes and command IDs;
-- atomic receipt + aggregate transactions;
-- compare-and-swap match-version updates;
-- integration tests against PostgreSQL 16 for concurrency, rollback and replay.
+- short-lived HMAC-signed anonymous guest sessions issued through `POST /session`;
+- browser-compatible query-token WebSocket authentication with origin filtering;
+- persistent session and match context within the browser session;
+- host, join-by-code and waiting-room flows;
+- exponential reconnect and canonical `RequestSync`;
+- canonical snapshot projection into the existing board UI;
+- server-authoritative placement, movement, Defended King, Transform, pass and
+  resignation commands;
+- pending-command, rejection, connection and side/turn ownership UX;
+- focused unit, transport-integration and Playwright route coverage.
 
-Phase C.8.3 adds `packages/server-transport`:
-
-- `GET`/`HEAD` liveness and readiness endpoints;
-- authenticated WebSocket upgrades on a configurable path;
-- provider-neutral bearer-token verification and async principal propagation;
-- serialized per-connection command forwarding to `CommandHandler`;
-- player- and match-recipient routing for canonical event envelopes;
-- reconnect-safe match subscriptions through `RequestSync`;
-- origin, payload, backpressure, heartbeat and graceful-shutdown safeguards;
-- real WebSocket integration coverage and a separate permanent CI job.
-
-The backend stack deliberately still has no selected production identity provider,
-account system, deployment target or multiplayer web UI. See
-[`authoritative-server.md`](authoritative-server.md) and
-[`transport-adapter.md`](transport-adapter.md).
+Anonymous guest sessions are not accounts. Cross-device continuity, production
+account identity and long-lived profile ownership remain Phase C.10.
 
 ## Known limitations (currently true)
 
-- **AI is a greedy heuristic** (`game/state/gameStore.ts` +
-  `game/ai/evaluation.ts`): it scores immediate candidate actions and picks the
-  best; there is no deep search, and difficulty levels are not yet meaningfully
-  different.
-- **Python ⇄ TypeScript parity is fixture-proven, not formally exhaustive.** The
-  shared PRNG, seeded generation, complete turns and special mechanics are
-  covered by deterministic cross-runtime fixtures, but this is not a formal
-  proof over every reachable game state.
-- **Save migration** across schema changes is limited to the schema-1→2 path in
-  `game/persistence/saveGame.ts`; there is no general migration framework.
-- **Save confirmation during active play**: the "Game saved locally." message is
-  surfaced only during placement, not in the active-play controls panel — the
-  save itself persists correctly. Presentation-only; tracked for a later UX pass.
-- **Visual-regression baselines are Linux-only** and seeded via the Playwright
-  Docker image; the CI `web-visual` job stays inert until they are committed
-  (see `docs/browser-quality.md`).
-- **Board keyboard navigation** is per-square tab stops with Enter/Space
-  activation; arrow-key roving grid navigation is not yet implemented.
-- The completed backend stack is not a public online product until production
-  identity, deployment and client integration are added.
+- **The online backend is not deployed.** The web interface is present and fails
+  closed until a deployment supplies the WebSocket/session endpoint and the web
+  build is configured with `VITE_MULTIPLAYER_WS_URL`.
+- **Online matches are invite-only and untimed.** There is no public matchmaking,
+  rating, spectator mode, rematch implementation or server-authoritative clock.
+- **Anonymous identity is browser-session scoped.** Clearing session storage or
+  changing device loses the guest credential; account continuity is Phase C.10.
+- **AI is a greedy heuristic** with no deep search and no meaningful difficulty
+  differentiation yet.
+- **Python ⇄ TypeScript parity is fixture-proven, not formally exhaustive.**
+- Save migration is limited to the schema-1→2 path.
+- Visual-regression baselines remain unseeded; the CI contract stays inert until
+  Linux baselines are committed.
+- Board keyboard navigation uses per-square tab stops rather than a roving
+  arrow-key grid.
 - No Android packaging, public matchmaking or ratings.
 
 ## Deployment status
 
-Live on **GitHub Pages** from this repository via
-`.github/workflows/deploy-pages.yml` (manual `workflow_dispatch` and automatic
-`workflow_run` after CI succeeds on `main`). `release-metadata.json` records the
-deployed source commit. See `docs/deployment.md` and `docs/release-checklist.md`.
+The React/PWA client is deployed from this repository to GitHub Pages through
+`.github/workflows/deploy-pages.yml`. `release-metadata.json` records the source
+commit.
 
 The authoritative-server, PostgreSQL and server-transport packages are validated
-in CI but are not deployed.
+in CI but are not deployed. Running real online matches requires a composed
+server process, PostgreSQL, secrets, TLS and a configured web build.
 
 ## Validation baseline
 
 Required repository gates:
 
-- Python: `pytest` (rules-engine + workflow-config tests).
+- Python rules-engine and workflow-config tests.
 - Python–TypeScript deterministic parity fixtures and tests.
-- Web unit: `vitest` with coverage thresholds.
+- Web unit coverage: **308 tests** with unchanged global thresholds.
 - Web static quality: TypeScript, ESLint, Prettier and production audit.
 - Web production build and package smokes.
-- Playwright Chromium/mobile, Firefox/WebKit and visual-gate contract.
-- Authoritative server: strict TypeScript, architecture lint, Prettier, coverage
-  thresholds, ESM build, plain-Node smoke and production dependency audit.
+- Playwright Chromium/mobile, Firefox/WebKit and visual-gate contract, including
+  the visible online route and fail-closed unconfigured state.
+- Authoritative server: strict TypeScript, architecture lint, Prettier, coverage,
+  ESM smoke and production dependency audit.
 - PostgreSQL 16 integration: migrations, canonical round-trip, invitation lookup,
   idempotent replay, concurrency, atomic rollback and corrupt-data guards.
-- Server transport: strict TypeScript, architecture boundary, formatting, HTTP and
-  real-WebSocket integration coverage, ESM smoke and production audit.
+- Server transport: strict TypeScript, architecture boundary, formatting, HTTP
+  and real-WebSocket integration coverage, guest-session signing/bootstrap, ESM
+  smoke and production audit.
 
 ## Roadmap position
 
@@ -176,13 +162,14 @@ Phase B.7 Multiplayer protocol        completed
 Phase C.8 Authoritative server
   C.8.1 Application core              completed
   C.8.2 PostgreSQL adapter            completed
-  C.8.3 Transport adapter             completed by this phase
-Phase C.9 Invite multiplayer          next
-Phase C.10 Accounts/continuity        pending
+  C.8.3 Transport adapter             completed
+Phase C.9 Invite multiplayer          completed by this phase
+Phase C.10 Accounts/continuity        next
 Phase C.11 Timed online matches       pending
+Backend deployment                    required before public online play
 Android packaging                     later
 Matchmaking/ratings/social            later
 ```
 
 Optional parallel work remains: stronger AI, broader generated parity, arrow-key
-board navigation and mobile lifecycle hardening.
+board navigation, mobile lifecycle hardening and deployment automation.
