@@ -26,10 +26,7 @@ export function createHistoryEntry(state: GameState): HistoryEntry {
   };
 }
 
-export function restoreHistoryPatch(
-  previous: HistoryEntry,
-  remainingHistory: HistoryEntry[],
-): StatePatch {
+export function restoreHistoryPatch(previous: HistoryEntry, remainingHistory: HistoryEntry[]): StatePatch {
   return {
     board: cloneBoard(previous.board),
     currentPlayer: previous.currentPlayer,
