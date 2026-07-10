@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { ConfirmDialog, GameButton, StatusBadge } from "../ui/components";
-import {
-  installOnlineGameActionBridge,
-  onlineActionBlockReason,
-} from "./onlineActionBridge";
+import { installOnlineGameActionBridge, onlineActionBlockReason } from "./onlineActionBridge";
 import { useOnlineMatchStore } from "./onlineStore";
 import "../styles/onlineGameHud.css";
 
@@ -13,15 +10,9 @@ export function OnlineGameHud() {
   const side = useOnlineMatchStore((state) => state.side);
   const inviteCode = useOnlineMatchStore((state) => state.inviteCode);
   const matchVersion = useOnlineMatchStore((state) => state.matchVersion);
-  const connectionStatus = useOnlineMatchStore(
-    (state) => state.connectionStatus,
-  );
-  const connectionDetail = useOnlineMatchStore(
-    (state) => state.connectionDetail,
-  );
-  const pendingCommandId = useOnlineMatchStore(
-    (state) => state.pendingCommandId,
-  );
+  const connectionStatus = useOnlineMatchStore((state) => state.connectionStatus);
+  const connectionDetail = useOnlineMatchStore((state) => state.connectionDetail);
+  const pendingCommandId = useOnlineMatchStore((state) => state.pendingCommandId);
   const lastError = useOnlineMatchStore((state) => state.lastError);
   const completed = useOnlineMatchStore((state) => state.completed);
   const resumeMatch = useOnlineMatchStore((state) => state.resumeMatch);
@@ -32,12 +23,7 @@ export function OnlineGameHud() {
   }, []);
 
   useEffect(() => {
-    if (
-      matchId &&
-      connectionStatus !== "connected" &&
-      connectionStatus !== "connecting" &&
-      connectionStatus !== "reconnecting"
-    ) {
+    if (matchId && connectionStatus !== "connected" && connectionStatus !== "connecting" && connectionStatus !== "reconnecting") {
       void resumeMatch();
     }
   }, [connectionStatus, matchId, resumeMatch]);
@@ -46,11 +32,7 @@ export function OnlineGameHud() {
 
   const reason = onlineActionBlockReason();
   const tone =
-    connectionStatus === "connected"
-      ? "success"
-      : connectionStatus === "offline" || connectionStatus === "error"
-        ? "danger"
-        : "info";
+    connectionStatus === "connected" ? "success" : connectionStatus === "offline" || connectionStatus === "error" ? "danger" : "info";
   const connectionLabel = {
     idle: "Not connected",
     connecting: "Connecting",
@@ -73,17 +55,10 @@ export function OnlineGameHud() {
           <span aria-live="polite">
             {lastError ??
               connectionDetail ??
-              (pendingCommandId
-                ? "Awaiting server confirmation…"
-                : reason ?? "Server-authoritative match")}
+              (pendingCommandId ? "Awaiting server confirmation…" : (reason ?? "Server-authoritative match"))}
           </span>
           {!completed && (
-            <GameButton
-              variant="danger"
-              size="sm"
-              disabled={Boolean(pendingCommandId)}
-              onClick={() => setConfirmResign(true)}
-            >
+            <GameButton variant="danger" size="sm" disabled={Boolean(pendingCommandId)} onClick={() => setConfirmResign(true)}>
               Resign
             </GameButton>
           )}

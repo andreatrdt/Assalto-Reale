@@ -7,19 +7,9 @@ import {
   type ClientCommandEnvelope,
   type ServerEventEnvelope,
 } from "./protocol";
-import {
-  acquireGuestSession,
-  authenticatedWebSocketUrl,
-  type GuestSessionCredentials,
-} from "./onlineIdentity";
+import { acquireGuestSession, authenticatedWebSocketUrl, type GuestSessionCredentials } from "./onlineIdentity";
 
-export type OnlineConnectionStatus =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "offline"
-  | "error";
+export type OnlineConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline" | "error";
 
 export interface OnlineClientCallbacks {
   onStatus(status: OnlineConnectionStatus, detail?: string): void;
@@ -53,9 +43,7 @@ function commandId(): string {
 }
 
 export class OnlineClient {
-  private readonly acquireSession: (
-    websocketUrl: string,
-  ) => Promise<GuestSessionCredentials>;
+  private readonly acquireSession: (websocketUrl: string) => Promise<GuestSessionCredentials>;
   private readonly createWebSocket: (url: string) => WebSocket;
   private readonly schedule: typeof window.setTimeout;
   private readonly cancelSchedule: typeof window.clearTimeout;
@@ -69,8 +57,7 @@ export class OnlineClient {
 
   constructor(private readonly options: OnlineClientOptions) {
     this.acquireSession = options.acquireSession ?? acquireGuestSession;
-    this.createWebSocket =
-      options.createWebSocket ?? ((url) => new WebSocket(url));
+    this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url));
     this.schedule = options.setTimeout ?? window.setTimeout.bind(window);
     this.cancelSchedule = options.clearTimeout ?? window.clearTimeout.bind(window);
   }
@@ -131,12 +118,8 @@ export class OnlineClient {
       commandId: id,
       sentAt: new Date().toISOString(),
       actor: principal,
-      matchId:
-        context.matchId === undefined ? this.context.matchId : context.matchId,
-      expectedMatchVersion:
-        context.expectedMatchVersion === undefined
-          ? this.context.matchVersion
-          : context.expectedMatchVersion,
+      matchId: context.matchId === undefined ? this.context.matchId : context.matchId,
+      expectedMatchVersion: context.expectedMatchVersion === undefined ? this.context.matchVersion : context.expectedMatchVersion,
       command,
     };
     socket.send(encodeClientMessage(envelope));
@@ -145,14 +128,11 @@ export class OnlineClient {
 
   private async open(reconnecting: boolean): Promise<GuestSessionCredentials> {
     this.options.onStatus(reconnecting ? "reconnecting" : "connecting");
-    const credentials =
-      this.credentials ?? (await this.acquireSession(this.options.websocketUrl));
+    const credentials = this.credentials ?? (await this.acquireSession(this.options.websocketUrl));
     this.credentials = credentials;
 
     return new Promise<GuestSessionCredentials>((resolve, reject) => {
-      const socket = this.createWebSocket(
-        authenticatedWebSocketUrl(this.options.websocketUrl, credentials.token),
-      );
+      const socket = this.createWebSocket(authenticatedWebSocketUrl(this.options.websocketUrl, credentials.token));
       this.socket = socket;
       let opened = false;
 
@@ -218,10 +198,7 @@ export class OnlineClient {
     this.reconnectTimer = this.schedule(() => {
       this.reconnectTimer = null;
       void this.open(true).catch((error: unknown) => {
-        this.options.onStatus(
-          "offline",
-          error instanceof Error ? error.message : "Reconnect failed.",
-        );
+        this.options.onStatus("offline", error instanceof Error ? error.message : "Reconnect failed.");
         this.scheduleReconnect();
       });
     }, delay);

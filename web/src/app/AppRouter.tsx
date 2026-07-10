@@ -28,12 +28,8 @@ export function AppRouter() {
   }, [loadUiSettings]);
 
   useEffect(() => {
-    document.documentElement.dataset.motion = reducedMotion
-      ? "reduced"
-      : "standard";
-    document.documentElement.dataset.boardContrast = highContrastBoard
-      ? "high"
-      : "standard";
+    document.documentElement.dataset.motion = reducedMotion ? "reduced" : "standard";
+    document.documentElement.dataset.boardContrast = highContrastBoard ? "high" : "standard";
   }, [highContrastBoard, reducedMotion]);
 
   useEffect(() => {

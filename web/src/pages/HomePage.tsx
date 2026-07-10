@@ -22,12 +22,7 @@ export function HomePage({ route, navigate }: HomePageProps) {
   }
 
   return (
-    <PageShell
-      activeRoute={route}
-      navigate={navigate}
-      className="homeShell"
-      variant="home"
-    >
+    <PageShell activeRoute={route} navigate={navigate} className="homeShell" variant="home">
       <section className="home" aria-labelledby="home-title">
         <div className="homeIdentity">
           <h1 id="home-title" className="homeTitle" aria-label="Assalto Reale">
@@ -41,19 +36,11 @@ export function HomePage({ route, navigate }: HomePageProps) {
           <GameButton variant="primary" size="lg" onClick={startLocalMatch}>
             Start Match
           </GameButton>
-          <GameButton
-            variant="secondary"
-            size="lg"
-            onClick={() => navigate("/online")}
-          >
+          <GameButton variant="secondary" size="lg" onClick={() => navigate("/online")}>
             {onlineMatchId ? "Resume Online Match" : "Play Online"}
           </GameButton>
           {hasActiveMatch && !onlineMatchId && (
-            <GameButton
-              variant="secondary"
-              size="lg"
-              onClick={() => navigate("/game")}
-            >
+            <GameButton variant="secondary" size="lg" onClick={() => navigate("/game")}>
               Continue Last Match
             </GameButton>
           )}

@@ -1,9 +1,4 @@
-import {
-  getPiece,
-  hasPos,
-  type PawnType,
-  type Vec2,
-} from "../game/engine";
+import { getPiece, hasPos, type PawnType, type Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import type { GameActions } from "../game/state/storeTypes";
 import { actionTargets, describePiece } from "../game/turn/turnHelpers";
@@ -59,28 +54,16 @@ function blockReason(): string | null {
     return "This online match is complete.";
   }
 
-  if (
-    game.phase.phase === "placement" &&
-    game.currentPlacement?.player !== online.side
-  ) {
+  if (game.phase.phase === "placement" && game.currentPlacement?.player !== online.side) {
     return "It is your opponent's placement.";
   }
-  if (
-    game.phase.phase === "defenderSelection" &&
-    game.pendingDefendedKing?.owner !== online.side
-  ) {
+  if (game.phase.phase === "defenderSelection" && game.pendingDefendedKing?.owner !== online.side) {
     return "Your opponent must choose the defender.";
   }
-  if (
-    game.phase.phase === "transformSelection" &&
-    game.pendingTransform?.owner !== online.side
-  ) {
+  if (game.phase.phase === "transformSelection" && game.pendingTransform?.owner !== online.side) {
     return "Your opponent must choose the Transform.";
   }
-  if (
-    game.phase.phase === "playing" &&
-    game.currentPlayer !== online.side
-  ) {
+  if (game.phase.phase === "playing" && game.currentPlayer !== online.side) {
     return "It is your opponent's turn.";
   }
   return null;
@@ -121,12 +104,7 @@ function activateSquare(pos: Vec2): void {
     if (piece?.player === online.side) {
       useGameStore.setState({
         selected: pos,
-        legalTargets: actionTargets(
-          game.board,
-          pos,
-          game.movesThisTurn,
-          game.kingMoved,
-        ),
+        legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved),
         message: `${piece.player} ${describePiece(piece.type)} selected.`,
       });
     }
@@ -136,12 +114,7 @@ function activateSquare(pos: Vec2): void {
   if (piece?.player === online.side) {
     useGameStore.setState({
       selected: pos,
-      legalTargets: actionTargets(
-        game.board,
-        pos,
-        game.movesThisTurn,
-        game.kingMoved,
-      ),
+      legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved),
       message: `${piece.player} ${describePiece(piece.type)} selected.`,
     });
     return;

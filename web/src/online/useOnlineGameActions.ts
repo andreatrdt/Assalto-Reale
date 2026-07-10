@@ -6,34 +6,18 @@ import { useOnlineMatchStore } from "./onlineStore";
 
 export function useOnlineGameActions() {
   const side = useOnlineMatchStore((state) => state.side);
-  const connectionStatus = useOnlineMatchStore(
-    (state) => state.connectionStatus,
-  );
-  const waitingForOpponent = useOnlineMatchStore(
-    (state) => state.waitingForOpponent,
-  );
-  const pendingCommandId = useOnlineMatchStore(
-    (state) => state.pendingCommandId,
-  );
+  const connectionStatus = useOnlineMatchStore((state) => state.connectionStatus);
+  const waitingForOpponent = useOnlineMatchStore((state) => state.waitingForOpponent);
+  const pendingCommandId = useOnlineMatchStore((state) => state.pendingCommandId);
   const completed = useOnlineMatchStore((state) => state.completed);
   const sendPlacement = useOnlineMatchStore((state) => state.sendPlacement);
   const sendAction = useOnlineMatchStore((state) => state.sendAction);
-  const chooseDefenderCommand = useOnlineMatchStore(
-    (state) => state.chooseDefender,
-  );
-  const cancelDefendedKingCommand = useOnlineMatchStore(
-    (state) => state.cancelDefendedKing,
-  );
-  const chooseTransformCommand = useOnlineMatchStore(
-    (state) => state.chooseTransform,
-  );
+  const chooseDefenderCommand = useOnlineMatchStore((state) => state.chooseDefender);
+  const cancelDefendedKingCommand = useOnlineMatchStore((state) => state.cancelDefendedKing);
+  const chooseTransformCommand = useOnlineMatchStore((state) => state.chooseTransform);
   const passTurnCommand = useOnlineMatchStore((state) => state.passTurn);
 
-  const blocked =
-    connectionStatus !== "connected" ||
-    waitingForOpponent ||
-    Boolean(pendingCommandId) ||
-    completed;
+  const blocked = connectionStatus !== "connected" || waitingForOpponent || Boolean(pendingCommandId) || completed;
 
   const canAct = useCallback((): boolean => {
     if (blocked || !side) return false;
@@ -91,12 +75,7 @@ export function useOnlineGameActions() {
         if (piece?.player === side) {
           useGameStore.setState({
             selected: pos,
-            legalTargets: actionTargets(
-              state.board,
-              pos,
-              state.movesThisTurn,
-              state.kingMoved,
-            ),
+            legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
             message: `${piece.player} ${describePiece(piece.type)} selected.`,
           });
         }
@@ -105,12 +84,7 @@ export function useOnlineGameActions() {
       if (piece?.player === side) {
         useGameStore.setState({
           selected: pos,
-          legalTargets: actionTargets(
-            state.board,
-            pos,
-            state.movesThisTurn,
-            state.kingMoved,
-          ),
+          legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
           message: `${piece.player} ${describePiece(piece.type)} selected.`,
         });
         return;

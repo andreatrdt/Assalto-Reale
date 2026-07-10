@@ -70,9 +70,7 @@ export function clearGuestSession(): void {
 
 export function configuredWebSocketUrl(): string | null {
   const configured = import.meta.env.VITE_MULTIPLAYER_WS_URL;
-  return typeof configured === "string" && configured.trim().length > 0
-    ? configured.trim()
-    : null;
+  return typeof configured === "string" && configured.trim().length > 0 ? configured.trim() : null;
 }
 
 export function sessionEndpointFor(websocketUrl: string): string {
@@ -88,10 +86,7 @@ export function sessionEndpointFor(websocketUrl: string): string {
   return url.toString();
 }
 
-export async function acquireGuestSession(
-  websocketUrl: string,
-  fetcher: typeof fetch = fetch,
-): Promise<GuestSessionCredentials> {
+export async function acquireGuestSession(websocketUrl: string, fetcher: typeof fetch = fetch): Promise<GuestSessionCredentials> {
   const cached = loadGuestSession();
   if (cached) return cached;
 
@@ -110,10 +105,7 @@ export async function acquireGuestSession(
   return payload;
 }
 
-export function authenticatedWebSocketUrl(
-  websocketUrl: string,
-  token: string,
-): string {
+export function authenticatedWebSocketUrl(websocketUrl: string, token: string): string {
   const url = new URL(websocketUrl);
   url.searchParams.set("access_token", token);
   return url.toString();

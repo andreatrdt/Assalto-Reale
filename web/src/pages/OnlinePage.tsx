@@ -3,12 +3,7 @@ import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { configuredWebSocketUrl } from "../online/onlineIdentity";
 import { useOnlineMatchStore } from "../online/onlineStore";
-import {
-  FormField,
-  GameButton,
-  PageShell,
-  StatusBadge,
-} from "../ui/components";
+import { FormField, GameButton, PageShell, StatusBadge } from "../ui/components";
 import "../styles/online.css";
 
 interface OnlinePageProps {
@@ -20,21 +15,13 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const [inviteInput, setInviteInput] = useState("");
   const [copied, setCopied] = useState(false);
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
-  const connectionStatus = useOnlineMatchStore(
-    (state) => state.connectionStatus,
-  );
-  const connectionDetail = useOnlineMatchStore(
-    (state) => state.connectionDetail,
-  );
+  const connectionStatus = useOnlineMatchStore((state) => state.connectionStatus);
+  const connectionDetail = useOnlineMatchStore((state) => state.connectionDetail);
   const matchId = useOnlineMatchStore((state) => state.matchId);
   const inviteCode = useOnlineMatchStore((state) => state.inviteCode);
   const side = useOnlineMatchStore((state) => state.side);
-  const waitingForOpponent = useOnlineMatchStore(
-    (state) => state.waitingForOpponent,
-  );
-  const pendingCommandId = useOnlineMatchStore(
-    (state) => state.pendingCommandId,
-  );
+  const waitingForOpponent = useOnlineMatchStore((state) => state.waitingForOpponent);
+  const pendingCommandId = useOnlineMatchStore((state) => state.pendingCommandId);
   const lastError = useOnlineMatchStore((state) => state.lastError);
   const hostMatch = useOnlineMatchStore((state) => state.hostMatch);
   const joinMatch = useOnlineMatchStore((state) => state.joinMatch);
@@ -66,25 +53,15 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
     clearError();
   }
 
-  const busy =
-    connectionStatus === "connecting" ||
-    connectionStatus === "reconnecting" ||
-    Boolean(pendingCommandId);
+  const busy = connectionStatus === "connecting" || connectionStatus === "reconnecting" || Boolean(pendingCommandId);
 
   return (
-    <PageShell
-      activeRoute={route}
-      navigate={navigate}
-      className="onlineShell"
-    >
+    <PageShell activeRoute={route} navigate={navigate} className="onlineShell">
       <section className="onlinePage" aria-labelledby="online-title">
         <header className="onlineHeader">
           <p className="eyebrow">Invite multiplayer</p>
           <h1 id="online-title">Play Online</h1>
-          <p>
-            Create a private match or join a friend. The server owns every move,
-            so both boards stay synchronized.
-          </p>
+          <p>Create a private match or join a friend. The server owns every move, so both boards stay synchronized.</p>
         </header>
 
         {!configured && (
@@ -92,10 +69,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
             <StatusBadge tone="info" icon="warning">
               Server not configured
             </StatusBadge>
-            <p>
-              This build has the online interface, but it needs a multiplayer
-              server URL before it can connect.
-            </p>
+            <p>This build has the online interface, but it needs a multiplayer server URL before it can connect.</p>
           </div>
         )}
 
@@ -115,32 +89,17 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
           <div className="onlineLobby panel">
             <div className="onlineLobbyTop">
               <div>
-                <p className="eyebrow">
-                  {waitingForOpponent ? "Waiting room" : "Online match"}
-                </p>
-                <h2>
-                  {waitingForOpponent
-                    ? "Invite your opponent"
-                    : "Reconnect to your match"}
-                </h2>
+                <p className="eyebrow">{waitingForOpponent ? "Waiting room" : "Online match"}</p>
+                <h2>{waitingForOpponent ? "Invite your opponent" : "Reconnect to your match"}</h2>
               </div>
-              <ConnectionBadge
-                status={connectionStatus}
-                detail={connectionDetail}
-              />
+              <ConnectionBadge status={connectionStatus} detail={connectionDetail} />
             </div>
 
             {inviteCode && (
               <div className="inviteCodeBlock">
                 <span>Invite code</span>
-                <strong aria-label={`Invite code ${inviteCode}`}>
-                  {inviteCode}
-                </strong>
-                <GameButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => void copyInvite()}
-                >
+                <strong aria-label={`Invite code ${inviteCode}`}>{inviteCode}</strong>
+                <GameButton variant="secondary" size="sm" onClick={() => void copyInvite()}>
                   {copied ? "Copied" : "Copy code"}
                 </GameButton>
               </div>
@@ -168,14 +127,8 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
             </p>
 
             <div className="onlineActions">
-              <GameButton
-                variant="primary"
-                disabled={!configured || busy}
-                onClick={() => void resumeMatch()}
-              >
-                {connectionStatus === "connected"
-                  ? "Synchronize Match"
-                  : "Reconnect"}
+              <GameButton variant="primary" disabled={!configured || busy} onClick={() => void resumeMatch()}>
+                {connectionStatus === "connected" ? "Synchronize Match" : "Reconnect"}
               </GameButton>
               <GameButton variant="ghost" onClick={abandonMatch}>
                 Forget Match
@@ -188,22 +141,14 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               <div>
                 <p className="eyebrow">Host</p>
                 <h2>Create a private match</h2>
-                <p>
-                  Get a shareable invite code and wait here while your opponent
-                  joins.
-                </p>
+                <p>Get a shareable invite code and wait here while your opponent joins.</p>
               </div>
               <ul className="onlineRules">
                 <li>Untimed</li>
                 <li>Quick deployment</li>
                 <li>Transform enabled</li>
               </ul>
-              <GameButton
-                variant="primary"
-                size="lg"
-                disabled={!configured || busy}
-                onClick={() => void hostMatch()}
-              >
+              <GameButton variant="primary" size="lg" disabled={!configured || busy} onClick={() => void hostMatch()}>
                 {busy ? "Connecting…" : "Create Online Match"}
               </GameButton>
             </article>
@@ -212,18 +157,13 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               <div>
                 <p className="eyebrow">Join</p>
                 <h2>Enter an invite code</h2>
-                <p>
-                  Paste the code sent by the host. Your side is assigned by the
-                  authoritative server.
-                </p>
+                <p>Paste the code sent by the host. Your side is assigned by the authoritative server.</p>
               </div>
               <FormField label="Invite code">
                 <input
                   className="onlineCodeInput"
                   value={inviteInput}
-                  onChange={(event) =>
-                    setInviteInput(event.target.value.toUpperCase())
-                  }
+                  onChange={(event) => setInviteInput(event.target.value.toUpperCase())}
                   placeholder="INV00001"
                   autoComplete="off"
                   spellCheck={false}

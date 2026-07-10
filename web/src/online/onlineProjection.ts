@@ -11,10 +11,7 @@ export interface OnlineSnapshotOptions {
   ended?: boolean;
 }
 
-export function applyOnlineSnapshot(
-  snapshot: CanonicalMatchSnapshot,
-  options: OnlineSnapshotOptions,
-): boolean {
+export function applyOnlineSnapshot(snapshot: CanonicalMatchSnapshot, options: OnlineSnapshotOptions): boolean {
   const match = deserializeState(JSON.stringify(snapshot));
   if (!match) return false;
 
@@ -22,9 +19,7 @@ export function applyOnlineSnapshot(
   const patch = storePatchFromCoreMatch(match, previousPhase);
   useGameStore.setState({
     ...patch,
-    ...(options.ended
-      ? { phase: { phase: "gameOver", previousPhase: match.phase } as const }
-      : {}),
+    ...(options.ended ? { phase: { phase: "gameOver", previousPhase: match.phase } as const } : {}),
     aiEnabled: false,
     aiPlayer: "White",
     hasActiveMatch: true,
@@ -35,8 +30,7 @@ export function applyOnlineSnapshot(
       resolvedHumanSide: null,
       aiSide: null,
       timerSeconds: 0,
-      placementMode:
-        match.phase === "placement" ? "Manual" : "QuickBalanced",
+      placementMode: match.phase === "placement" ? "Manual" : "QuickBalanced",
       transformEnabled: match.board.transformSquares.length > 0,
       setupSeed: 0,
     },
