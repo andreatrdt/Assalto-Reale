@@ -170,7 +170,7 @@ class PostgresTransaction implements Transaction {
 
   private async persistMatch(staged: StagedMatch): Promise<void> {
     const encoded = encodeMatchAggregate(staged.aggregate);
-    const values = [
+    const values: unknown[] = [
       encoded.matchId,
       encoded.inviteCode,
       encoded.version,
@@ -182,7 +182,7 @@ class PostgresTransaction implements Transaction {
       encoded.status,
       JSON.stringify(encoded.state),
       encoded.endReason,
-    ] as const;
+    ];
 
     if (staged.precondition.kind === "create") {
       try {
