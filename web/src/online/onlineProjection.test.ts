@@ -40,7 +40,7 @@ describe("canonical online projection", () => {
       opponent: "Human",
       humanSide: "White",
       timerSeconds: 0,
-      transformEnabled: true,
+      transformEnabled: state.board.transformSquares.length > 0,
     });
     expect(state.message).toBe("Online match synchronized.");
   });
