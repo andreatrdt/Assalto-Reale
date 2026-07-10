@@ -6,6 +6,25 @@ metadata derive from it.
 
 ## Unreleased
 
+Authoritative HTTP/WebSocket transport — completes Phase C.8.3 without selecting
+a production identity provider, deployment platform or multiplayer UI. See
+[`docs/transport-adapter.md`](docs/transport-adapter.md).
+
+- Added `packages/server-transport`, a thin Node HTTP/WebSocket edge that consumes
+  only the public authoritative-server and multiplayer-protocol APIs.
+- Added liveness/readiness endpoints, authenticated upgrades, provider-neutral
+  bearer verification and async connection-principal propagation into the
+  existing `CommandHandler` authentication port.
+- Added serialized per-connection command handling, match and player recipient
+  routing, reconnect-safe subscriptions, origin and payload controls,
+  backpressure protection, heartbeat cleanup and graceful shutdown.
+- Added real-WebSocket integration coverage for connection authentication,
+  invalid messages, actor spoofing, create/join, reconnect sync, broadcasts,
+  command ordering and shutdown.
+- Split permanent server CI into independent authoritative/PostgreSQL and
+  transport jobs, each with strict typecheck, architecture, formatting, coverage,
+  build/smoke and production-audit gates. Invite multiplayer is now Phase C.9.
+
 Authoritative PostgreSQL persistence — completes Phase C.8.2 without adding a
 network transport, production authentication provider or multiplayer UI. See
 [`docs/authoritative-server.md`](docs/authoritative-server.md).
@@ -22,8 +41,7 @@ network transport, production authentication provider or multiplayer UI. See
   round-trip loading, invitation lookup, concurrent retries, conflicting
   command IDs, optimistic-concurrency races, rollback and corrupt-data guards.
 - Extended dedicated server CI with a PostgreSQL 16 service while keeping the
-  complete Python, parity, web, browser and build baseline unchanged. Transport
-  remains Phase C.8.3.
+  complete Python, parity, web, browser and build baseline unchanged.
 
 Authoritative server application core — completes Phase C.8.1 without adding a
 network transport, database, production authentication provider or multiplayer
