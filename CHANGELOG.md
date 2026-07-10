@@ -6,6 +6,29 @@ metadata derive from it.
 
 ## Unreleased
 
+Python ⇄ TypeScript parity (full turns & special mechanics) — extends the
+randomness foundation with complete-turn and mechanic parity. No gameplay rules,
+movement, capture, victory precedence, AI or save meaning changed; this phase is
+tests, a fixture generator and docs only (no product source changes). See
+[`docs/rules-parity-contract.md`](docs/rules-parity-contract.md).
+
+- Added a sequence parity harness: the Python fixture generator records full
+  step sequences (action/pass/transform/territory-refresh) threading action
+  points and King-acted state; `sequenceParity.test.ts` replays each through the
+  TypeScript engine, asserting the legal-action set, built action, transition
+  result and a compact board snapshot at every step.
+- New scenarios (55): 10 complete-turn, 7 Defended-King (defender choices,
+  invalid defender, blocked bounce, landing on a Transform Square, range-2),
+  3 Transform (relocation + no-relocation), 3 territory
+  (create/progress/mature-to-victory, cancel-by-move, cancel-by-capture), 2
+  victory (King capture, and precedence over a held territory majority), and 30
+  deterministic seeded generated legal sequences.
+- **No divergences found**: the TypeScript engine reproduced every Python
+  reference value across all 55 scenarios; no engine bug fixes were needed.
+- `parity:test` now also runs the sequence suite; the fixture generator emits a
+  compact sparse-piece snapshot to keep the committed fixture manageable.
+- Web unit tests 206 → 261; parity tests 86 → 141.
+
 Python ⇄ TypeScript parity (randomness foundation) — a canonical rules-parity
 contract plus a shared deterministic PRNG proven byte-identical across engines.
 No gameplay rules, movement, capture, victory precedence, AI or save meaning

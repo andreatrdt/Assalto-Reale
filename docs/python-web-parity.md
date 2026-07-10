@@ -1,6 +1,8 @@
 # Python to Web Parity Matrix
 
 > **Historical design/audit note.** Kept for design history; it may not reflect the current application. The authoritative current status is [`current-product-status.md`](current-product-status.md) — where they disagree, the status doc wins.
+>
+> **Update:** the executable parity contract is now [`rules-parity-contract.md`](rules-parity-contract.md). Single-action, complete-turn, Defended-King, Transform, territory, victory-precedence and seeded-generation parity are proven by `web/src/game/engine/{pythonParity,randomParity,sequenceParity}.test.ts` against Python-generated fixtures. Many "Partial/Untested" rows below are superseded by that suite.
 
 Status legend:
 
