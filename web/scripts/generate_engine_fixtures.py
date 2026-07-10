@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "assalto_pygbag_ready"))
 
 from assalto_core import Board, GameConfig, Piece  # noqa: E402
+from assalto_prng import Mulberry32  # noqa: E402
 
 
 def encode(value: Any) -> Any:
@@ -233,6 +234,59 @@ def case_territory() -> dict[str, Any]:
     }
 
 
+PRNG_SEEDS = [0, 1, 7, 42, 123, 2024, 999999, 2654435761, 4294967295]
+
+
+def prng_sequence_cases() -> list[dict[str, Any]]:
+    """Raw Mulberry32 output — the lowest-level cross-runtime proof that the
+    shared PRNG is byte-identical in Python and TypeScript."""
+    cases: list[dict[str, Any]] = []
+    for seed in PRNG_SEEDS:
+        rng = Mulberry32(seed)
+        cases.append({"seed": seed, "values": [rng.random() for _ in range(8)]})
+    return cases
+
+
+def special_generation_cases() -> list[dict[str, Any]]:
+    """Seeded Special Square generation on the default board for several seeds."""
+    cases: list[dict[str, Any]] = []
+    for seed in [1, 7, 42, 123, 2024, 999999]:
+        board = Board(GameConfig(), generate_specials=False)
+        squares = board.generate_special_squares(board.cfg.SPECIAL_COUNT, seed=seed)
+        cases.append(
+            {
+                "name": f"special_seed_{seed}",
+                "seed": seed,
+                "count": board.cfg.SPECIAL_COUNT,
+                "initial": board.to_dict(),
+                "squares": sorted([r, c] for r, c in squares),
+            }
+        )
+    return cases
+
+
+def transform_generation_cases() -> list[dict[str, Any]]:
+    """Seeded Transform Square selection over a fixed, non-trivial candidate set."""
+    cases: list[dict[str, Any]] = []
+    for seed in [1, 7, 42, 123, 2024]:
+        board = Board(GameConfig(TRANSFORM_ENABLED=True), generate_specials=False)
+        put(board, (6, 3), "Black", "AttackPawn")
+        put(board, (6, 9), "White", "AttackPawn")
+        initial = board.to_dict()
+        generated = board._generate_transform_square(seed=seed)
+        square = sorted(board.transform_squares)[0] if board.transform_squares else None
+        cases.append(
+            {
+                "name": f"transform_seed_{seed}",
+                "seed": seed,
+                "initial": initial,
+                "generated": generated,
+                "square": list(square) if square else None,
+            }
+        )
+    return cases
+
+
 def main() -> None:
     fixtures = {
         "schema": 1,
@@ -249,10 +303,14 @@ def main() -> None:
             case_placement(),
             case_territory(),
         ],
+        "prng": prng_sequence_cases(),
+        "special_generation": special_generation_cases(),
+        "transform_generation": transform_generation_cases(),
     }
-    out = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "python-engine-fixtures.json"
+    default_out = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "python-engine-fixtures.json"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else default_out
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(fixtures, indent=2, sort_keys=True), encoding="utf-8")
+    out.write_text(json.dumps(fixtures, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {out}")
 
 

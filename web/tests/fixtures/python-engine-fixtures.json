@@ -32354,5 +32354,2565 @@
     }
   ],
   "generated_by": "web/scripts/generate_engine_fixtures.py",
-  "schema": 1
+  "prng": [
+    {
+      "seed": 0,
+      "values": [
+        0.26642920868471265,
+        0.0003297457005828619,
+        0.2232720274478197,
+        0.1462021479383111,
+        0.46732782293111086,
+        0.5450490827206522,
+        0.6152513844426721,
+        0.6489853798411787
+      ]
+    },
+    {
+      "seed": 1,
+      "values": [
+        0.6270739405881613,
+        0.002735721180215478,
+        0.5274470399599522,
+        0.9810509674716741,
+        0.9683778982143849,
+        0.281103502959013,
+        0.6128388606011868,
+        0.7207431411370635
+      ]
+    },
+    {
+      "seed": 7,
+      "values": [
+        0.011704753153026104,
+        0.06195825757458806,
+        0.97690763277933,
+        0.6990287057124078,
+        0.5214452685322613,
+        0.4055216880515218,
+        0.4662326325196773,
+        0.23992518591694534
+      ]
+    },
+    {
+      "seed": 42,
+      "values": [
+        0.6011037519201636,
+        0.44829055899754167,
+        0.8524657934904099,
+        0.6697340414393693,
+        0.17481389874592423,
+        0.5265925421845168,
+        0.2732279943302274,
+        0.6247446539346129
+      ]
+    },
+    {
+      "seed": 123,
+      "values": [
+        0.7872516233474016,
+        0.1785435655619949,
+        0.49531551403924823,
+        0.23136196262203157,
+        0.375791602069512,
+        0.8333538440056145,
+        0.8636805524583906,
+        0.9290936258621514
+      ]
+    },
+    {
+      "seed": 2024,
+      "values": [
+        0.811762373894453,
+        0.7108214949257672,
+        0.6505258858669549,
+        0.6853262642398477,
+        0.5189407933503389,
+        0.665603116620332,
+        0.3603443542961031,
+        0.1587874898687005
+      ]
+    },
+    {
+      "seed": 999999,
+      "values": [
+        0.03664584248326719,
+        0.47466313210316,
+        0.4967423896305263,
+        0.8006427923683077,
+        0.4055270627140999,
+        0.2315200613811612,
+        0.42881874879822135,
+        0.1868169002700597
+      ]
+    },
+    {
+      "seed": 2654435761,
+      "values": [
+        0.5464560757391155,
+        0.45955629041418433,
+        0.2470416973810643,
+        0.5192999374121428,
+        0.8892884191591293,
+        0.702441792236641,
+        0.42549385386519134,
+        0.47050809813663363
+      ]
+    },
+    {
+      "seed": 4294967295,
+      "values": [
+        0.8964226141106337,
+        0.189478256739676,
+        0.7156526781618595,
+        0.9440599093213677,
+        0.8452364315744489,
+        0.5391399988438934,
+        0.6804977387655526,
+        0.4755720964167267
+      ]
+    }
+  ],
+  "schema": 1,
+  "special_generation": [
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_1",
+      "seed": 1,
+      "squares": [
+        [
+          1,
+          7
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          10,
+          6
+        ]
+      ]
+    },
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_7",
+      "seed": 7,
+      "squares": [
+        [
+          2,
+          8
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          10,
+          6
+        ]
+      ]
+    },
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_42",
+      "seed": 42,
+      "squares": [
+        [
+          2,
+          4
+        ],
+        [
+          2,
+          7
+        ],
+        [
+          7,
+          6
+        ],
+        [
+          10,
+          3
+        ],
+        [
+          10,
+          6
+        ]
+      ]
+    },
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_123",
+      "seed": 123,
+      "squares": [
+        [
+          1,
+          6
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          10,
+          5
+        ],
+        [
+          10,
+          8
+        ]
+      ]
+    },
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_2024",
+      "seed": 2024,
+      "squares": [
+        [
+          3,
+          6
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          10,
+          4
+        ]
+      ]
+    },
+    {
+      "count": 5,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": false,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "special_seed_999999",
+      "seed": 999999,
+      "squares": [
+        [
+          1,
+          8
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          9,
+          7
+        ]
+      ]
+    }
+  ],
+  "transform_generation": [
+    {
+      "generated": true,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": true,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "AttackPawn"
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "transform_seed_1",
+      "seed": 1,
+      "square": [
+        6,
+        6
+      ]
+    },
+    {
+      "generated": true,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": true,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "AttackPawn"
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "transform_seed_7",
+      "seed": 7,
+      "square": [
+        1,
+        4
+      ]
+    },
+    {
+      "generated": true,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": true,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "AttackPawn"
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "transform_seed_42",
+      "seed": 42,
+      "square": [
+        5,
+        6
+      ]
+    },
+    {
+      "generated": true,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": true,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "AttackPawn"
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "transform_seed_123",
+      "seed": 123,
+      "square": [
+        9,
+        6
+      ]
+    },
+    {
+      "generated": true,
+      "initial": {
+        "captured_pieces": {
+          "Black": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          },
+          "White": {
+            "AttackPawn": 0,
+            "ConquestPawn": 0,
+            "DefensePawn": 0,
+            "King": 0
+          }
+        },
+        "config": {
+          "cols": 12,
+          "rows": 12,
+          "special_count": 5,
+          "transform_enabled": true,
+          "transform_round": 10
+        },
+        "controlled_squares": {
+          "Black": [],
+          "White": []
+        },
+        "grid": [
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "player": "Black",
+              "type": "AttackPawn"
+            },
+            null,
+            null,
+            null,
+            null,
+            null,
+            {
+              "player": "White",
+              "type": "AttackPawn"
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ]
+        ],
+        "special_squares": [],
+        "territory_claim": null,
+        "transform_squares": []
+      },
+      "name": "transform_seed_2024",
+      "seed": 2024,
+      "square": [
+        9,
+        6
+      ]
+    }
+  ]
 }
