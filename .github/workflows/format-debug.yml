@@ -4,7 +4,7 @@ on:
   pull_request:
 
 jobs:
-  prettier-offenders:
+  prettier-output:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,14 +16,29 @@ jobs:
       - name: Install web dependencies
         working-directory: web
         run: npm ci
-      - name: Capture files that differ from Prettier output
+      - name: Apply repository-locked Prettier
         working-directory: web
         run: |
-          npx prettier --list-different . > prettier-offenders.txt || true
-          cat prettier-offenders.txt
-      - name: Upload offender list
+          npx prettier --write \
+            src/game/clocks/clockController.ts \
+            src/game/history/historyController.ts \
+            src/game/persistence/saveGame.ts \
+            src/game/placement/placementSetup.ts \
+            src/game/state/gameStore.ts \
+            src/game/state/storeTypes.ts \
+            src/game/turn/commitAction.ts \
+            src/game/turn/turnHelpers.ts
+      - name: Upload formatted modules
         uses: actions/upload-artifact@v4
         with:
-          name: prettier-offenders
-          path: web/prettier-offenders.txt
+          name: prettier-output
+          path: |
+            web/src/game/clocks/clockController.ts
+            web/src/game/history/historyController.ts
+            web/src/game/persistence/saveGame.ts
+            web/src/game/placement/placementSetup.ts
+            web/src/game/state/gameStore.ts
+            web/src/game/state/storeTypes.ts
+            web/src/game/turn/commitAction.ts
+            web/src/game/turn/turnHelpers.ts
           if-no-files-found: error
