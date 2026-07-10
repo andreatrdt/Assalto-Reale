@@ -1,11 +1,3 @@
-export * from "./actions";
-export * from "./board";
-export * from "./config";
-export * from "./defendedKing";
-export * from "./placement";
-export * from "./serialization";
-export * from "./specialSquares";
-export * from "./territory";
-export * from "./transform";
-export * from "./types";
-export * from "./victory";
+// Compatibility entry point for the web application. The production rules now
+// live in the standalone, browser-independent game-core package.
+export * from "../../../../packages/game-core/src/index.js";

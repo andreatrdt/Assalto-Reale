@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false",
-    "lint": "eslint . --max-warnings 0",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "build": "npm run core:build && npm run core:smoke && tsc -b && vite build",
+    "typecheck": "npm run core:typecheck && tsc -b --pretty false",
+    "lint": "eslint . --max-warnings 0 && cd ../packages/game-core && ../../web/node_modules/.bin/eslint --config ../../web/eslint.config.js src --max-warnings 0",
+    "format": "prettier --config .prettierrc.json --write . ../packages/game-core",
+    "format:check": "prettier --config .prettierrc.json --check . ../packages/game-core",
     "test": "vitest run --config vitest.config.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --config vitest.config.ts --coverage",
@@ -22,7 +22,10 @@
     "parity:check": "node scripts/check-parity-fixtures.mjs",
     "parity:test": "vitest run --config vitest.config.ts src/game/engine/pythonParity.test.ts src/game/engine/randomParity.test.ts src/game/engine/sequenceParity.test.ts",
     "audit:prod": "npm audit --omit=dev",
-    "package:release": "npm run build && node scripts/package-release.mjs"
+    "package:release": "npm run build && node scripts/package-release.mjs",
+    "core:typecheck": "tsc -p ../packages/game-core/tsconfig.json --noEmit --pretty false",
+    "core:build": "tsc -p ../packages/game-core/tsconfig.json --pretty false",
+    "core:smoke": "node scripts/check-game-core-package.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
