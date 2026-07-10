@@ -4,6 +4,7 @@
 export { CommandHandler, type CommandHandlerDeps } from "./commandHandler.js";
 export type { AuthenticatedPrincipal, Authenticator, Clock, IdGenerator, SeedGenerator } from "./ports.js";
 export {
+  CommandAlreadyProcessedError,
   ConcurrencyConflictError,
   ReceiptConflictError,
   type MatchPrecondition,
