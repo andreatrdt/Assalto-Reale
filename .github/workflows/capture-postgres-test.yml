@@ -1,0 +1,66 @@
+name: Capture PostgreSQL Test Diagnostics
+
+on:
+  push:
+    branches:
+      - feat/postgres-persistence-adapter
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://assalto:assalto@127.0.0.1:5432/assalto_reale_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: assalto
+          POSTGRES_PASSWORD: assalto
+          POSTGRES_DB: assalto_reale_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U assalto -d assalto_reale_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/postgres-persistence-adapter
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install repository toolchain
+        working-directory: web
+        run: npm ci
+
+      - name: Install server dependencies
+        working-directory: packages/authoritative-server
+        run: npm ci
+
+      - name: Capture test output
+        working-directory: packages/authoritative-server
+        shell: bash
+        run: |
+          set +e
+          npm run test:coverage > ../../.github/postgres-test-diagnostic.txt 2>&1
+          echo "exit_status=$?" >> ../../.github/postgres-test-diagnostic.txt
+          exit 0
+
+      - name: Remove temporary workflow and commit diagnostics
+        run: |
+          rm .github/workflows/capture-postgres-test.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/postgres-test-diagnostic.txt .github/workflows/capture-postgres-test.yml
+          git commit -m "chore: capture PostgreSQL test diagnostics"
+          git push origin HEAD:feat/postgres-persistence-adapter
