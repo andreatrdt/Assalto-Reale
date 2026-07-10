@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, QueryResultRow } from "pg";
 
 export interface PostgresMigration {
   version: number;
   name: string;
   sql: string;
+}
+
+interface AppliedMigrationRow extends QueryResultRow {
+  version: number;
+  name: string;
+  checksum: string;
 }
 
 const MIGRATION_LOCK_KEY = 1_928_374_651;
@@ -77,11 +83,7 @@ export async function runPostgresMigrations(pool: Pool): Promise<void> {
       )
     `);
 
-    const applied = await client.query<{
-      version: number;
-      name: string;
-      checksum: string;
-    }>(
+    const applied = await client.query<AppliedMigrationRow>(
       "SELECT version, name, checksum FROM authoritative_schema_migrations ORDER BY version",
     );
     const appliedByVersion = new Map(
