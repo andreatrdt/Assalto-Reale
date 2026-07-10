@@ -1,0 +1,44 @@
+name: Diagnose Authoritative Server Tests
+
+on:
+  push:
+    branches:
+      - feat/authoritative-server-foundation
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/authoritative-server-foundation
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install repository toolchain
+        working-directory: web
+        run: npm ci
+      - name: Install server dependencies
+        working-directory: packages/authoritative-server
+        run: npm ci
+      - name: Capture coverage output
+        shell: bash
+        run: |
+          set +e
+          cd packages/authoritative-server
+          npm run test:coverage > /tmp/server-test.log 2>&1
+          status=$?
+          cd ../..
+          tail -n 400 /tmp/server-test.log > .github/server-test-diagnostic.txt
+          echo "exit_status=$status" >> .github/server-test-diagnostic.txt
+          rm -f .github/workflows/diagnose-server-tests.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: capture server test diagnostic"
+          git push origin HEAD:feat/authoritative-server-foundation
