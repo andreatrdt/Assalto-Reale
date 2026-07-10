@@ -1,0 +1,52 @@
+
+> @assalto-reale/authoritative-server@1.0.0-beta.1 test:coverage
+> npm run deps:build && vitest run --config vitest.config.ts --coverage
+
+
+> @assalto-reale/authoritative-server@1.0.0-beta.1 deps:build
+> npm --prefix ../multiplayer-protocol run build && node ../../web/node_modules/typescript/bin/tsc -p ../game-core/tsconfig.json --pretty false
+
+
+> @assalto-reale/multiplayer-protocol@1.0.0-beta.1 build
+> tsc -p tsconfig.build.json
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/home/runner/work/Assalto-Reale/Assalto-Reale/packages/authoritative-server[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m tests/commandHandler.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 58[2mms[22m[39m
+ [32m✓[39m tests/postgresPersistence.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 1184[2mms[22m[39m
+ [32m✓[39m tests/idempotency.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [31m❯[39m tests/architecture.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 16[2mms[22m[39m
+[31m   [31m×[31m architecture boundaries[2m > [22monly imports game-core, multiplayer-protocol, node builtins or local modules[90m 9[2mms[22m[31m[39m
+[31m     → /home/runner/work/Assalto-Reale/Assalto-Reale/packages/authoritative-server/src/persistence/postgres/codec.ts imports disallowed module "pg": expected false to be true // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m tests/architecture.test.ts[2m > [22marchitecture boundaries[2m > [22monly imports game-core, multiplayer-protocol, node builtins or local modules
+[31m[1mAssertionError[22m: /home/runner/work/Assalto-Reale/Assalto-Reale/packages/authoritative-server/src/persistence/postgres/codec.ts imports disallowed module "pg": expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m tests/architecture.test.ts:[2m54:72[22m[39m
+    [90m 52| [39m          specifier[33m.[39m[34mstartsWith[39m([32m"node:"[39m) [33m||[39m
+    [90m 53| [39m          [33mALLOWED_BARE[39m[33m.[39m[34mhas[39m(specifier)[33m;[39m
+    [90m 54| [39m        [34mexpect[39m(ok[33m,[39m [32m`[39m[36m${[39mfile[36m}[39m[32m imports disallowed module "[39m[36m${[39mspecifier[36m}[39m[32m"`[39m)…
+    [90m   | [39m                                                                       [31m^[39m
+    [90m 55| [39m          [35mtrue[39m[33m,[39m
+    [90m 56| [39m        )[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m3 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m38 passed[39m[22m[90m (39)[39m
+[2m   Start at [22m 17:25:26
+[2m   Duration [22m 2.76s[2m (transform 309ms, setup 0ms, collect 506ms, tests 1.31s, environment 4ms, prepare 367ms)[22m
+
+
+::error file=/home/runner/work/Assalto-Reale/Assalto-Reale/packages/authoritative-server/tests/architecture.test.ts,title=tests/architecture.test.ts > architecture boundaries > only imports game-core%2C multiplayer-protocol%2C node builtins or local modules,line=54,column=72::AssertionError: /home/runner/work/Assalto-Reale/Assalto-Reale/packages/authoritative-server/src/persistence/postgres/codec.ts imports disallowed module "pg": expected false to be true // Object.is equality%0A%0A- Expected%0A+ Received%0A%0A- true%0A+ false%0A%0A ❯ tests/architecture.test.ts:54:72%0A%0A
+exit_status=1
