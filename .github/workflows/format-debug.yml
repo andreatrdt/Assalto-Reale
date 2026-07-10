@@ -3,11 +3,16 @@ name: Format Debug
 on:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
-  prettier-output:
+  apply-prettier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -18,27 +23,15 @@ jobs:
         run: npm ci
       - name: Apply repository-locked Prettier
         working-directory: web
+        run: npx prettier --write .
+      - name: Commit formatting changes
         run: |
-          npx prettier --write \
-            src/game/clocks/clockController.ts \
-            src/game/history/historyController.ts \
-            src/game/persistence/saveGame.ts \
-            src/game/placement/placementSetup.ts \
-            src/game/state/gameStore.ts \
-            src/game/state/storeTypes.ts \
-            src/game/turn/commitAction.ts \
-            src/game/turn/turnHelpers.ts
-      - name: Upload formatted modules
-        uses: actions/upload-artifact@v4
-        with:
-          name: prettier-output
-          path: |
-            web/src/game/clocks/clockController.ts
-            web/src/game/history/historyController.ts
-            web/src/game/persistence/saveGame.ts
-            web/src/game/placement/placementSetup.ts
-            web/src/game/state/gameStore.ts
-            web/src/game/state/storeTypes.ts
-            web/src/game/turn/commitAction.ts
-            web/src/game/turn/turnHelpers.ts
-          if-no-files-found: error
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web
+          if git diff --cached --quiet; then
+            echo "No formatting changes needed."
+          else
+            git commit -m "style: apply repository-locked prettier output"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
