@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run core:build && npm run core:smoke && tsc -b && vite build",
-    "typecheck": "npm run core:typecheck && tsc -b --pretty false",
+    "build": "npm run protocol:typecheck && npm run protocol:build && npm run protocol:smoke && npm run core:build && npm run core:smoke && tsc -b && vite build",
+    "typecheck": "npm run protocol:typecheck && npm run core:typecheck && tsc -b --pretty false",
     "lint": "eslint . --max-warnings 0 && cd ../packages/game-core && ../../web/node_modules/.bin/eslint --config ../../web/eslint.config.js src --max-warnings 0",
     "format": "prettier --config .prettierrc.json --write . ../packages/game-core",
     "format:check": "prettier --config .prettierrc.json --check . ../packages/game-core",
@@ -25,7 +25,10 @@
     "package:release": "npm run build && node scripts/package-release.mjs",
     "core:typecheck": "tsc -p ../packages/game-core/tsconfig.json --noEmit --pretty false",
     "core:build": "tsc -p ../packages/game-core/tsconfig.json --pretty false",
-    "core:smoke": "node scripts/check-game-core-package.mjs"
+    "core:smoke": "node scripts/check-game-core-package.mjs",
+    "protocol:typecheck": "npm --prefix ../packages/multiplayer-protocol run typecheck",
+    "protocol:build": "npm --prefix ../packages/multiplayer-protocol run build",
+    "protocol:smoke": "node scripts/check-multiplayer-protocol.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
