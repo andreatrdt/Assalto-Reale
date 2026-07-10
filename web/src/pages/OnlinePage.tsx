@@ -161,6 +161,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               </div>
               <FormField label="Invite code">
                 <input
+                  aria-label="Invite code"
                   className="onlineCodeInput"
                   value={inviteInput}
                   onChange={(event) => setInviteInput(event.target.value.toUpperCase())}
