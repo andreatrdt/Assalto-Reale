@@ -2,7 +2,7 @@
 
 ## Roadmap position
 
-This document defines the delivered authoritative-server foundation through Phase C.8.2.
+This document defines the delivered authoritative-server stack through Phase C.8.3.
 
 ```text
 Phase A                               completed
@@ -11,12 +11,12 @@ Phase B.6 Pure game-core              completed
 Phase B.7 Multiplayer protocol        completed
 Phase C.8 Authoritative server
   C.8.1 Application core              completed
-  C.8.2 PostgreSQL adapter            delivered here
-  C.8.3 Transport adapter             pending
-Phase C.9 Invite multiplayer          pending
+  C.8.2 PostgreSQL adapter            completed
+  C.8.3 Transport adapter             completed
+Phase C.9 Invite multiplayer          next
 ```
 
-C.8.1 established the transport- and database-independent application boundary. C.8.2 implements its existing persistence ports with PostgreSQL without changing command semantics or game rules.
+C.8.1 established the application boundary, C.8.2 implemented durable PostgreSQL persistence, and C.8.3 added a thin authenticated HTTP/WebSocket edge without changing command semantics or game rules.
 
 ## Authority model
 
@@ -24,8 +24,10 @@ C.8.1 established the transport- and database-independent application boundary. 
 client
   proposes a versioned protocol command
 
-transport/auth adapter
-  authenticates the connection and supplies a principal
+server-transport
+  authenticates the WebSocket connection
+  supplies the connection principal
+  forwards commands and routes returned envelopes
 
 authoritative server application core
   validates identity, idempotency, membership and match version
@@ -86,7 +88,7 @@ A zero-row update raises `ConcurrencyConflictError`. Therefore two commands that
 
 ## PostgreSQL schema
 
-The versioned migration runner creates three tables:
+The versioned migration runner creates three tables.
 
 ### `authoritative_schema_migrations`
 
@@ -110,19 +112,9 @@ State is encoded with `game-core.serializeState` and validated with `game-core.d
 
 ### `authoritative_command_receipts`
 
-Stores:
-
-- unique `command_id`;
-- authenticated `player_id`;
-- resolved match ID where applicable;
-- semantic payload fingerprint;
-- exact emitted event envelopes as JSONB.
-
-Receipts intentionally do not have a match foreign key because rejected commands may refer to a missing or invalid match ID and must still be retry-safe.
+Stores unique command IDs, authenticated player IDs, resolved match IDs, semantic payload fingerprints and exact emitted event envelopes as JSONB. Receipts intentionally do not have a match foreign key because rejected commands may refer to missing or invalid matches and must still be retry-safe.
 
 ## Atomic commit order
-
-The PostgreSQL `UnitOfWork` opens one database transaction and stages writes while the application callback runs. Commit order is:
 
 ```text
 BEGIN
@@ -132,12 +124,7 @@ BEGIN
 COMMIT
 ```
 
-Receipt claiming happens before match mutation. This guarantees:
-
-- an exact concurrent retry replays the already-committed envelopes;
-- changed reuse of a command ID raises `ReceiptConflictError`;
-- a later match conflict rolls the new receipt back;
-- match state and command result never commit partially.
+Receipt claiming happens before match mutation. This guarantees exact concurrent retry replay, rejection of changed command-ID reuse, rollback of receipts after later match conflicts, and no partially committed match/result pair.
 
 ## Supported commands
 
@@ -165,36 +152,24 @@ Mapped directly to `game-core`:
 
 Exact duplicate commands replay their original result. Reusing a command ID with a changed actor, target, expected version or payload returns `duplicate_command`. Two concurrent commands against the same match version cannot both commit.
 
+The transport sends player-addressed envelopes to all live sockets authenticated as that player. A successful `RequestSync` also subscribes a reconnecting socket to future match broadcasts.
+
 ## Package boundaries
 
-`packages/authoritative-server` may depend only on:
+`packages/authoritative-server` owns application, domain and persistence concerns. It may depend on `game-core`, `multiplayer-protocol`, `pg`, Node standard modules and development tooling, but not browser or network frameworks.
 
-- `@assalto-reale/game-core`;
-- `@assalto-reale/multiplayer-protocol`;
-- `pg` for the PostgreSQL adapter;
-- Node standard-library modules and development tooling.
+`packages/server-transport` owns only HTTP/WebSocket concerns. It may depend on the public authoritative-server API, multiplayer-protocol, Node HTTP modules and `ws`. It may not import game rules, PostgreSQL, React, Zustand, the web application, Socket.IO or an identity-provider SDK.
 
-It must not import React, Zustand, web UI modules, browser APIs, an HTTP/WebSocket framework or a production authentication provider.
+See [`transport-adapter.md`](transport-adapter.md) for the complete transport contract.
 
 ## Validation
 
-The dedicated server CI starts PostgreSQL 16 and runs:
+The dedicated server workflow now runs two independent jobs.
 
-- strict TypeScript typecheck;
-- architecture lint;
-- Prettier verification;
-- application, in-memory and PostgreSQL integration tests with coverage thresholds;
-- ESM build and plain-Node smoke test;
-- production dependency audit.
+The authoritative-server job starts PostgreSQL 16 and verifies strict TypeScript, architecture boundaries, formatting, application/in-memory/PostgreSQL coverage, ESM smoke and production dependencies.
 
-PostgreSQL integration coverage verifies migrations, canonical round-trip, invitation lookup, exact-retry replay, changed command-ID rejection, atomic rollback, compare-and-swap concurrency and persisted-data validation.
+The server-transport job verifies strict TypeScript, transport architecture boundaries, formatting, HTTP and real-WebSocket integration coverage, ESM smoke and production dependencies without requiring PostgreSQL.
 
-## Next adapter: C.8.3 transport
+## Next phase
 
-HTTP/Socket.IO/WebSocket adapters must remain thin:
-
-```text
-receive -> authenticate -> CommandHandler.handle -> deliver returned envelopes
-```
-
-No transport adapter may reimplement rules, membership, idempotency, version checks or database transactions.
+Phase C.9 uses this completed backend stack to expose invite-based untimed multiplayer in the web client. Accounts, public matchmaking, ratings and server-authoritative clocks remain later work.
