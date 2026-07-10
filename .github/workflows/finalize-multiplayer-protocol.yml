@@ -1,0 +1,119 @@
+name: Finalize Multiplayer Protocol
+
+on:
+  push:
+    branches:
+      - feat/multiplayer-protocol
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/multiplayer-protocol
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Integrate protocol package into repository gates and roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          package = Path('web/package.json')
+          data = json.loads(package.read_text())
+          scripts = data['scripts']
+          scripts['protocol:typecheck'] = 'npm --prefix ../packages/multiplayer-protocol run typecheck'
+          scripts['protocol:build'] = 'npm --prefix ../packages/multiplayer-protocol run build'
+          scripts['protocol:smoke'] = 'node scripts/check-multiplayer-protocol.mjs'
+          if 'protocol:' not in scripts['typecheck']:
+              scripts['typecheck'] = 'npm run protocol:typecheck && ' + scripts['typecheck']
+          if 'protocol:' not in scripts['build']:
+              scripts['build'] = 'npm run protocol:typecheck && npm run protocol:build && npm run protocol:smoke && ' + scripts['build']
+          package.write_text(json.dumps(data, indent=2) + '\n')
+
+          vitest = Path('web/vitest.config.ts')
+          text = vitest.read_text()
+          if '../packages/multiplayer-protocol/src/**/*.ts' not in text:
+              needle = '"../packages/game-core/src/**/*.ts",'
+              if needle in text:
+                  text = text.replace(needle, needle + '\n        "../packages/multiplayer-protocol/src/**/*.ts",')
+              else:
+                  text = text.replace(
+                      '"../packages/game-core/src/**/*.ts"',
+                      '"../packages/game-core/src/**/*.ts", "../packages/multiplayer-protocol/src/**/*.ts"',
+                  )
+          vitest.write_text(text)
+
+          status = Path('docs/current-product-status.md')
+          text = status.read_text()
+          text = text.replace(
+              'The next architectural phase is to define the versioned multiplayer protocol on\n'
+              'top of `GameCommand`, canonical match versions and server-generated events.\n',
+              'The versioned multiplayer protocol is defined in\n'
+              '`packages/multiplayer-protocol` and `docs/multiplayer-protocol.md`. The next\n'
+              'architectural phase is to build the authoritative TypeScript server around the\n'
+              'shared game-core and protocol packages.\n',
+          )
+          text = text.replace(
+              '6. Extract pure TypeScript game-core  ✅\n'
+              '7. Define multiplayer protocol        NEXT\n\n'
+              'PHASE C — ONLINE MULTIPLAYER\n\n'
+              '8. Authoritative server               pending',
+              '6. Extract pure TypeScript game-core  ✅\n'
+              '7. Define multiplayer protocol        ✅\n\n'
+              'PHASE C — ONLINE MULTIPLAYER\n\n'
+              '8. Authoritative server               NEXT',
+          )
+          section = '''\n## Multiplayer protocol\n\nThe transport-independent JSON protocol lives in\n`packages/multiplayer-protocol`. It defines versioned client command and server\nevent envelopes, player/session identity, idempotent command IDs, optimistic\nmatch versions, ordered event streams, pending-decision messages, structured\nrejections and reconnect synchronization.\n\nThe protocol does not yet provide a server or network transport. Authentication\ncredentials remain outside message payloads, deterministic seeds are generated\nby the future server, and state-changing commands are authoritative only after\nserver validation and application through game-core.\n'''
+          if '## Multiplayer protocol' not in text:
+              text = text.replace('\n## Lifecycle and persistence\n', section + '\n## Lifecycle and persistence\n')
+          status.write_text(text)
+
+          extraction = Path('docs/game-core-extraction.md')
+          text = extraction.read_text().replace(
+              'After this phase, the next step is Phase B.7: define the multiplayer protocol.',
+              'Phase B.7 now defines the multiplayer protocol; the next step is Phase C.8, the authoritative server.',
+          )
+          extraction.write_text(text)
+          PY
+
+      - name: Apply repository formatting
+        working-directory: web
+        run: |
+          npx prettier --write \
+            ../packages/multiplayer-protocol \
+            ../docs/multiplayer-protocol.md \
+            ../docs/current-product-status.md \
+            ../docs/game-core-extraction.md \
+            tests/multiplayerProtocol.test.ts \
+            scripts/check-multiplayer-protocol.mjs \
+            package.json \
+            vitest.config.ts
+
+      - name: Remove workflow and commit final protocol tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/finalize-multiplayer-protocol.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: integrate multiplayer protocol v1"
+          git push origin HEAD:feat/multiplayer-protocol
