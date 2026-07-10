@@ -70,6 +70,11 @@ function rejection(commandId = "command_server01"): ServerEventEnvelope {
   };
 }
 
+async function allowConnectionSetup(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 beforeEach(() => {
   vi.stubGlobal("WebSocket", FakeWebSocket);
   vi.stubGlobal("crypto", {
@@ -106,12 +111,15 @@ describe("OnlineClient", () => {
 
     const first = client.connect();
     const second = client.connect();
-    expect(first).toBe(second);
     expect(statuses).toEqual([["connecting", undefined]]);
+    await allowConnectionSetup();
     expect(sockets).toHaveLength(1);
 
     sockets[0]?.open();
-    await expect(first).resolves.toEqual(CREDENTIALS);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      CREDENTIALS,
+      CREDENTIALS,
+    ]);
     expect(client.connected).toBe(true);
     expect(client.principal).toEqual({
       playerId: CREDENTIALS.playerId,
@@ -152,6 +160,7 @@ describe("OnlineClient", () => {
     client.setMatchContext("match_online01", 4);
 
     const connected = client.connect();
+    await allowConnectionSetup();
     socket.open();
     await connected;
 
@@ -177,6 +186,7 @@ describe("OnlineClient", () => {
     });
 
     const connected = client.connect();
+    await allowConnectionSetup();
     socket.open();
     await connected;
 
@@ -206,6 +216,7 @@ describe("OnlineClient", () => {
       clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
     });
     const failed = errorClient.connect();
+    await allowConnectionSetup();
     first.fail();
     await expect(failed).rejects.toThrow("could not be reached");
 
@@ -220,6 +231,7 @@ describe("OnlineClient", () => {
       clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
     });
     const closed = closeClient.connect();
+    await allowConnectionSetup();
     second.lose(1008);
     await expect(closed).rejects.toThrow("closed (1008)");
   });
@@ -246,6 +258,7 @@ describe("OnlineClient", () => {
     });
 
     const initial = client.connect();
+    await allowConnectionSetup();
     sockets[0]?.open();
     await initial;
     sockets[0]?.lose();
@@ -283,6 +296,7 @@ describe("OnlineClient", () => {
     });
 
     const connected = client.connect();
+    await allowConnectionSetup();
     socket.open();
     await connected;
     socket.lose();
@@ -291,8 +305,6 @@ describe("OnlineClient", () => {
     expect(clearTimeout).toHaveBeenCalledWith(44);
     expect(onStatus).toHaveBeenLastCalledWith("idle");
     expect(client.connected).toBe(false);
-    expect(() => client.send({ type: "PassTurn" })).toThrow(
-      "not ready",
-    );
+    expect(() => client.send({ type: "PassTurn" })).toThrow("not ready");
   });
 });
