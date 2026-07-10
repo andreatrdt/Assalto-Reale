@@ -9,6 +9,14 @@ export {
   type AuthenticatedCommandExecutor,
 } from "./contextualAuthenticator.js";
 export {
+  GuestSessionConnectionAuthenticator,
+  HmacGuestSessionService,
+  type GuestSessionIssuer,
+  type GuestSessionVerifier,
+  type HmacGuestSessionOptions,
+  type IssuedGuestSession,
+} from "./guestSessions.js";
+export {
   AuthoritativeTransportServer,
   createAuthoritativeTransportServer,
   type ReadinessProbe,
