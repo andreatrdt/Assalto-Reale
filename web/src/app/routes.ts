@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 
-export type AppRoute = "/" | "/setup" | "/game" | "/rules" | "/load" | "/settings";
+export type AppRoute =
+  | "/"
+  | "/setup"
+  | "/online"
+  | "/game"
+  | "/rules"
+  | "/load"
+  | "/settings";
 
-const ROUTES = new Set<AppRoute>(["/", "/setup", "/game", "/rules", "/load", "/settings"]);
+const ROUTES = new Set<AppRoute>([
+  "/",
+  "/setup",
+  "/online",
+  "/game",
+  "/rules",
+  "/load",
+  "/settings",
+]);
 const REDIRECT_PATH_KEY = "assalto:redirect-path";
 
 function basePath(): string {
@@ -49,12 +64,17 @@ export function navigateTo(route: AppRoute, replace = false): void {
   window.dispatchEvent(new Event("popstate"));
 }
 
-export function useAppRoute(): [AppRoute, (route: AppRoute, replace?: boolean) => void] {
+export function useAppRoute(): [
+  AppRoute,
+  (route: AppRoute, replace?: boolean) => void,
+] {
   const [route, setRoute] = useState<AppRoute>(() => {
     if (typeof window === "undefined") return "/";
     const redirected = consumeStaticRedirect();
     if (redirected) {
-      const nextRoute = routeFromPathname(new URL(redirected, window.location.origin).pathname);
+      const nextRoute = routeFromPathname(
+        new URL(redirected, window.location.origin).pathname,
+      );
       window.history.replaceState({}, "", routeHref(nextRoute));
       return nextRoute;
     }
