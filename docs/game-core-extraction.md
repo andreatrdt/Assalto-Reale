@@ -1,5 +1,9 @@
 # Pure TypeScript game-core extraction
 
+## Status
+
+Phase B.6 is in progress on `refactor/extract-game-core`. Checkpoint 6.1 (standalone package boundary) is the current implementation target; checkpoint 6.2 (canonical match-command API) follows after 6.1 is merged and verified.
+
 ## Big-plan position
 
 This work is Phase B.6 of the Assalto Reale roadmap. Release hardening, lifecycle/persistence hardening, browser-quality hardening, Python–TypeScript parity and the behaviour-preserving `gameStore.ts` decomposition are complete.
