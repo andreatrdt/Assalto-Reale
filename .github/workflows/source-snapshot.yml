@@ -1,9 +1,7 @@
 name: Source Snapshot
 
 on:
-  push:
-    branches:
-      - refactor/extract-game-core
+  pull_request:
 
 jobs:
   snapshot:
