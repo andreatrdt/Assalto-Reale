@@ -24,6 +24,31 @@ jobs:
       - name: Python tests
         run: python -m pytest -q
 
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      # Verify (do not rewrite) the committed cross-engine fixtures, then run the
+      # TypeScript parity suites against them. The Python reference generator uses
+      # only the standard library, so no pip install is required.
+      - name: Verify committed parity fixtures are fresh
+        working-directory: web
+        run: npm run parity:check
+      - name: Cross-runtime parity tests
+        working-directory: web
+        run: npm run parity:test
+
   web-static-quality:
     runs-on: ubuntu-latest
     steps:
