@@ -182,6 +182,7 @@ export function LoadPage({ route, navigate }: LoadPageProps) {
               ref={fileInputRef}
               className="srOnly"
               type="file"
+              aria-label="Import a saved match from a JSON file"
               accept="application/json,.json"
               onChange={(event) => {
                 importSave(event.currentTarget.files?.[0]);
