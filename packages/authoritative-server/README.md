@@ -68,13 +68,17 @@ const handler = new CommandHandler({
 });
 ```
 
-The transport process owns pool startup and shutdown. The application core remains unaware of PostgreSQL.
+The process owns pool startup and shutdown. The application core remains unaware of PostgreSQL and networking.
+
+## Transport integration
+
+Phase C.8.3 is implemented separately in `@assalto-reale/server-transport`. That package authenticates HTTP upgrades, propagates the connection principal into this package's `Authenticator` port, calls `CommandHandler.handle`, and routes the returned envelopes. It does not import internal application or persistence modules.
 
 ## Deliberately deferred
 
-- HTTP/Socket.IO transport: C.8.3;
 - production authentication and accounts;
 - rematch implementation and invite UI: C.9;
+- deployment infrastructure;
 - server-authoritative clocks: C.11.
 
 ## Validation

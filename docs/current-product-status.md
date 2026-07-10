@@ -4,8 +4,8 @@
 documents in `docs/` are design history or task-specific notes; where they
 disagree with this file, this file wins. Last reconciled through the full-rules
 parity, game-store decomposition, pure game-core, multiplayer-protocol,
-authoritative application-core and PostgreSQL persistence passes (see
-`CHANGELOG.md`).
+authoritative application-core, PostgreSQL persistence and HTTP/WebSocket
+transport passes (see `CHANGELOG.md`).
 
 ## What ships publicly
 
@@ -77,7 +77,7 @@ respective adapters. See [`game-store-contract.md`](game-store-contract.md) and
 The transport-independent wire contract is implemented by
 `packages/multiplayer-protocol`. It defines versioned command/event envelopes,
 runtime validation, semantic command IDs, expected match versions, ordered event
-streams and canonical reconnect snapshots. It does not implement networking.
+streams and canonical reconnect snapshots.
 
 Phase C.8.1 added `packages/authoritative-server`, an application/domain core that:
 
@@ -99,9 +99,21 @@ Phase C.8.2 implements those ports with PostgreSQL:
 - compare-and-swap match-version updates;
 - integration tests against PostgreSQL 16 for concurrency, rollback and replay.
 
-The server still deliberately has no HTTP/WebSocket transport, production
-authentication provider, account system or multiplayer UI. See
-[`authoritative-server.md`](authoritative-server.md).
+Phase C.8.3 adds `packages/server-transport`:
+
+- `GET`/`HEAD` liveness and readiness endpoints;
+- authenticated WebSocket upgrades on a configurable path;
+- provider-neutral bearer-token verification and async principal propagation;
+- serialized per-connection command forwarding to `CommandHandler`;
+- player- and match-recipient routing for canonical event envelopes;
+- reconnect-safe match subscriptions through `RequestSync`;
+- origin, payload, backpressure, heartbeat and graceful-shutdown safeguards;
+- real WebSocket integration coverage and a separate permanent CI job.
+
+The backend stack deliberately still has no selected production identity provider,
+account system, deployment target or multiplayer web UI. See
+[`authoritative-server.md`](authoritative-server.md) and
+[`transport-adapter.md`](transport-adapter.md).
 
 ## Known limitations (currently true)
 
@@ -123,8 +135,8 @@ authentication provider, account system or multiplayer UI. See
   (see `docs/browser-quality.md`).
 - **Board keyboard navigation** is per-square tab stops with Enter/Space
   activation; arrow-key roving grid navigation is not yet implemented.
-- The server foundation is not a deployable online product until transport,
-  production authentication/accounts and client integration are added.
+- The completed backend stack is not a public online product until production
+  identity, deployment and client integration are added.
 - No Android packaging, public matchmaking or ratings.
 
 ## Deployment status
@@ -134,8 +146,8 @@ Live on **GitHub Pages** from this repository via
 `workflow_run` after CI succeeds on `main`). `release-metadata.json` records the
 deployed source commit. See `docs/deployment.md` and `docs/release-checklist.md`.
 
-The authoritative-server package and PostgreSQL adapter are validated in CI but
-are not deployed.
+The authoritative-server, PostgreSQL and server-transport packages are validated
+in CI but are not deployed.
 
 ## Validation baseline
 
@@ -151,6 +163,8 @@ Required repository gates:
   thresholds, ESM build, plain-Node smoke and production dependency audit.
 - PostgreSQL 16 integration: migrations, canonical round-trip, invitation lookup,
   idempotent replay, concurrency, atomic rollback and corrupt-data guards.
+- Server transport: strict TypeScript, architecture boundary, formatting, HTTP and
+  real-WebSocket integration coverage, ESM smoke and production audit.
 
 ## Roadmap position
 
@@ -161,9 +175,9 @@ Phase B.6 Pure game-core              completed
 Phase B.7 Multiplayer protocol        completed
 Phase C.8 Authoritative server
   C.8.1 Application core              completed
-  C.8.2 PostgreSQL adapter            completed by this phase
-  C.8.3 Transport adapter             next
-Phase C.9 Invite multiplayer          pending
+  C.8.2 PostgreSQL adapter            completed
+  C.8.3 Transport adapter             completed by this phase
+Phase C.9 Invite multiplayer          next
 Phase C.10 Accounts/continuity        pending
 Phase C.11 Timed online matches       pending
 Android packaging                     later

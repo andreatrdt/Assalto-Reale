@@ -69,3 +69,53 @@ jobs:
       - name: Production dependency audit
         working-directory: packages/authoritative-server
         run: npm run audit:prod
+
+  server-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            packages/authoritative-server/package-lock.json
+            packages/server-transport/package-lock.json
+
+      - name: Install repository toolchain
+        working-directory: web
+        run: npm ci
+
+      - name: Install authoritative server dependencies
+        working-directory: packages/authoritative-server
+        run: npm ci
+
+      - name: Install transport dependencies
+        working-directory: packages/server-transport
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: packages/server-transport
+        run: npm run typecheck
+
+      - name: Architecture lint
+        working-directory: packages/server-transport
+        run: npm run lint
+
+      - name: Formatting check
+        working-directory: packages/server-transport
+        run: npm run format:check
+
+      - name: HTTP and WebSocket integration coverage
+        working-directory: packages/server-transport
+        run: npm run test:coverage
+
+      - name: ESM build and plain-Node smoke
+        working-directory: packages/server-transport
+        run: npm run smoke
+
+      - name: Production dependency audit
+        working-directory: packages/server-transport
+        run: npm run audit:prod
