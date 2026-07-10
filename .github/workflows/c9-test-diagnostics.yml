@@ -1,0 +1,24 @@
+name: C9 unit diagnostics
+
+on:
+  pull_request:
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Capture unit output
+        working-directory: web
+        continue-on-error: true
+        run: npm run test -- --reporter=verbose > c9-unit.log 2>&1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: c9-unit-diagnostics
+          path: web/c9-unit.log
