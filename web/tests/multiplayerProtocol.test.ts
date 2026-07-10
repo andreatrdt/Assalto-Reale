@@ -22,9 +22,11 @@ type ProtocolCoreCommand = Extract<
   }
 >;
 type Assert<T extends true> = T;
-type _ProtocolCommandsMatchCore = Assert<
-  ProtocolCoreCommand extends GameCommand ? (GameCommand extends ProtocolCoreCommand ? true : false) : false
->;
+// Protocol game commands are structurally assignable to game-core commands, so
+// the authoritative server can forward a validated wire command straight into
+// game-core without reshaping. The reverse does not hold by design: game-core's
+// Vec2 is a `readonly` tuple whereas the wire Coordinate is mutable.
+type _ProtocolCommandsAssignableToCore = Assert<ProtocolCoreCommand extends GameCommand ? true : false>;
 
 const actor = {
   playerId: "player_01HZY8R7",

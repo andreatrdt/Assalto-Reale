@@ -23,6 +23,22 @@
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
     },
+    "./match": {
+      "types": "./dist/match.d.ts",
+      "import": "./dist/match.js"
+    },
+    "./matchTypes": {
+      "types": "./dist/matchTypes.d.ts",
+      "import": "./dist/matchTypes.js"
+    },
+    "./matchSetup": {
+      "types": "./dist/matchSetup.d.ts",
+      "import": "./dist/matchSetup.js"
+    },
+    "./matchSerialization": {
+      "types": "./dist/matchSerialization.d.ts",
+      "import": "./dist/matchSerialization.js"
+    },
     "./defendedKing": {
       "types": "./dist/defendedKing.d.ts",
       "import": "./dist/defendedKing.js"

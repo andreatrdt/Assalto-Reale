@@ -7,9 +7,10 @@ import type {
   PendingTransform as CorePendingTransform,
   PiecesLeft as CorePiecesLeft,
   Player,
+  PythonBoardSnapshot,
   Vec2,
 } from "../engine";
-import type { ResolvedMatchConfig } from "../setup/matchConfig";
+import type { MatchConfig } from "../setup/matchConfig";
 
 export type PiecesLeft = CorePiecesLeft;
 export type PlacementItem = PendingPlacement;
@@ -35,22 +36,27 @@ export interface HistoryEntry {
 
 export interface SavedGame {
   schema: 1 | 2;
-  board: unknown;
+  appVersion?: string;
+  savedAt?: string;
+  board: PythonBoardSnapshot;
+  phase: PhaseState;
   currentPlayer: Player;
   movesThisTurn: number;
   kingMoved: boolean;
   turnCounter: number;
   placementCursor: number;
+  currentPlacement: PlacementItem | null;
   piecesLeft: PiecesLeft;
-  phase: PhaseState;
   lastAction: string;
-  pendingTransform: PendingTransform | null;
-  pendingDefendedKing: PendingDefendedKing | null;
+  message: string;
   aiEnabled: boolean;
   aiPlayer: Player;
   hasActiveMatch: boolean;
-  matchConfig: ResolvedMatchConfig | null;
+  matchConfig: MatchConfig | null;
   timeLeft: Record<Player, number>;
+  pendingTransform?: PendingTransform | null;
+  pendingDefendedKing?: PendingDefendedKing | null;
+  history?: HistoryEntry[];
 }
 
 export interface GameState {
@@ -73,14 +79,14 @@ export interface GameState {
   aiEnabled: boolean;
   aiPlayer: Player;
   hasActiveMatch: boolean;
-  matchConfig: ResolvedMatchConfig | null;
+  matchConfig: MatchConfig | null;
   timeLeft: Record<Player, number>;
   clockRunningFor: Player | null;
   clockLastSyncMs: number | null;
 }
 
 export interface GameActions {
-  startConfiguredMatch: (config: ResolvedMatchConfig) => void;
+  startConfiguredMatch: (config: MatchConfig) => void;
   startQuickMatch: (options?: { aiEnabled?: boolean; aiPlayer?: Player; transformEnabled?: boolean; seed?: number }) => void;
   startAiMatch: () => void;
   startTransformMatch: () => void;

@@ -6,6 +6,24 @@ metadata derive from it.
 
 ## Unreleased
 
+Baseline repair — restore a green repository after the game-core command-API
+integration left `main` failing typecheck, unit tests and package smokes. No
+game rules, protocol, UI, save-schema or public Zustand API behaviour changed.
+
+- `packages/game-core` now re-exports its canonical match command API from the
+  package entry point (`match`, `matchTypes`, `matchSetup`, `matchSerialization`
+  in `index.ts` and `package.json` `exports`). These were implemented in PR #29
+  but never exposed, so every consumer of `createMatch`/`applyCommand`/
+  `getLegalActions`/`serializeState`/… failed to resolve.
+- Fixed web fallout: `storeTypes.ts` referenced a non-existent
+  `ResolvedMatchConfig` (now `MatchConfig`) and an incomplete `SavedGame` shape;
+  `gameStore.ts` AI placement mistakenly used `chooseDeterministicAction`
+  (restored to the Quick-Balanced placement heuristic + `PlacePiece`); the
+  protocol compatibility test asserted an impossible bidirectional tuple
+  equivalence (corrected to the real protocol→core assignability invariant).
+- Green baseline: Python 44, parity 141, web unit 284, typecheck/lint/format,
+  game-core + protocol typecheck and Node smokes, `audit:prod` 0, build and e2e.
+
 Python ⇄ TypeScript parity (full turns & special mechanics) — extends the
 randomness foundation with complete-turn and mechanic parity. No gameplay rules,
 movement, capture, victory precedence, AI or save meaning changed; this phase is
