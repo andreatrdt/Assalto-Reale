@@ -1,17 +1,12 @@
 import { create } from "zustand";
 import { chooseDeterministicAction } from "../ai/search";
-import { getPiece, hasPos, type Player, type Vec2 } from "../engine";
+import { chooseQuickPlacementSquare, getPiece, hasPos, type Player, type Vec2 } from "../engine";
 import { DEFAULT_MATCH_CONFIG, resolveMatchConfig } from "../setup/matchConfig";
 import { computeClockPatch, initialTimeLeft, monotonicNow } from "../clocks/clockController";
 import { restoreHistoryPatch } from "../history/historyController";
 import { SAVE_KEY, buildRestorePatch, loadSavedGame, localStorageAvailable, savedGameFromState } from "../persistence/saveGame";
 import { actionTargets, describePiece } from "../turn/turnHelpers";
-import {
-  createMatchState,
-  runStoreCommand,
-  runStoreSubmittedAction,
-  storePatchFromCoreMatch,
-} from "../core/matchAdapter";
+import { createMatchState, runStoreCommand, runStoreSubmittedAction, storePatchFromCoreMatch } from "../core/matchAdapter";
 import type { GameCommand } from "../engine";
 import type { GameState, GameStore, SavedGame } from "./storeTypes";
 
@@ -88,7 +83,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       const match = createMatchState({
         placementMode: resolved.placementMode,
         transformEnabled: resolved.transformEnabled,
-        seed: resolved.setupSeed,
+        // resolveMatchConfig always assigns setupSeed; the fallback only
+        // satisfies the optional type and is never reached at runtime.
+        seed: resolved.setupSeed ?? 0,
       });
       set({
         ...storePatchFromCoreMatch(match, "setup"),
@@ -251,16 +248,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       const state = get();
       if (!state.aiEnabled) return;
       if (state.phase.phase === "placement" && state.currentPlacement?.player === state.aiPlayer) {
-        const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved);
-        if (action.kind !== "placement" || !action.end) return;
-        applyStoreCommand({ type: "PlacePiece", position: action.end });
+        const { player, pieceType } = state.currentPlacement;
+        const position = chooseQuickPlacementSquare(state.board, player, pieceType);
+        applyStoreCommand({ type: "PlacePiece", position });
         return;
       }
       if (state.phase.phase === "transformSelection") {
         if (state.pendingTransform?.owner !== state.aiPlayer) return;
-        const options = ["AttackPawn", "DefensePawn", "ConquestPawn"].filter(
-          (item) => item !== state.pendingTransform?.pieceType,
-        ) as Array<"AttackPawn" | "DefensePawn" | "ConquestPawn">;
+        const options = ["AttackPawn", "DefensePawn", "ConquestPawn"].filter((item) => item !== state.pendingTransform?.pieceType) as Array<
+          "AttackPawn" | "DefensePawn" | "ConquestPawn"
+        >;
         state.chooseTransform(options[0]);
         return;
       }
