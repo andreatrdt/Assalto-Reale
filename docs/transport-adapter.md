@@ -2,17 +2,22 @@
 
 ## Roadmap position
 
-This document defines the completed Phase C.8.3 of the Assalto Reale roadmap.
+Phase C.8.3 delivered the transport boundary; Phase C.9 now consumes and extends
+that boundary with anonymous guest-session bootstrap.
 
 ```text
 Phase C.8 Authoritative server
   C.8.1 Application core              completed
   C.8.2 PostgreSQL adapter            completed
   C.8.3 Transport adapter             completed
-Phase C.9 Invite multiplayer          next
+Phase C.9 Invite multiplayer          completed
+Phase C.10 Accounts/continuity        next
 ```
 
-The transport layer is intentionally thin. It authenticates a WebSocket connection, binds the resulting principal to `CommandHandler`, forwards command payloads, and delivers returned canonical protocol envelopes. It does not implement gameplay rules, membership, idempotency, optimistic concurrency, persistence, or account logic.
+The transport remains intentionally thin. It authenticates HTTP/WebSocket
+connections, binds the principal to `CommandHandler`, forwards command payloads
+and delivers canonical protocol envelopes. It does not implement gameplay rules,
+membership, idempotency, optimistic concurrency or persistence.
 
 ## Package boundary
 
@@ -23,27 +28,44 @@ The transport layer is intentionally thin. It authenticates a WebSocket connecti
 - Node HTTP/runtime modules;
 - `ws` as the WebSocket implementation.
 
-It may not import `game-core`, PostgreSQL, React, Zustand, the web application, Socket.IO, or an identity-provider SDK. Architecture tests enforce this boundary.
+It may not import `game-core`, PostgreSQL, React, Zustand, the web app, Socket.IO
+or an identity-provider SDK. Architecture tests enforce this boundary.
 
 ## HTTP endpoints
 
 The adapter exposes:
 
-- `GET` or `HEAD /healthz` for process liveness;
-- `GET` or `HEAD /readyz` for an injected dependency-readiness probe;
-- an authenticated WebSocket upgrade endpoint, `/ws` by default.
+- `GET`/`HEAD /healthz` for process liveness;
+- `GET`/`HEAD /readyz` for injected dependency readiness;
+- optional `POST /session` for a short-lived anonymous guest credential;
+- optional `OPTIONS /session` for CORS preflight;
+- authenticated WebSocket upgrade on `/ws` by default.
 
-Health responses are JSON, non-cacheable, and contain no operational secrets. Readiness fails closed when the injected probe returns false or throws.
+Health/session responses are JSON and non-cacheable. Readiness fails closed when
+the probe returns false or throws. `/session` returns 404 unless a
+`GuestSessionIssuer` is configured.
 
 ## Authentication bridge
 
-`ConnectionAuthenticator` authenticates the HTTP upgrade and returns an `AuthenticatedPrincipal`. The provider-neutral `BearerTokenConnectionAuthenticator` parses a bearer token but delegates token verification to an injected verifier; C.8.3 does not choose an identity provider or account model.
+`ConnectionAuthenticator` authenticates the upgrade and returns an
+`AuthenticatedPrincipal`. `ContextualAuthenticator` carries that principal into
+the application-core `Authenticator` port through `AsyncLocalStorage`.
+`CommandHandler` still compares the principal with the command envelope actor.
 
-`ContextualAuthenticator` carries the connection principal into the existing application-core `Authenticator` port through `AsyncLocalStorage`. `CommandHandler` still compares that authenticated principal with the command envelope actor, so clients cannot gain authority by editing JSON identity fields.
+The provider-neutral `BearerTokenConnectionAuthenticator` delegates verification
+to an injected verifier.
+
+For C.9, `HmacGuestSessionService` issues expiring signed credentials and
+`GuestSessionConnectionAuthenticator` accepts a Bearer token or the browser
+`access_token` query parameter. Token verification rejects malformed, expired and
+tampered values. Guest sessions remain distinct from durable accounts.
 
 ## Command and delivery flow
 
 ```text
+HTTP guest bootstrap (optional)
+  -> issue signed principal
+
 HTTP upgrade
   -> authenticate connection
   -> accept WebSocket
@@ -54,38 +76,42 @@ HTTP upgrade
   -> route by recipient and match subscription
 ```
 
-Commands from one connection are serialized to preserve arrival order. Binary client messages are rejected. Malformed JSON is still passed to `CommandHandler`, which returns the protocol's canonical structured rejection rather than a transport-specific payload.
+Commands from one connection are serialized. Binary messages are rejected.
+Malformed JSON reaches `CommandHandler`, which returns the protocol's canonical
+structured rejection instead of a transport-specific payload.
 
-Successful canonical match events subscribe the originating connection to that match. Events addressed to `all` are delivered to every subscribed socket for the match. Player-addressed events are delivered to every live socket authenticated as that player, enabling reconnect and multiple-session continuity without moving membership logic into the transport.
+Successful match events subscribe the originating connection to that match.
+`recipient: all` events go to every subscribed socket; player-addressed events go
+to every live socket for that player. This supports reconnect and multiple live
+sessions without moving membership into transport.
 
 ## Operational safeguards
 
-The adapter provides configurable:
+The adapter provides configurable origin allowlisting, inbound payload limits,
+outbound backpressure limits, heartbeat cleanup, WebSocket path, structured
+logging, readiness and graceful-shutdown deadline.
 
-- origin allowlisting;
-- inbound payload limits;
-- outbound backpressure limits;
-- ping/pong heartbeat cleanup;
-- WebSocket path;
-- graceful-shutdown deadline;
-- structured logging;
-- readiness checks.
-
-Shutdown is idempotent: clients receive a normal going-away close before any remaining sockets are force-terminated after the grace period.
+The origin allowlist applies to both browser guest-session bootstrap and WebSocket
+upgrades. Shutdown is idempotent: clients receive a going-away close before any
+remaining sockets are force-terminated after the grace period.
 
 ## Validation
 
-The permanent server CI runs transport validation independently of PostgreSQL:
+Permanent CI verifies:
 
-- strict TypeScript typecheck;
-- architecture lint;
-- Prettier check;
-- HTTP and real-WebSocket integration tests with coverage thresholds;
-- ESM build and plain-Node smoke;
-- production dependency audit.
-
-Integration coverage includes health/readiness behavior, upgrade authentication, origin rejection, invalid JSON, actor spoofing, match creation and joining, reconnect synchronization, match broadcasts, per-connection command ordering, binary-message rejection, and graceful shutdown.
+- strict TypeScript and architecture boundaries;
+- Prettier;
+- HTTP and real-WebSocket integration coverage;
+- health/readiness and browser guest bootstrap;
+- token signing, expiry and tamper rejection;
+- upgrade authentication and origin rejection;
+- invalid JSON, actor spoofing and binary rejection;
+- match creation/joining, reconnect sync and broadcasts;
+- per-connection command ordering and graceful shutdown;
+- ESM smoke and production dependency audit.
 
 ## Deferred work
 
-Production identity providers, accounts, client invite screens, deployment infrastructure, matchmaking, ratings, and server-authoritative clocks remain outside C.8.3. Phase C.9 connects this completed server stack to invite-based untimed multiplayer in the web client.
+Backend deployment, production accounts, cross-device identity, public
+matchmaking, ratings, spectators, rematches and server-authoritative clocks remain
+outside the transport adapter.
