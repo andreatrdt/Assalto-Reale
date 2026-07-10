@@ -108,10 +108,9 @@ describe("guest session HTTP bootstrap", () => {
     const disabledAddress = await disabled.listen();
     expect(
       (
-        await fetch(
-          `http://127.0.0.1:${disabledAddress.port}/session`,
-          { method: "POST" },
-        )
+        await fetch(`http://127.0.0.1:${disabledAddress.port}/session`, {
+          method: "POST",
+        })
       ).status,
     ).toBe(404);
   });

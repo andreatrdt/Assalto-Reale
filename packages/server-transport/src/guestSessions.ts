@@ -1,8 +1,4 @@
-import {
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { URL } from "node:url";
 import type { AuthenticatedPrincipal } from "@assalto-reale/authoritative-server";
@@ -66,9 +62,13 @@ export class HmacGuestSessionService
   private readonly randomId: () => string;
 
   constructor(secret: string | Buffer, options: HmacGuestSessionOptions = {}) {
-    this.secret = Buffer.isBuffer(secret) ? Buffer.from(secret) : Buffer.from(secret);
+    this.secret = Buffer.isBuffer(secret)
+      ? Buffer.from(secret)
+      : Buffer.from(secret);
     if (this.secret.length < 32) {
-      throw new TypeError("Guest-session secret must contain at least 32 bytes.");
+      throw new TypeError(
+        "Guest-session secret must contain at least 32 bytes.",
+      );
     }
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
     this.now = options.now ?? Date.now;
@@ -76,13 +76,17 @@ export class HmacGuestSessionService
   }
 
   async issue(): Promise<IssuedGuestSession> {
-    const suffix = this.randomId().replaceAll(/[^A-Za-z0-9_-]/g, "").slice(0, 80);
+    const suffix = this.randomId()
+      .replaceAll(/[^A-Za-z0-9_-]/g, "")
+      .slice(0, 80);
     const playerId = `player_${suffix}`;
     const sessionId = `session_${this.randomId()
       .replaceAll(/[^A-Za-z0-9_-]/g, "")
       .slice(0, 80)}`;
     if (!ID_PATTERN.test(playerId) || !ID_PATTERN.test(sessionId)) {
-      throw new Error("Guest-session ID generator returned an invalid identifier.");
+      throw new Error(
+        "Guest-session ID generator returned an invalid identifier.",
+      );
     }
 
     const expiresAtMs = this.now() + this.ttlMs;
@@ -106,7 +110,8 @@ export class HmacGuestSessionService
 
   async verify(token: string): Promise<AuthenticatedPrincipal | null> {
     const [encodedPayload, encodedSignature, extra] = token.split(".");
-    if (!encodedPayload || !encodedSignature || extra !== undefined) return null;
+    if (!encodedPayload || !encodedSignature || extra !== undefined)
+      return null;
 
     let supplied: Buffer;
     try {
@@ -115,12 +120,17 @@ export class HmacGuestSessionService
       return null;
     }
     const expected = signature(this.secret, encodedPayload);
-    if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+    if (
+      supplied.length !== expected.length ||
+      !timingSafeEqual(supplied, expected)
+    ) {
       return null;
     }
 
     try {
-      const payload = JSON.parse(decode(encodedPayload)) as Partial<GuestTokenPayload>;
+      const payload = JSON.parse(
+        decode(encodedPayload),
+      ) as Partial<GuestTokenPayload>;
       if (
         payload.version !== 1 ||
         typeof payload.playerId !== "string" ||
@@ -144,9 +154,7 @@ export class HmacGuestSessionService
 }
 
 /** Browser-compatible connection auth using a query token or Bearer header. */
-export class GuestSessionConnectionAuthenticator
-  implements ConnectionAuthenticator
-{
+export class GuestSessionConnectionAuthenticator implements ConnectionAuthenticator {
   constructor(private readonly verifier: GuestSessionVerifier) {}
 
   async authenticate(

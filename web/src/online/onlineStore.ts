@@ -4,12 +4,7 @@ import { useGameStore } from "../game/state/gameStore";
 import { OnlineClient, type OnlineConnectionStatus } from "./onlineClient";
 import { configuredWebSocketUrl } from "./onlineIdentity";
 import { applyOnlineSnapshot, clearOnlineProjection } from "./onlineProjection";
-import type {
-  ClientCommand,
-  CommandRejectionCode,
-  JsonObject,
-  ServerEventEnvelope,
-} from "./protocol";
+import type { ClientCommand, CommandRejectionCode, JsonObject, ServerEventEnvelope } from "./protocol";
 
 const MATCH_STORAGE_KEY = "assalto:online-match";
 
@@ -79,14 +74,10 @@ function loadPersistedMatch(): PersistedOnlineMatch | null {
     }
     return {
       matchId: value.matchId,
-      inviteCode:
-        typeof value.inviteCode === "string" ? value.inviteCode : null,
-      side:
-        value.side === "Black" || value.side === "White" ? value.side : null,
-      matchVersion:
-        typeof value.matchVersion === "number" ? value.matchVersion : null,
-      streamSequence:
-        typeof value.streamSequence === "number" ? value.streamSequence : null,
+      inviteCode: typeof value.inviteCode === "string" ? value.inviteCode : null,
+      side: value.side === "Black" || value.side === "White" ? value.side : null,
+      matchVersion: typeof value.matchVersion === "number" ? value.matchVersion : null,
+      streamSequence: typeof value.streamSequence === "number" ? value.streamSequence : null,
       waitingForOpponent: Boolean(value.waitingForOpponent),
     };
   } catch {
@@ -197,19 +188,12 @@ function handleEnvelope(
   get: () => OnlineMatchStore,
 ): void {
   const state = get();
-  if (
-    envelope.streamSequence !== null &&
-    state.streamSequence !== null &&
-    envelope.streamSequence <= state.streamSequence
-  ) {
+  if (envelope.streamSequence !== null && state.streamSequence !== null && envelope.streamSequence <= state.streamSequence) {
     return;
   }
 
   const base: Partial<OnlineMatchStore> = {
-    pendingCommandId:
-      envelope.causationCommandId === state.pendingCommandId
-        ? null
-        : state.pendingCommandId,
+    pendingCommandId: envelope.causationCommandId === state.pendingCommandId ? null : state.pendingCommandId,
     matchId: envelope.matchId ?? state.matchId,
     matchVersion: envelope.matchVersion ?? state.matchVersion,
     streamSequence: envelope.streamSequence ?? state.streamSequence,
@@ -238,10 +222,7 @@ function handleEnvelope(
       break;
     }
     case "PlayerJoined": {
-      const side =
-        envelope.event.playerId === state.playerId
-          ? envelope.event.assignedSide
-          : state.side;
+      const side = envelope.event.playerId === state.playerId ? envelope.event.assignedSide : state.side;
       set({
         ...base,
         side,
@@ -260,7 +241,12 @@ function handleEnvelope(
       });
       break;
     case "MatchSnapshot":
-      set({ ...base, lastError: null, lastRejectionCode: null });
+      set({
+        ...base,
+        waitingForOpponent: envelope.matchVersion !== null ? envelope.matchVersion < 2 : state.waitingForOpponent,
+        lastError: null,
+        lastRejectionCode: null,
+      });
       applyOnlineSnapshot(envelope.event.snapshot, {
         message,
         side: state.side,
@@ -286,8 +272,7 @@ function handleEnvelope(
         ...base,
         lastError: envelope.event.message,
         lastRejectionCode: envelope.event.code,
-        matchVersion:
-          envelope.event.currentMatchVersion ?? state.matchVersion,
+        matchVersion: envelope.event.currentMatchVersion ?? state.matchVersion,
       });
       useGameStore.setState({ message });
       if (envelope.event.snapshot) {
@@ -329,8 +314,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       return true;
     } catch (error) {
       set({
-        lastError:
-          error instanceof Error ? error.message : "Could not send the command.",
+        lastError: error instanceof Error ? error.message : "Could not send the command.",
       });
       return false;
     }
@@ -352,10 +336,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       set({
         connectionStatus: "error",
         connectionDetail: null,
-        lastError:
-          error instanceof Error
-            ? error.message
-            : "Could not connect to online play.",
+        lastError: error instanceof Error ? error.message : "Could not connect to online play.",
       });
       return false;
     }
@@ -408,10 +389,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         return true;
       } catch (error) {
         set({
-          lastError:
-            error instanceof Error
-              ? error.message
-              : "Could not create the online match.",
+          lastError: error instanceof Error ? error.message : "Could not create the online match.",
         });
         return false;
       }
@@ -425,10 +403,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       }
       if (!(await connect())) return false;
       try {
-        const id = client?.send(
-          { type: "JoinMatch", inviteCode },
-          { matchId: null, expectedMatchVersion: null },
-        );
+        const id = client?.send({ type: "JoinMatch", inviteCode }, { matchId: null, expectedMatchVersion: null });
         if (!id) throw new Error("The multiplayer connection is not ready.");
         set({
           pendingCommandId: id,
@@ -442,10 +417,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         return true;
       } catch (error) {
         set({
-          lastError:
-            error instanceof Error
-              ? error.message
-              : "Could not join the online match.",
+          lastError: error instanceof Error ? error.message : "Could not join the online match.",
         });
         return false;
       }
@@ -463,9 +435,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       return connected;
     },
 
-    sendPlacement: (position) => send({ type: "PlacePiece", position }),
-    sendAction: (start, end) => send({ type: "SubmitAction", start, end }),
-    chooseDefender: (position) => send({ type: "ChooseDefender", position }),
+    sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),
+    sendAction: (start, end) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]] }),
+    chooseDefender: (position) => send({ type: "ChooseDefender", position: [position[0], position[1]] }),
     cancelDefendedKing: () => send({ type: "CancelDefendedKing" }),
     chooseTransform: (newType) => send({ type: "ChooseTransform", newType }),
     passTurn: () => send({ type: "PassTurn" }),
