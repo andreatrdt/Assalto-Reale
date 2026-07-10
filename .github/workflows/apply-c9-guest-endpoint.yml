@@ -1,40 +1,48 @@
-name: Apply C9 guest endpoint
+name: Apply C9 integration patch
 
 on:
-  push:
-    branches:
-      - feat/c9-invite-multiplayer
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, 'add guest session http endpoint') }}
+    if: ${{ github.event.pull_request.head.ref == 'feat/c9-invite-multiplayer' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/c9-invite-multiplayer
-      - name: Patch transport server
+      - name: Apply integration patch
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('packages/server-transport/src/transportServer.ts')
-          source = path.read_text()
-          source = source.replace(
-              'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\n',
-              'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\nimport type { GuestSessionIssuer } from "./guestSessions.js";\n',
-              1,
-          )
-          source = source.replace(
-              '  authenticateConnection: ConnectionAuthenticator;\n  readiness?: ReadinessProbe;\n',
-              '  authenticateConnection: ConnectionAuthenticator;\n  guestSessions?: GuestSessionIssuer;\n  readiness?: ReadinessProbe;\n',
-              1,
-          )
-          start = source.index('  private async handleHttp(')
-          end = source.index('  private async handleUpgrade(', start)
-          replacement = '''  private async handleHttp(
+
+          def replace_once(source: str, old: str, new: str, label: str) -> str:
+              if old not in source:
+                  raise SystemExit(f"{label} target not found")
+              return source.replace(old, new, 1)
+
+          # Browser guest-session HTTP bootstrap and shared origin policy.
+          transport = Path('packages/server-transport/src/transportServer.ts')
+          source = transport.read_text()
+          if 'guestSessions?: GuestSessionIssuer;' not in source:
+              source = replace_once(
+                  source,
+                  'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\n',
+                  'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\nimport type { GuestSessionIssuer } from "./guestSessions.js";\n',
+                  'guest session import',
+              )
+              source = replace_once(
+                  source,
+                  '  authenticateConnection: ConnectionAuthenticator;\n  readiness?: ReadinessProbe;\n',
+                  '  authenticateConnection: ConnectionAuthenticator;\n  guestSessions?: GuestSessionIssuer;\n  readiness?: ReadinessProbe;\n',
+                  'guest session option',
+              )
+              start = source.index('  private async handleHttp(')
+              end = source.index('  private async handleUpgrade(', start)
+              replacement = '''  private async handleHttp(
               request: IncomingMessage,
               response: ServerResponse,
             ): Promise<void> {
@@ -50,7 +58,7 @@ jobs:
                   return;
                 }
                 if (!this.isOriginAllowed(origin)) {
-                  this.sendJson(response, 403, { status: "forbidden" }, false, null);
+                  this.sendJson(response, 403, { status: "forbidden" }, false);
                   return;
                 }
                 if (request.method === "OPTIONS") {
@@ -162,33 +170,450 @@ jobs:
             }
 
           '''
-          source = source[:start] + replacement + source[end:]
-          old_origin = '''    const origin = request.headers.origin;
+              source = source[:start] + replacement + source[end:]
+              source = replace_once(
+                  source,
+                  '''    const origin = request.headers.origin;
               if (
                 this.allowedOrigins &&
                 typeof origin === "string" &&
                 !this.allowedOrigins.has(origin)
               ) {
+          ''',
+                  '''    const origin = request.headers.origin;
+              if (!this.isOriginAllowed(typeof origin === "string" ? origin : null)) {
+          ''',
+                  'upgrade origin policy',
+              )
+              transport.write_text(source)
+
+          # Protocol coordinates are mutable tuples; the core Vec2 is readonly.
+          online_store = Path('web/src/online/onlineStore.ts')
+          source = online_store.read_text()
+          source = source.replace(
+              '    sendPlacement: (position) => send({ type: "PlacePiece", position }),\n',
+              '    sendPlacement: (position) =>\n      send({ type: "PlacePiece", position: [position[0], position[1]] }),\n',
+          )
+          source = source.replace(
+              '    sendAction: (start, end) => send({ type: "SubmitAction", start, end }),\n',
+              '    sendAction: (start, end) =>\n      send({\n        type: "SubmitAction",\n        start: [start[0], start[1]],\n        end: [end[0], end[1]],\n      }),\n',
+          )
+          source = source.replace(
+              '    chooseDefender: (position) => send({ type: "ChooseDefender", position }),\n',
+              '    chooseDefender: (position) =>\n      send({ type: "ChooseDefender", position: [position[0], position[1]] }),\n',
+          )
+          source = source.replace(
+              '    case "MatchSnapshot":\n      set({ ...base, lastError: null, lastRejectionCode: null });\n',
+              '    case "MatchSnapshot":\n      set({\n        ...base,\n        waitingForOpponent:\n          envelope.matchVersion !== null\n            ? envelope.matchVersion < 2\n            : state.waitingForOpponent,\n        lastError: null,\n        lastRejectionCode: null,\n      });\n',
+          )
+          online_store.write_text(source)
+
+          # Route online games through the server while leaving local play intact.
+          game_page = Path('web/src/pages/GamePage.tsx')
+          source = game_page.read_text()
+          if 'useOnlineGameActions' not in source:
+              source = replace_once(
+                  source,
+                  'import { useGameStore } from "../game/state/gameStore";\n',
+                  'import { useGameStore } from "../game/state/gameStore";\nimport { useOnlineGameActions } from "../online/useOnlineGameActions";\nimport { useOnlineMatchStore } from "../online/onlineStore";\n',
+                  'online game imports',
+              )
+              source = replace_once(
+                  source,
+                  'import { VictoryOverlay } from "./VictoryOverlay";\n',
+                  'import { VictoryOverlay } from "./VictoryOverlay";\nimport { ConnectionBadge } from "./OnlinePage";\nimport "../styles/online.css";\n',
+                  'online presentation imports',
+              )
+              source = replace_once(
+                  source,
+                  '''  const activateSquare = useGameStore((state) => state.activateSquare);
+              const cancelDefenderSelection = useGameStore((state) => state.cancelDefenderSelection);
+              const chooseTransform = useGameStore((state) => state.chooseTransform);
+              const passTurn = useGameStore((state) => state.passTurn);
+          ''',
+                  '''  const localActivateSquare = useGameStore((state) => state.activateSquare);
+              const localCancelDefenderSelection = useGameStore(
+                (state) => state.cancelDefenderSelection,
+              );
+              const localChooseTransform = useGameStore((state) => state.chooseTransform);
+              const localPassTurn = useGameStore((state) => state.passTurn);
+          ''',
+                  'local action aliases',
+              )
+              source = replace_once(
+                  source,
+                  '''  const runAiTurn = useGameStore((state) => state.runAiTurn);
+              const [confirmHome, setConfirmHome] = useState(false);
+              const [confirmRestart, setConfirmRestart] = useState(false);
+
+              usePresentationSound();
+          ''',
+                  '''  const runAiTurn = useGameStore((state) => state.runAiTurn);
+              const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
+              const onlineSide = useOnlineMatchStore((state) => state.side);
+              const onlineVersion = useOnlineMatchStore((state) => state.matchVersion);
+              const onlineInviteCode = useOnlineMatchStore((state) => state.inviteCode);
+              const onlineConnectionStatus = useOnlineMatchStore(
+                (state) => state.connectionStatus,
+              );
+              const onlineConnectionDetail = useOnlineMatchStore(
+                (state) => state.connectionDetail,
+              );
+              const onlinePendingCommandId = useOnlineMatchStore(
+                (state) => state.pendingCommandId,
+              );
+              const onlineLastError = useOnlineMatchStore((state) => state.lastError);
+              const onlineResign = useOnlineMatchStore((state) => state.resign);
+              const onlineDisconnect = useOnlineMatchStore((state) => state.disconnect);
+              const onlineActions = useOnlineGameActions();
+              const [confirmHome, setConfirmHome] = useState(false);
+              const [confirmRestart, setConfirmRestart] = useState(false);
+              const [confirmResign, setConfirmResign] = useState(false);
+
+              usePresentationSound();
+
+              const isOnline = Boolean(onlineMatchId);
+              const activateSquare = isOnline
+                ? onlineActions.activateSquare
+                : localActivateSquare;
+              const cancelDefenderSelection = isOnline
+                ? onlineActions.cancelDefenderSelection
+                : localCancelDefenderSelection;
+              const chooseTransform = isOnline
+                ? onlineActions.chooseTransform
+                : localChooseTransform;
+              const passTurn = isOnline ? onlineActions.passTurn : localPassTurn;
+          ''',
+                  'online selectors and actions',
+              )
+              source = source.replace(
+                  '  const canRestartMatch = Boolean(matchConfig);\n',
+                  '  const canRestartMatch = Boolean(matchConfig) && !isOnline;\n',
+                  1,
+              )
+              source = replace_once(
+                  source,
+                  '''  function confirmReturnHome() {
+              returnHome();
+          ''',
+                  '''  function confirmReturnHome() {
+              if (isOnline) onlineDisconnect(true);
+              returnHome();
+          ''',
+                  'online home disconnect',
+              )
+              source = replace_once(
+                  source,
+                  '''  function restartMatch() {
+              if (!matchConfig) return;
+          ''',
+                  '''  function resignOnlineMatch() {
+              if (!isOnline) return;
+              onlineResign();
+              setConfirmResign(false);
+            }
+
+            function restartMatch() {
+              if (!matchConfig || isOnline) return;
+          ''',
+                  'online resignation action',
+              )
+              source = replace_once(
+                  source,
+                  '''          <IconButton
+                icon="warning"
+                label={canRestartMatch ? "Restart match" : "Restart unavailable until a match setup is stored"}
+                variant="danger"
+                onClick={() => setConfirmRestart(true)}
+                disabled={!canRestartMatch}
+              />
+          ''',
+                  '''          {isOnline ? (
+                <IconButton
+                  icon="warning"
+                  label="Resign online match"
+                  variant="danger"
+                  onClick={() => setConfirmResign(true)}
+                  disabled={Boolean(onlinePendingCommandId) || phase === "gameOver"}
+                />
+              ) : (
+                <IconButton
+                  icon="warning"
+                  label={
+                    canRestartMatch
+                      ? "Restart match"
+                      : "Restart unavailable until a match setup is stored"
+                  }
+                  variant="danger"
+                  onClick={() => setConfirmRestart(true)}
+                  disabled={!canRestartMatch}
+                />
+              )}
+          ''',
+                  'online header action',
+              )
+              source = replace_once(
+                  source,
+                  '''      </header>
+
+              <div className="gameLayout">
+          ''',
+                  '''      </header>
+
+              {isOnline && (
+                <div className="onlineMatchStrip" aria-label="Online match status">
+                  <div className="onlineMatchStripMain">
+                    <ConnectionBadge
+                      status={onlineConnectionStatus}
+                      detail={onlineConnectionDetail}
+                    />
+                    <strong>You play {onlineSide ?? "…"}</strong>
+                    <small>Version {onlineVersion ?? "…"}</small>
+                  </div>
+                  <div className="onlineMatchStripMeta">
+                    {onlineInviteCode && <small>Invite {onlineInviteCode}</small>}
+                    {onlinePendingCommandId && <small>Awaiting server confirmation</small>}
+                    {onlineLastError && <small role="alert">{onlineLastError}</small>}
+                  </div>
+                </div>
+              )}
+
+              <div className="gameLayout">
+          ''',
+                  'online status strip',
+              )
+              source = source.replace(
+                  '              disabled={aiEnabled && currentPlacement.player === aiPlayer}\n',
+                  '              disabled={\n                isOnline\n                  ? onlineActions.interactionDisabled\n                  : aiEnabled && currentPlacement.player === aiPlayer\n              }\n              online={isOnline}\n',
+                  1,
+              )
+              source = source.replace(
+                  '              home={() => setConfirmHome(true)}\n            />\n',
+                  '              home={() => setConfirmHome(true)}\n              online={isOnline}\n            />\n',
+                  1,
+              )
+              source = source.replace(
+                  '              disabled={Boolean(aiControlsTurn)}\n            />\n',
+                  '              disabled={\n                isOnline\n                  ? onlineActions.interactionDisabled\n                  : Boolean(aiControlsTurn)\n              }\n              online={isOnline}\n            />\n',
+                  1,
+              )
+              source = source.replace(
+                  '      {phase === "gameOver" && (\n',
+                  '      {phase === "gameOver" && !isOnline && (\n',
+                  1,
+              )
+              source = source.replace(
+                  '''          <p>Your active match remains in memory and can be continued from Home. Save first if you want a local browser save.</p>
+          ''',
+                  '''          <p>
+                {isOnline
+                  ? "The online match can be resumed from Home after reconnecting."
+                  : "Your active match remains in memory and can be continued from Home. Save first if you want a local browser save."}
+              </p>
+          ''',
+                  1,
+              )
+              source = source.replace(
+                  '      {confirmRestart && (\n',
+                  '      {confirmRestart && !isOnline && (\n',
+                  1,
+              )
+              source = replace_once(
+                  source,
+                  '''      )}
+            </main>
+          ''',
+                  '''      )}
+
+              {confirmResign && isOnline && (
+                <ConfirmDialog
+                  title="Resign this online match?"
+                  confirmLabel="Resign Match"
+                  danger
+                  onConfirm={resignOnlineMatch}
+                  onCancel={() => setConfirmResign(false)}
+                >
+                  <p>Your opponent will win immediately. This cannot be undone.</p>
+                </ConfirmDialog>
+              )}
+            </main>
+          ''',
+                  'online resign dialog',
+              )
+
+              source = source.replace(
+                  '''  disabled,
+            }: {
+              currentPlacement: { player: Player; pieceType: string };
+          ''',
+                  '''  disabled,
+              online = false,
+            }: {
+              currentPlacement: { player: Player; pieceType: string };
+          ''',
+                  1,
+              )
+              source = source.replace(
+                  '  disabled: boolean;\n}) {\n  return (\n    <div className="matchPanel">\n',
+                  '  disabled: boolean;\n  online?: boolean;\n}) {\n  return (\n    <div className="matchPanel">\n',
+                  1,
+              )
+              source = source.replace(
+                  '''      {disabled && (
+                <StatusBadge tone="info" icon="gear">
+                  Computer is placing this piece.
+                </StatusBadge>
+              )}
+              <div className="commandGrid">
+                <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+                  Undo
+                </GameButton>
+                <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                  Save
+                </GameButton>
+              </div>
+          ''',
+                  '''      {disabled && (
+                <StatusBadge tone="info" icon={online ? "warning" : "gear"}>
+                  {online
+                    ? "Waiting for the server or your opponent."
+                    : "Computer is placing this piece."}
+                </StatusBadge>
+              )}
+              {!online && (
+                <div className="commandGrid">
+                  <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+                    Undo
+                  </GameButton>
+                  <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                    Save
+                  </GameButton>
+                </div>
+              )}
+          ''',
+                  'online placement panel',
+              )
+              source = source.replace(
+                  '''  loadGame,
+              disabled,
+            }: {
+          ''',
+                  '''  loadGame,
+              disabled,
+              online = false,
+            }: {
+          ''',
+                  1,
+              )
+              # This is the second disabled type declaration, belonging to MatchPanel.
+              marker = '''  loadGame: () => void;
+              disabled: boolean;
+            }) {
           '''
-          new_origin = '''    const origin = request.headers.origin;
-              if (
-                !this.isOriginAllowed(typeof origin === "string" ? origin : null)
-              ) {
-          '''
-          if old_origin not in source:
-              raise SystemExit('upgrade origin block not found')
-          source = source.replace(old_origin, new_origin, 1)
-          path.write_text(source)
+              source = replace_once(
+                  source,
+                  marker,
+                  '''  loadGame: () => void;
+              disabled: boolean;
+              online?: boolean;
+            }) {
+          ''',
+                  'online match panel type',
+              )
+              source = replace_once(
+                  source,
+                  '''        <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+                  Undo
+                </GameButton>
+                <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                  Save
+                </GameButton>
+                <GameButton variant="secondary" icon="load" onClick={loadGame}>
+                  Load
+                </GameButton>
+          ''',
+                  '''        {!online && (
+                  <>
+                    <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+                      Undo
+                    </GameButton>
+                    <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                      Save
+                    </GameButton>
+                    <GameButton variant="secondary" icon="load" onClick={loadGame}>
+                      Load
+                    </GameButton>
+                  </>
+                )}
+          ''',
+                  'online match panel controls',
+              )
+              source = source.replace(
+                  '''  home,
+            }: {
+              message: string;
+          ''',
+                  '''  home,
+              online = false,
+            }: {
+              message: string;
+          ''',
+                  1,
+              )
+              source = replace_once(
+                  source,
+                  '''  home: () => void;
+            }) {
+          ''',
+                  '''  home: () => void;
+              online?: boolean;
+            }) {
+          ''',
+                  'online victory panel type',
+              )
+              source = replace_once(
+                  source,
+                  '''        <GameButton variant="primary" onClick={rematch}>
+                  Rematch
+                </GameButton>
+                <GameButton variant="primary" icon="play" onClick={newMatch}>
+                  New Match
+                </GameButton>
+                <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                  Save
+                </GameButton>
+          ''',
+                  '''        {!online && (
+                  <>
+                    <GameButton variant="primary" onClick={rematch}>
+                      Rematch
+                    </GameButton>
+                    <GameButton variant="primary" icon="play" onClick={newMatch}>
+                      New Match
+                    </GameButton>
+                    <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                      Save
+                    </GameButton>
+                  </>
+                )}
+          ''',
+                  'online victory controls',
+              )
+              game_page.write_text(source)
           PY
-      - name: Format transport source
+      - name: Format changed sources
         run: |
           npm ci --prefix web
           npm ci --prefix packages/server-transport
-          npm --prefix packages/server-transport exec prettier -- --write src/transportServer.ts
-      - name: Commit endpoint
+          npm --prefix web exec prettier -- --config web/.prettierrc.json --write web/src/online web/src/pages/GamePage.tsx web/src/pages/OnlinePage.tsx web/src/app web/src/styles/online.css
+          npm --prefix packages/server-transport exec prettier -- --write src tests
+      - name: Commit integration
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/server-transport/src/transportServer.ts
-          git commit -m "feat: add guest session http endpoint"
+          git add web/src packages/server-transport/src packages/server-transport/tests
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "feat: integrate invite multiplayer gameplay"
           git push origin HEAD:feat/c9-invite-multiplayer
