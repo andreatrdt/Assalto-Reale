@@ -1,8 +1,8 @@
-# Authoritative server application core
+# Authoritative server
 
 ## Roadmap position
 
-This document defines Phase C.8.1 of the Assalto Reale roadmap.
+This document defines the delivered authoritative-server foundation through Phase C.8.2.
 
 ```text
 Phase A                               completed
@@ -10,13 +10,13 @@ Phase B.5 Store decomposition         completed
 Phase B.6 Pure game-core              completed
 Phase B.7 Multiplayer protocol        completed
 Phase C.8 Authoritative server
-  C.8.1 Application core              delivered here
-  C.8.2 PostgreSQL adapter            pending
+  C.8.1 Application core              completed
+  C.8.2 PostgreSQL adapter            delivered here
   C.8.3 Transport adapter             pending
 Phase C.9 Invite multiplayer          pending
 ```
 
-C.8.1 deliberately stops before networking and database selection. It establishes the application/domain boundary that those adapters must call.
+C.8.1 established the transport- and database-independent application boundary. C.8.2 implements its existing persistence ports with PostgreSQL without changing command semantics or game rules.
 
 ## Authority model
 
@@ -32,6 +32,11 @@ authoritative server application core
   invokes game-core
   commits canonical state and the command receipt atomically
   emits canonical multiplayer-protocol events
+
+PostgreSQL adapter
+  persists the canonical aggregate and exact command result
+  enforces unique command IDs and invite codes
+  performs compare-and-swap match updates
 
 game-core
   remains the only owner of gameplay rules
@@ -69,11 +74,72 @@ A semantic command fingerprint includes protocol version, player identity, targe
 - monotonic `streamSequence`;
 - terminal reason where applicable.
 
-State-changing commands use optimistic concurrency. The repository adapter must reject a commit when the persisted version no longer matches the version read by the command. Match mutation and command receipt persistence are one atomic operation.
+State-changing commands use optimistic concurrency. PostgreSQL updates include both the match ID and the version read by the command:
 
-The in-memory adapter enforces the same contract used by the future PostgreSQL implementation, including concurrent exact-command replay and rejection of command-ID reuse with different semantics.
+```sql
+UPDATE authoritative_matches
+SET version = :next_version, ...
+WHERE match_id = :match_id AND version = :expected_version;
+```
 
-## Supported C.8.1 commands
+A zero-row update raises `ConcurrencyConflictError`. Therefore two commands that read the same version cannot both commit.
+
+## PostgreSQL schema
+
+The versioned migration runner creates three tables:
+
+### `authoritative_schema_migrations`
+
+Records migration version, name, checksum and application time. A PostgreSQL advisory lock serializes concurrent startup migration attempts. Applied migration checksums are verified so released migrations cannot be edited silently.
+
+### `authoritative_matches`
+
+Stores canonical match metadata and a validated `game-core` state snapshot:
+
+- primary key `match_id`;
+- unique `invite_code`;
+- `version` and `stream_sequence`;
+- server-generated `seed`;
+- JSONB match configuration;
+- Black and White player IDs;
+- lifecycle status and terminal reason;
+- JSONB canonical state;
+- creation and update timestamps.
+
+State is encoded with `game-core.serializeState` and validated with `game-core.deserializeState` when loaded. Match configuration and stored protocol envelopes are also runtime-validated before entering the application layer.
+
+### `authoritative_command_receipts`
+
+Stores:
+
+- unique `command_id`;
+- authenticated `player_id`;
+- resolved match ID where applicable;
+- semantic payload fingerprint;
+- exact emitted event envelopes as JSONB.
+
+Receipts intentionally do not have a match foreign key because rejected commands may refer to a missing or invalid match ID and must still be retry-safe.
+
+## Atomic commit order
+
+The PostgreSQL `UnitOfWork` opens one database transaction and stages writes while the application callback runs. Commit order is:
+
+```text
+BEGIN
+  claim command receipt with INSERT ... ON CONFLICT DO NOTHING
+  compare an existing receipt when the command ID is already claimed
+  insert a new match or compare-and-swap the existing match version
+COMMIT
+```
+
+Receipt claiming happens before match mutation. This guarantees:
+
+- an exact concurrent retry replays the already-committed envelopes;
+- changed reuse of a command ID raises `ReceiptConflictError`;
+- a later match conflict rolls the new receipt back;
+- match state and command result never commit partially.
+
+## Supported commands
 
 Application-level:
 
@@ -95,7 +161,7 @@ Mapped directly to `game-core`:
 
 ## Reconnect and idempotency
 
-`RequestSync` returns a canonical `MatchSnapshot` to a verified member without advancing match state. It is itself receipt-backed, so exact retries return the same event envelope.
+`RequestSync` returns a canonical `MatchSnapshot` to a verified member without advancing match state. It is receipt-backed, so exact retries return the same event envelope.
 
 Exact duplicate commands replay their original result. Reusing a command ID with a changed actor, target, expected version or payload returns `duplicate_command`. Two concurrent commands against the same match version cannot both commit.
 
@@ -105,17 +171,25 @@ Exact duplicate commands replay their original result. Reusing a command ID with
 
 - `@assalto-reale/game-core`;
 - `@assalto-reale/multiplayer-protocol`;
-- Node standard-library modules in tooling/tests.
+- `pg` for the PostgreSQL adapter;
+- Node standard-library modules and development tooling.
 
-It must not import React, Zustand, web UI modules, browser APIs, a transport framework, a database client or an authentication provider.
+It must not import React, Zustand, web UI modules, browser APIs, an HTTP/WebSocket framework or a production authentication provider.
 
-## Deferred adapters
+## Validation
 
-### C.8.2 PostgreSQL
+The dedicated server CI starts PostgreSQL 16 and runs:
 
-The database adapter must implement the existing repository and unit-of-work ports using transactions, unique command IDs, unique invite codes and compare-and-swap match versions.
+- strict TypeScript typecheck;
+- architecture lint;
+- Prettier verification;
+- application, in-memory and PostgreSQL integration tests with coverage thresholds;
+- ESM build and plain-Node smoke test;
+- production dependency audit.
 
-### C.8.3 transport
+PostgreSQL integration coverage verifies migrations, canonical round-trip, invitation lookup, exact-retry replay, changed command-ID rejection, atomic rollback, compare-and-swap concurrency and persisted-data validation.
+
+## Next adapter: C.8.3 transport
 
 HTTP/Socket.IO/WebSocket adapters must remain thin:
 
@@ -123,4 +197,4 @@ HTTP/Socket.IO/WebSocket adapters must remain thin:
 receive -> authenticate -> CommandHandler.handle -> deliver returned envelopes
 ```
 
-No transport adapter may reimplement rules, membership, idempotency or version checks.
+No transport adapter may reimplement rules, membership, idempotency, version checks or database transactions.

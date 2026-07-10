@@ -1,8 +1,8 @@
 # @assalto-reale/authoritative-server
 
-Transport- and database-independent application core for Assalto Reale multiplayer.
+Authoritative application core and persistence adapters for Assalto Reale multiplayer.
 
-This package is the first checkpoint of Phase C.8. It accepts validated multiplayer-protocol command envelopes, authenticates an injected transport principal, applies the canonical `game-core`, persists match state and command receipts atomically, and returns ordered canonical protocol events.
+The package accepts multiplayer-protocol command envelopes, authenticates an injected transport principal, applies the canonical `game-core`, persists match state and command receipts atomically, and returns ordered canonical protocol events.
 
 ## Authority boundaries
 
@@ -17,7 +17,7 @@ client command
   -> canonical protocol events
 ```
 
-The package does not contain game rules. It imports them only through `@assalto-reale/game-core`. It does not depend on React, Zustand, browser APIs, HTTP, WebSocket, Socket.IO, PostgreSQL or an authentication provider.
+The package does not contain game rules. It imports them only through `@assalto-reale/game-core`. It does not depend on React, Zustand, browser APIs, HTTP, WebSocket, Socket.IO or a production authentication provider.
 
 ## Implemented in C.8.1
 
@@ -32,9 +32,46 @@ The package does not contain game rules. It imports them only through `@assalto-
 - transaction/repository ports and an atomic in-memory adapter;
 - structured rejections and architecture-boundary tests.
 
+## Implemented in C.8.2
+
+- PostgreSQL implementation of `MatchRepository` and `UnitOfWork`;
+- versioned, checksum-verified migrations protected by an advisory lock;
+- canonical `game-core` state stored as validated JSONB;
+- unique invitation codes and command IDs;
+- exact command-envelope replay from persisted receipts;
+- atomic receipt + match commits;
+- compare-and-swap updates using the expected match version;
+- deterministic rollback on persistence or concurrency failure;
+- real PostgreSQL 16 integration coverage in CI.
+
+Create a `pg.Pool`, apply migrations and pass the adapter to the existing command handler:
+
+```ts
+import { Pool } from "pg";
+import {
+  CommandHandler,
+  createPostgresPersistence,
+  runPostgresMigrations,
+} from "@assalto-reale/authoritative-server";
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+await runPostgresMigrations(pool);
+
+const persistence = createPostgresPersistence(pool);
+const handler = new CommandHandler({
+  matches: persistence.matches,
+  unitOfWork: persistence.unitOfWork,
+  authenticator,
+  clock,
+  ids,
+  seeds,
+});
+```
+
+The transport process owns pool startup and shutdown. The application core remains unaware of PostgreSQL.
+
 ## Deliberately deferred
 
-- PostgreSQL and migrations: C.8.2;
 - HTTP/Socket.IO transport: C.8.3;
 - production authentication and accounts;
 - rematch implementation and invite UI: C.9;
@@ -42,19 +79,26 @@ The package does not contain game rules. It imports them only through `@assalto-
 
 ## Validation
 
-Install the web toolchain and this package, then run:
+Install the web toolchain and this package, provide a disposable PostgreSQL database, then run:
 
 ```bash
 cd web
 npm ci
 cd ../packages/authoritative-server
-npm install
+npm ci
+TEST_DATABASE_URL=postgresql://user:password@localhost:5432/assalto_reale_test npm run test:coverage
 npm run typecheck
 npm run lint
 npm run format:check
-npm run test:coverage
 npm run smoke
 npm run audit:prod
 ```
 
-The package consumes built public entry points from `game-core` and `multiplayer-protocol`; the scripts build those dependencies first.
+On PowerShell:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://user:password@localhost:5432/assalto_reale_test"
+npm run test:coverage
+```
+
+The package consumes built public entry points from `game-core` and `multiplayer-protocol`; its scripts build those dependencies first. PostgreSQL tests are skipped only when `TEST_DATABASE_URL` is absent, while CI always supplies a real PostgreSQL 16 service.

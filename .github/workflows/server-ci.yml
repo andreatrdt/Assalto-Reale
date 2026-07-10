@@ -10,6 +10,23 @@ on:
 jobs:
   authoritative-server:
     runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://assalto:assalto@127.0.0.1:5432/assalto_reale_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: assalto
+          POSTGRES_PASSWORD: assalto
+          POSTGRES_DB: assalto_reale_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U assalto -d assalto_reale_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -17,7 +34,9 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            web/package-lock.json
+            packages/authoritative-server/package-lock.json
 
       - name: Install repository toolchain
         working-directory: web
@@ -39,7 +58,7 @@ jobs:
         working-directory: packages/authoritative-server
         run: npm run format:check
 
-      - name: Unit and integration coverage
+      - name: Unit and PostgreSQL integration coverage
         working-directory: packages/authoritative-server
         run: npm run test:coverage
 

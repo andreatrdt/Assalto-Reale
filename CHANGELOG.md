@@ -6,6 +6,25 @@ metadata derive from it.
 
 ## Unreleased
 
+Authoritative PostgreSQL persistence — completes Phase C.8.2 without adding a
+network transport, production authentication provider or multiplayer UI. See
+[`docs/authoritative-server.md`](docs/authoritative-server.md).
+
+- Added a PostgreSQL implementation of the existing `MatchRepository` and
+  transactional `UnitOfWork` ports; the application/domain core remains
+  database-independent.
+- Added versioned, checksum-verified migrations protected by a PostgreSQL
+  advisory lock, with canonical match state and command envelopes stored as
+  validated JSONB.
+- Added unique command-ID and invite-code enforcement, exact retry replay,
+  compare-and-swap version updates and atomic receipt + match commits.
+- Added real PostgreSQL integration coverage for migration idempotency,
+  round-trip loading, invitation lookup, concurrent retries, conflicting
+  command IDs, optimistic-concurrency races, rollback and corrupt-data guards.
+- Extended dedicated server CI with a PostgreSQL 16 service while keeping the
+  complete Python, parity, web, browser and build baseline unchanged. Transport
+  remains Phase C.8.3.
+
 Authoritative server application core — completes Phase C.8.1 without adding a
 network transport, database, production authentication provider or multiplayer
 UI. See [`docs/authoritative-server.md`](docs/authoritative-server.md).
@@ -22,8 +41,7 @@ UI. See [`docs/authoritative-server.md`](docs/authoritative-server.md).
 - Added repository/transaction ports, a deterministic in-memory adapter, ordered
   event streams, structured rejection mapping and architecture-boundary tests.
 - Added dedicated CI for strict typecheck, ESLint, Prettier, coverage thresholds,
-  ESM build, plain-Node smoke and production dependency audit. PostgreSQL is the
-  next C.8.2 adapter; HTTP/Socket.IO remains C.8.3.
+  ESM build, plain-Node smoke and production dependency audit.
 
 Baseline repair — restore a green repository after the game-core command-API
 integration left `main` failing typecheck, unit tests and package smokes. No

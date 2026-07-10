@@ -3,8 +3,9 @@
 **This is the canonical source of truth for the current application.** Other
 documents in `docs/` are design history or task-specific notes; where they
 disagree with this file, this file wins. Last reconciled through the full-rules
-parity, game-store decomposition, pure game-core, multiplayer-protocol and
-authoritative-server application-core passes (see `CHANGELOG.md`).
+parity, game-store decomposition, pure game-core, multiplayer-protocol,
+authoritative application-core and PostgreSQL persistence passes (see
+`CHANGELOG.md`).
 
 ## What ships publicly
 
@@ -66,10 +67,10 @@ browser/UI coordinator while pure placement, turn, clock, history and persistenc
 logic lives in focused modules under `web/src/game/`. Its public runtime surface
 is frozen by `storeContract.test.ts`.
 
-Gameplay authority now lives in the browser-independent
-`packages/game-core`. The web app consumes it through adapters; the future
-server consumes the same public package. See [`game-store-contract.md`](game-store-contract.md)
-and [`game-core-extraction.md`](game-core-extraction.md).
+Gameplay authority lives in the browser-independent `packages/game-core`. The
+web app and authoritative server consume the same public package through their
+respective adapters. See [`game-store-contract.md`](game-store-contract.md) and
+[`game-core-extraction.md`](game-core-extraction.md).
 
 ## Multiplayer architecture status
 
@@ -78,7 +79,7 @@ The transport-independent wire contract is implemented by
 runtime validation, semantic command IDs, expected match versions, ordered event
 streams and canonical reconnect snapshots. It does not implement networking.
 
-Phase C.8.1 adds `packages/authoritative-server`, an application/domain core that:
+Phase C.8.1 added `packages/authoritative-server`, an application/domain core that:
 
 - authenticates an injected transport principal and matches it to the declared actor;
 - enforces semantic command idempotency, membership and optimistic match versions;
@@ -89,7 +90,16 @@ Phase C.8.1 adds `packages/authoritative-server`, an application/domain core tha
 - supports invite-code join, resignation and canonical `RequestSync`;
 - exposes repository/unit-of-work ports plus a deterministic in-memory adapter.
 
-It deliberately has no HTTP/WebSocket transport, PostgreSQL adapter, production
+Phase C.8.2 implements those ports with PostgreSQL:
+
+- versioned and checksum-verified migrations protected by an advisory lock;
+- canonical `game-core` state and exact command results stored as validated JSONB;
+- unique invitation codes and command IDs;
+- atomic receipt + aggregate transactions;
+- compare-and-swap match-version updates;
+- integration tests against PostgreSQL 16 for concurrency, rollback and replay.
+
+The server still deliberately has no HTTP/WebSocket transport, production
 authentication provider, account system or multiplayer UI. See
 [`authoritative-server.md`](authoritative-server.md).
 
@@ -113,8 +123,8 @@ authentication provider, account system or multiplayer UI. See
   (see `docs/browser-quality.md`).
 - **Board keyboard navigation** is per-square tab stops with Enter/Space
   activation; arrow-key roving grid navigation is not yet implemented.
-- The server foundation is not a deployable online product until persistence,
-  transport, accounts and client integration are added.
+- The server foundation is not a deployable online product until transport,
+  production authentication/accounts and client integration are added.
 - No Android packaging, public matchmaking or ratings.
 
 ## Deployment status
@@ -124,7 +134,8 @@ Live on **GitHub Pages** from this repository via
 `workflow_run` after CI succeeds on `main`). `release-metadata.json` records the
 deployed source commit. See `docs/deployment.md` and `docs/release-checklist.md`.
 
-The authoritative-server package is validated in CI but is not deployed.
+The authoritative-server package and PostgreSQL adapter are validated in CI but
+are not deployed.
 
 ## Validation baseline
 
@@ -138,6 +149,8 @@ Required repository gates:
 - Playwright Chromium/mobile, Firefox/WebKit and visual-gate contract.
 - Authoritative server: strict TypeScript, architecture lint, Prettier, coverage
   thresholds, ESM build, plain-Node smoke and production dependency audit.
+- PostgreSQL 16 integration: migrations, canonical round-trip, invitation lookup,
+  idempotent replay, concurrency, atomic rollback and corrupt-data guards.
 
 ## Roadmap position
 
@@ -147,9 +160,9 @@ Phase B.5 Store decomposition         completed
 Phase B.6 Pure game-core              completed
 Phase B.7 Multiplayer protocol        completed
 Phase C.8 Authoritative server
-  C.8.1 Application core              completed by this phase
-  C.8.2 PostgreSQL adapter            next
-  C.8.3 Transport adapter             pending
+  C.8.1 Application core              completed
+  C.8.2 PostgreSQL adapter            completed by this phase
+  C.8.3 Transport adapter             next
 Phase C.9 Invite multiplayer          pending
 Phase C.10 Accounts/continuity        pending
 Phase C.11 Timed online matches       pending
