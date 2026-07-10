@@ -15,9 +15,17 @@ export function monotonicNow(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-export function computeClockPatch(state: GameState, now: number, stopRunning = false): StatePatch {
+export function computeClockPatch(
+  state: GameState,
+  now: number,
+  stopRunning = false,
+): StatePatch {
   const runningFor = state.clockRunningFor;
-  if (!runningFor || state.clockLastSyncMs === null || state.phase.phase === "gameOver") {
+  if (
+    !runningFor ||
+    state.clockLastSyncMs === null ||
+    state.phase.phase === "gameOver"
+  ) {
     return stopRunning ? { clockRunningFor: null, clockLastSyncMs: null } : {};
   }
 
@@ -45,8 +53,13 @@ export function computeClockPatch(state: GameState, now: number, stopRunning = f
   }
 
   return {
-    timeLeft: { ...state.timeLeft, [runningFor]: remainingSeconds - elapsedSeconds },
+    timeLeft: {
+      ...state.timeLeft,
+      [runningFor]: remainingSeconds - elapsedSeconds,
+    },
     clockRunningFor: stopRunning ? null : runningFor,
-    clockLastSyncMs: stopRunning ? null : state.clockLastSyncMs + elapsedSeconds * 1000,
+    clockLastSyncMs: stopRunning
+      ? null
+      : state.clockLastSyncMs + elapsedSeconds * 1000,
   };
 }
