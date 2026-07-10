@@ -38,10 +38,7 @@ export function clonePiecesLeft(piecesLeft: PiecesLeft): PiecesLeft {
   };
 }
 
-export function createBaseBoard(
-  transformEnabled = false,
-  seed = createSetupSeed(),
-): BoardState {
+export function createBaseBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
   const board = createBoard({ transformEnabled });
   assignGeneratedSpecialSquares(board, seed);
   updateControl(board);
@@ -66,10 +63,7 @@ function buildPlacementQueue(): PendingPlacement[] {
 
 /** The canonical manual-placement order (stable for the whole app lifetime). */
 export const PLACEMENT_QUEUE = buildPlacementQueue();
-export const TOTAL_PLACEMENTS = PLACEMENT_SCHEDULE.reduce(
-  (sum, step) => sum + step.count,
-  0,
-);
+export const TOTAL_PLACEMENTS = PLACEMENT_SCHEDULE.reduce((sum, step) => sum + step.count, 0);
 
 function findKing(board: BoardState, player: Player): Vec2 | null {
   for (let row = 0; row < board.config.rows; row += 1) {
@@ -83,11 +77,7 @@ function findKing(board: BoardState, player: Player): Vec2 | null {
   return null;
 }
 
-export function chooseQuickPlacementSquare(
-  board: BoardState,
-  player: Player,
-  pieceType: PieceType,
-): Vec2 {
+export function chooseQuickPlacementSquare(board: BoardState, player: Player, pieceType: PieceType): Vec2 {
   const kingPos = findKing(board, player);
   const center = Math.floor(board.config.rows / 2);
   const anchor: Vec2 =
@@ -111,19 +101,12 @@ export function chooseQuickPlacementSquare(
       }
       let score = -2 * (Math.abs(row - anchor[0]) + Math.abs(col - anchor[1]));
       if (pieceType === "DefensePawn" && kingPos) {
-        const d = Math.max(
-          Math.abs(row - kingPos[0]),
-          Math.abs(col - kingPos[1]),
-        );
+        const d = Math.max(Math.abs(row - kingPos[0]), Math.abs(col - kingPos[1]));
         if (d === 1) score += 100;
         if (d === 2) score += 30;
       }
       if (pieceType === "ConquestPawn") {
-        const d = Math.min(
-          ...board.specialSquares.map((special) =>
-            Math.max(Math.abs(row - special[0]), Math.abs(col - special[1])),
-          ),
-        );
+        const d = Math.min(...board.specialSquares.map((special) => Math.max(Math.abs(row - special[0]), Math.abs(col - special[1]))));
         score += 60 / Math.max(1, d);
       }
       score += player === "White" ? col * 0.01 : -col * 0.01;
@@ -139,10 +122,7 @@ export function chooseQuickPlacementSquare(
   return best;
 }
 
-export function createQuickBalancedBoard(
-  transformEnabled = false,
-  seed = createSetupSeed(),
-): BoardState {
+export function createQuickBalancedBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
   const board = createBaseBoard(transformEnabled, seed);
   for (const item of PLACEMENT_QUEUE) {
     const pos = chooseQuickPlacementSquare(board, item.player, item.pieceType);
