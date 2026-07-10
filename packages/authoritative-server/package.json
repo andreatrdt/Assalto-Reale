@@ -1,0 +1,26 @@
+{
+  "name": "@assalto-reale/authoritative-server",
+  "version": "1.0.0-beta.1",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "@assalto-reale/game-core": "file:../game-core",
+    "@assalto-reale/multiplayer-protocol": "file:../multiplayer-protocol"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
