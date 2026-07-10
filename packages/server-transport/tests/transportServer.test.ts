@@ -247,7 +247,7 @@ describe("authoritative HTTP/WebSocket transport", () => {
     sendJson(
       aliceReconnect,
       commandMessage(
-        { type: "RequestSync" },
+        { type: "RequestSync", lastSeenMatchVersion: null },
         {
           commandId: "command_sync0001",
           playerId: ALICE,
