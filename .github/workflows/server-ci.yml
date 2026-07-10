@@ -37,6 +37,51 @@ jobs:
           cache-dependency-path: |
             web/package-lock.json
             packages/authoritative-server/package-lock.json
+
+      - name: Install repository toolchain
+        working-directory: web
+        run: npm ci
+
+      - name: Install authoritative server dependencies
+        working-directory: packages/authoritative-server
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: packages/authoritative-server
+        run: npm run typecheck
+
+      - name: Architecture lint
+        working-directory: packages/authoritative-server
+        run: npm run lint
+
+      - name: Formatting check
+        working-directory: packages/authoritative-server
+        run: npm run format:check
+
+      - name: Unit and PostgreSQL integration coverage
+        working-directory: packages/authoritative-server
+        run: npm run test:coverage
+
+      - name: ESM build and plain-Node smoke
+        working-directory: packages/authoritative-server
+        run: npm run smoke
+
+      - name: Production dependency audit
+        working-directory: packages/authoritative-server
+        run: npm run audit:prod
+
+  server-transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            packages/authoritative-server/package-lock.json
             packages/server-transport/package-lock.json
 
       - name: Install repository toolchain
@@ -51,50 +96,26 @@ jobs:
         working-directory: packages/server-transport
         run: npm ci
 
-      - name: Authoritative server typecheck
-        working-directory: packages/authoritative-server
-        run: npm run typecheck
-
-      - name: Authoritative server architecture lint
-        working-directory: packages/authoritative-server
-        run: npm run lint
-
-      - name: Authoritative server formatting check
-        working-directory: packages/authoritative-server
-        run: npm run format:check
-
-      - name: Authoritative server unit and PostgreSQL integration coverage
-        working-directory: packages/authoritative-server
-        run: npm run test:coverage
-
-      - name: Authoritative server ESM build and plain-Node smoke
-        working-directory: packages/authoritative-server
-        run: npm run smoke
-
-      - name: Authoritative server production dependency audit
-        working-directory: packages/authoritative-server
-        run: npm run audit:prod
-
-      - name: Transport typecheck
+      - name: Typecheck
         working-directory: packages/server-transport
         run: npm run typecheck
 
-      - name: Transport architecture lint
+      - name: Architecture lint
         working-directory: packages/server-transport
         run: npm run lint
 
-      - name: Transport formatting check
+      - name: Formatting check
         working-directory: packages/server-transport
         run: npm run format:check
 
-      - name: Transport integration coverage
+      - name: HTTP and WebSocket integration coverage
         working-directory: packages/server-transport
         run: npm run test:coverage
 
-      - name: Transport ESM build and plain-Node smoke
+      - name: ESM build and plain-Node smoke
         working-directory: packages/server-transport
         run: npm run smoke
 
-      - name: Transport production dependency audit
+      - name: Production dependency audit
         working-directory: packages/server-transport
         run: npm run audit:prod
