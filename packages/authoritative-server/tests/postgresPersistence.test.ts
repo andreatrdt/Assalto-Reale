@@ -124,9 +124,7 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
     expect(loaded?.version).toBe(1);
     expect(loaded?.state.phase).toBe("playing");
     expect(await persistence.matches.load("match_missing01")).toBeNull();
-    expect(
-      await persistence.matches.findByInviteCode("MISSING1"),
-    ).toBeNull();
+    expect(await persistence.matches.findByInviteCode("MISSING1")).toBeNull();
   });
 
   it("persists JoinMatch and its command receipt atomically", async () => {
@@ -295,9 +293,9 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
       update("cmd_pg_version1"),
       update("cmd_pg_version2"),
     ]);
-    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(
-      1,
-    );
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(1);
     const rejected = results.find((result) => result.status === "rejected");
     expect(rejected?.status).toBe("rejected");
     if (rejected?.status === "rejected") {

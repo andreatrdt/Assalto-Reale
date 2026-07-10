@@ -1,7 +1,4 @@
-import {
-  deserializeState,
-  serializeState,
-} from "@assalto-reale/game-core";
+import { deserializeState, serializeState } from "@assalto-reale/game-core";
 import {
   PROTOCOL_NAME,
   PROTOCOL_VERSION,
@@ -84,11 +81,7 @@ function onlineConfig(value: unknown): OnlineMatchConfig {
 }
 
 function matchStatus(value: string): MatchStatus {
-  if (
-    value !== "awaitingOpponent" &&
-    value !== "active" &&
-    value !== "ended"
-  ) {
+  if (value !== "awaitingOpponent" && value !== "active" && value !== "ended") {
     throw new Error(`Corrupt PostgreSQL match status: ${value}.`);
   }
   return value;
@@ -179,9 +172,7 @@ export function encodeReceipt(receipt: StoredCommandReceipt): {
   };
 }
 
-export function decodeReceipt(
-  row: PostgresReceiptRow,
-): StoredCommandReceipt {
+export function decodeReceipt(row: PostgresReceiptRow): StoredCommandReceipt {
   return {
     commandId: row.command_id,
     playerId: row.player_id,
