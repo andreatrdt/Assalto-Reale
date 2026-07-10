@@ -2,8 +2,8 @@
 
 **This is the canonical source of truth for the current application.** Other
 documents in `docs/` are design history or task-specific notes; where they
-disagree with this file, this file wins. Last reconciled at the release-hardening
-pass (see `CHANGELOG.md` for the version).
+disagree with this file, this file wins. Last reconciled through the full-rules
+parity and game-store decomposition passes (see `CHANGELOG.md` for the version).
 
 ## What ships publicly
 
@@ -42,7 +42,8 @@ presence as a public feature:
   always create with Transform on.
 - `aiDifficulty` (`Easy/Medium/Hard`) — retained in the config model, **hidden**
   from public setup because the AI does not yet differentiate by difficulty.
-- Older/legacy save handling in `serialization` and the store's restore path.
+- Older/legacy save handling in `serialization` and
+  `web/src/game/persistence/saveGame.ts`.
 - The legacy **Pygbag** build lives only in the separate `AssaltoRealeWeb`
   repository (historically hosted on Vercel); it is not part of this product.
 
@@ -55,16 +56,26 @@ match can be saved, closed, restored and continued across placement, mid-turn,
 pending Defended-King, pending Transform, active territory claim, timed and
 completed phases; imports are validated atomically; storage failures fail safe.
 
+## State architecture
+
+`useGameStore` remains the only public Zustand entry point. The store now acts as
+a coordinator while pure placement, turn, clock, history and persistence logic
+lives in focused modules under `web/src/game/`. The public runtime surface is
+frozen by `storeContract.test.ts`; rules remain owned by the engine. See
+[`game-store-contract.md`](game-store-contract.md).
+
 ## Known limitations (currently true)
 
-- **AI is a greedy heuristic** (`gameStore.ts` + `game/ai/evaluation.ts`): it
-  scores immediate candidate actions and picks the best; there is no deep search,
-  and difficulty levels are not yet meaningfully different.
-- **Python ⇄ TypeScript parity is structural, not proven seed-identical.** The
-  Python engine is the rules reference; parity fixtures exercise shared behaviour
-  but exact seeded RNG/Special-Square parity has not been demonstrated.
-- **Save migration** across schema changes is limited to the schema-1→2 path
-  (handled inline in `restoreSavedGame`); there is no general migration framework.
+- **AI is a greedy heuristic** (`game/state/gameStore.ts` +
+  `game/ai/evaluation.ts`): it scores immediate candidate actions and picks the
+  best; there is no deep search, and difficulty levels are not yet meaningfully
+  different.
+- **Python ⇄ TypeScript parity is fixture-proven, not formally exhaustive.** The
+  shared PRNG, seeded generation, complete turns and special mechanics are
+  covered by deterministic cross-runtime fixtures, but this is not a formal
+  proof over every reachable game state.
+- **Save migration** across schema changes is limited to the schema-1→2 path in
+  `game/persistence/saveGame.ts`; there is no general migration framework.
 - **Save confirmation during active play**: the "Game saved locally." message is
   surfaced only during placement, not in the active-play controls panel — the
   save itself persists correctly. Presentation-only; tracked for a later UX pass.
@@ -73,8 +84,6 @@ completed phases; imports are validated atomically; storage failures fail safe.
   (see `docs/browser-quality.md`).
 - **Board keyboard navigation** is per-square tab stops with Enter/Space
   activation; arrow-key roving grid navigation is not yet implemented.
-- **`gameStore.ts` is large** and concentrates match/placement/AI/timer/save/undo
-  coordination; decomposition is deferred.
 - No online multiplayer, no Android packaging, no authentication/matchmaking.
 
 ## Deployment status
@@ -100,21 +109,18 @@ request / final report; keep this list as the shape of the required gates):
 
 ## Future milestones (not in scope here)
 
-1. Remaining Python/TypeScript parity: exhaustive Defended-King bounce/Transform
-   candidate enumeration and larger generated-sequence budgets. Complete-turn,
-   Defended-King, Transform, territory, victory-precedence and seeded-generation
-   parity are now proven (see `docs/rules-parity-contract.md`); this is enough to
-   make a behaviour-preserving `gameStore.ts` decomposition safe.
-2. `gameStore.ts` decomposition (now unblocked by the parity net).
-3. A pure shared TypeScript `game-core` module.
-4. A stronger AI (search/evaluation).
-5. Online multiplayer.
-6. Arrow-key board navigation and bfcache/mobile-suspension lifecycle coverage
+1. Broader generated-sequence budgets and exhaustive/property-based parity beyond
+   the committed deterministic fixture suite.
+2. A pure shared TypeScript `game-core` module.
+3. A stronger AI (search/evaluation).
+4. Online multiplayer.
+5. Arrow-key board navigation and bfcache/mobile-suspension lifecycle coverage
    (deferred from browser-quality hardening; see `docs/browser-quality.md`).
-7. Android packaging.
+6. Android packaging.
 
 Delivered since: persistence & match-lifecycle hardening; browser-quality
 hardening (accessibility/axe, keyboard, cross-browser, visual regression,
 reduced-motion/high-contrast, PWA/offline); the Python⇄TypeScript shared PRNG
-and seeded-generation parity; and complete-turn + special-mechanic parity
-(`docs/rules-parity-contract.md`).
+and seeded-generation parity; complete-turn + special-mechanic parity
+(`docs/rules-parity-contract.md`); and the behaviour-preserving game-store
+decomposition (`docs/game-store-contract.md`).
