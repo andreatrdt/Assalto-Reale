@@ -5,7 +5,7 @@ import {
   onlineActionBlockReason,
 } from "./onlineActionBridge";
 import { useOnlineMatchStore } from "./onlineStore";
-import "../styles/online.css";
+import "../styles/onlineGameHud.css";
 
 export function OnlineGameHud() {
   const [confirmResign, setConfirmResign] = useState(false);
