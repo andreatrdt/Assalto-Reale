@@ -1,9 +1,7 @@
 name: C9 diagnostics
 
 on:
-  push:
-    branches:
-      - feat/c9-invite-multiplayer
+  pull_request:
 
 jobs:
   diagnostics:
