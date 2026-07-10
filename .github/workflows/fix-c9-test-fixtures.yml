@@ -1,0 +1,70 @@
+name: Fix C9 test fixtures
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ github.event.pull_request.head.ref == 'feat/c9-invite-multiplayer' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/c9-invite-multiplayer
+      - name: Fix Node event and snapshot fixtures
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          client = Path('web/src/online/onlineClient.test.ts')
+          source = client.read_text()
+          source = source.replace(
+              'class FakeWebSocket extends EventTarget {',
+              '''function closeEvent(code: number): Event {
+            const event = new Event("close") as Event & { code: number };
+            Object.defineProperty(event, "code", { value: code });
+            return event;
+          }
+
+          class FakeWebSocket extends EventTarget {''',
+              1,
+          )
+          source = source.replace(
+              'this.dispatchEvent(new CloseEvent("close", { code: code ?? 1000 }));',
+              'this.dispatchEvent(closeEvent(code ?? 1000));',
+              1,
+          )
+          source = source.replace(
+              'this.dispatchEvent(new CloseEvent("close", { code }));',
+              'this.dispatchEvent(closeEvent(code));',
+              1,
+          )
+          client.write_text(source)
+
+          store = Path('web/src/online/onlineStore.test.ts')
+          source = store.read_text().replace(
+              'const SNAPSHOT = { schema: 2 } as CanonicalMatchSnapshot;',
+              'const SNAPSHOT = { schema: 1 } as unknown as CanonicalMatchSnapshot;',
+              1,
+          )
+          store.write_text(source)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Format tests
+        working-directory: web
+        run: |
+          npm ci
+          npx prettier --write src/online/onlineClient.test.ts src/online/onlineStore.test.ts
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/src/online/onlineClient.test.ts web/src/online/onlineStore.test.ts
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "test: fix c9 node fixtures"
+          git push origin HEAD:feat/c9-invite-multiplayer
