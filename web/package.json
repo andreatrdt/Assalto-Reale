@@ -18,6 +18,9 @@
     "e2e:cross": "playwright test --project=firefox --project=webkit",
     "e2e:visual": "playwright test --project=visual",
     "e2e:update-snapshots": "playwright test --project=visual --update-snapshots",
+    "parity:generate": "python scripts/generate_engine_fixtures.py",
+    "parity:check": "node scripts/check-parity-fixtures.mjs",
+    "parity:test": "vitest run --config vitest.config.ts src/game/engine/pythonParity.test.ts src/game/engine/randomParity.test.ts",
     "audit:prod": "npm audit --omit=dev",
     "package:release": "npm run build && node scripts/package-release.mjs"
   },

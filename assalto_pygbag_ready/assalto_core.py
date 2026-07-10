@@ -3,9 +3,10 @@ from __future__ import annotations
 import copy
 import json
 import os
-import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+
+from assalto_prng import Mulberry32, choice, coerce_seed, shuffle
 
 Vec2 = Tuple[int, int]
 PieceId = str
@@ -320,14 +321,14 @@ class Board:
     def generate_special_squares(self, count: int = 5, *, seed: Optional[int] = None) -> Set[Vec2]:
         if count < 0:
             raise SpecialSquareGenerationError("Special-square count cannot be negative")
-        rng = random.Random(seed)
+        rng = Mulberry32(coerce_seed(seed))
         rows = range(1, self.cfg.ROWS - 1)
         if self.cfg.COLS >= 8:
             cols = range(3, self.cfg.COLS - 3)
         else:
             cols = range(1, self.cfg.COLS - 1)
         candidates = [(r, c) for r in rows for c in cols]
-        rng.shuffle(candidates)
+        candidates = shuffle(candidates, rng)
 
         chosen: List[Vec2] = []
         for pos in candidates:
@@ -342,7 +343,7 @@ class Board:
 
     def _generate_transform_square(self, *, seed: Optional[int] = None) -> bool:
         self.transform_squares.clear()
-        rng = random.Random(seed)
+        rng = Mulberry32(coerce_seed(seed))
         pawns: List[Tuple[int, int, str]] = []
         for r in range(self.cfg.ROWS):
             for c in range(self.cfg.COLS):
@@ -366,7 +367,7 @@ class Board:
                     candidates.append(pos)
         if not candidates:
             return False
-        self.transform_squares.add(rng.choice(sorted(candidates)))
+        self.transform_squares.add(choice(sorted(candidates), rng))
         return True
 
     def move_transform_square(self, *, seed: Optional[int] = None) -> bool:

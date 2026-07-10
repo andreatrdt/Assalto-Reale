@@ -6,6 +6,31 @@ metadata derive from it.
 
 ## Unreleased
 
+Python ⇄ TypeScript parity (randomness foundation) — a canonical rules-parity
+contract plus a shared deterministic PRNG proven byte-identical across engines.
+No gameplay rules, movement, capture, victory precedence, AI or save meaning
+changed. See [`docs/rules-parity-contract.md`](docs/rules-parity-contract.md).
+
+- Established a shared **Mulberry32** PRNG as the canonical randomness contract:
+  `web/src/game/engine/random.ts` and `assalto_pygbag_ready/assalto_prng.py` are
+  line-for-line equivalent (verified identical float streams).
+- The Python reference engine (`assalto_core.py`) now generates Special and
+  Transform Squares through the shared PRNG instead of `random.Random` (Mersenne
+  Twister); the TypeScript Transform selection now uses a real seeded `choice`
+  instead of `seed % length`. Seeded generation is now engine-identical.
+- Save compatibility preserved: generated squares are persisted, so loading a
+  save never re-rolls; the shared PRNG affects only newly created matches. No
+  existing save changes meaning.
+- Added cross-runtime proof `web/src/game/engine/randomParity.test.ts` (20 cases:
+  raw PRNG stream + seeded Special/Transform generation) driven by Python-generated
+  fixtures; web unit tests 186 → 206.
+- Fixture pipeline: `npm run parity:generate` / `parity:check` (stale-fixture
+  guard, never mutates the committed file) / `parity:test`, plus a dedicated CI
+  `parity` job.
+- Deferred (tracked in the contract): exhaustive complete-turn, Defended-King,
+  Transform, territory/victory-precedence parity and property-based generated
+  scenarios. Not yet complete engine equivalence.
+
 Browser-quality hardening — accessibility, keyboard/focus, cross-browser,
 responsive, reduced-motion/high-contrast, PWA/offline, runtime teardown and
 real-UI save import/export. No gameplay rules, AI, timer semantics or the visual

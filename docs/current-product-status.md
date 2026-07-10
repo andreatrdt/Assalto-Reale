@@ -100,15 +100,19 @@ request / final report; keep this list as the shape of the required gates):
 
 ## Future milestones (not in scope here)
 
-1. Broader Python/TypeScript lifecycle parity (seed-identical where feasible).
+1. Complete Python/TypeScript parity: exhaustive complete-turn, Defended-King,
+   Transform and territory/victory-precedence fixtures plus property-based
+   generated scenarios (the randomness foundation is done — see
+   `docs/rules-parity-contract.md`).
 2. `gameStore.ts` decomposition.
 3. A pure shared TypeScript `game-core` module.
 4. A stronger AI (search/evaluation).
 5. Online multiplayer.
 6. Arrow-key board navigation and bfcache/mobile-suspension lifecycle coverage
    (deferred from browser-quality hardening; see `docs/browser-quality.md`).
+7. Android packaging.
 
 Delivered since: persistence & match-lifecycle hardening; browser-quality
 hardening (accessibility/axe, keyboard, cross-browser, visual regression,
-reduced-motion/high-contrast, PWA/offline).
-8. Android packaging.
+reduced-motion/high-contrast, PWA/offline); the Python⇄TypeScript shared PRNG
+and seeded-generation parity (`docs/rules-parity-contract.md`).

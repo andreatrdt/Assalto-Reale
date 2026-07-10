@@ -1,4 +1,5 @@
 import { cheb, sortPositions } from "./board";
+import { mulberry32, shuffle } from "./random";
 import type { BoardState, GameConfig, Vec2 } from "./types";
 
 export class SpecialSquareGenerationError extends Error {
@@ -6,27 +7,6 @@ export class SpecialSquareGenerationError extends Error {
     super(message);
     this.name = "SpecialSquareGenerationError";
   }
-}
-
-function randomFromSeed(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function shuffle<T>(items: T[], seed: number): T[] {
-  const rng = randomFromSeed(seed);
-  const shuffled = [...items];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(rng() * (index + 1));
-    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
-  }
-  return shuffled;
 }
 
 export function specialSquareCandidates(config: GameConfig): Vec2[] {
@@ -46,7 +26,7 @@ export function generateSpecialSquares(config: GameConfig, count = config.specia
     throw new SpecialSquareGenerationError("Special-square count cannot be negative");
   }
   const chosen: Vec2[] = [];
-  for (const pos of shuffle(specialSquareCandidates(config), seed)) {
+  for (const pos of shuffle(specialSquareCandidates(config), mulberry32(seed))) {
     if (chosen.every((other) => cheb(pos, other) >= 3)) {
       chosen.push(pos);
       if (chosen.length === count) {
