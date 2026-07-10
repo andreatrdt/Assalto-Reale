@@ -1,5 +1,6 @@
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
+import { restoreLocalGameActions } from "../online/onlineActionBridge";
 import { useOnlineMatchStore } from "../online/onlineStore";
 import { GameButton, PageShell } from "../ui/components";
 import "../styles/home.css";
@@ -12,6 +13,13 @@ interface HomePageProps {
 export function HomePage({ route, navigate }: HomePageProps) {
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
   const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
+  const disconnectOnline = useOnlineMatchStore((state) => state.disconnect);
+
+  function startLocalMatch() {
+    if (onlineMatchId) disconnectOnline(false);
+    restoreLocalGameActions();
+    navigate("/setup");
+  }
 
   return (
     <PageShell
@@ -30,11 +38,7 @@ export function HomePage({ route, navigate }: HomePageProps) {
         </div>
 
         <div className="homeActions" aria-label="Start actions">
-          <GameButton
-            variant="primary"
-            size="lg"
-            onClick={() => navigate("/setup")}
-          >
+          <GameButton variant="primary" size="lg" onClick={startLocalMatch}>
             Start Match
           </GameButton>
           <GameButton
