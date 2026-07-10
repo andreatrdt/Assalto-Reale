@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { audioService } from "../audio/audioService";
 import { useGameStore } from "../game/state/gameStore";
+import { OnlineGameHud } from "../online/OnlineGameHud";
 import { useOnlineMatchStore } from "../online/onlineStore";
 import { useUiSettings } from "../ui/uiSettings";
 import { GamePage } from "../pages/GamePage";
@@ -53,7 +54,12 @@ export function AppRouter() {
     return <OnlinePage route={route} navigate={navigate} />;
   }
   if (route === "/game" && hasActiveMatch) {
-    return <GamePage navigate={navigate} />;
+    return (
+      <>
+        {onlineMatchId && <OnlineGameHud />}
+        <GamePage navigate={navigate} />
+      </>
+    );
   }
   if (route === "/rules") {
     return <RulesPage route={route} navigate={navigate} />;
