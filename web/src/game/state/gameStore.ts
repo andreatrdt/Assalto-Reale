@@ -1,501 +1,51 @@
 import { create } from "zustand";
-import type { PhaseState } from "../../app/phases";
 import { chooseDeterministicAction } from "../ai/search";
 import {
-  adjacentDefendersForKing,
-  assignGeneratedSpecialSquares,
   applyAction,
   buildAction,
   canPlacePiece,
   cloneBoard,
-  createBoard,
-  ensureTransformSquare,
-  fromPythonSnapshot,
   getPiece,
   hasPos,
-  nextPieceTypeFor,
-  PAWN_TYPES,
   placePiece,
-  refreshTerritoryClaim,
-  toPythonSnapshot,
   transformPiece,
   updateControl,
   type Action,
-  type BoardState,
-  type DefendedKingPreview,
-  type PawnType,
-  type PieceType,
   type Player,
-  type TransitionResult,
-  type Vec2,
 } from "../engine";
-import { PLACEMENT_SCHEDULE } from "../engine/config";
-import { DEFAULT_MATCH_CONFIG, createSetupSeed, resolveMatchConfig, type MatchConfig } from "../setup/matchConfig";
+import { DEFAULT_MATCH_CONFIG, resolveMatchConfig } from "../setup/matchConfig";
+import { computeClockPatch, initialTimeLeft, monotonicNow } from "../clocks/clockController";
+import { createHistoryEntry, restoreHistoryPatch } from "../history/historyController";
+import {
+  PLACEMENT_QUEUE,
+  chooseQuickPlacementSquare,
+  clonePiecesLeft,
+  createBaseBoard,
+  createEmptyPiecesLeft,
+  createInitialPiecesLeft,
+  createQuickBalancedBoard,
+} from "../placement/placementSetup";
+import { SAVE_KEY, buildRestorePatch, loadSavedGame, localStorageAvailable, savedGameFromState } from "../persistence/saveGame";
+import { resolveCommit } from "../turn/commitAction";
+import {
+  actionTargets,
+  advanceHalfTurn,
+  defenderPositions,
+  describePiece,
+  squareName,
+  switchPlayer,
+  transformOptions,
+} from "../turn/turnHelpers";
+import type { GameState, GameStore, SavedGame } from "./storeTypes";
 
-type PiecesLeft = Record<Player, Record<PieceType, number>>;
-type PendingPlacement = { player: Player; pieceType: PieceType };
-type PendingTransform = { owner: Player; pos: Vec2; player: Player; pieceType: PawnType; forceTurnSwitch: boolean };
-type PendingDefendedKing = { owner: Player; action: Action; preview: DefendedKingPreview; defenders: Vec2[] };
-
-interface HistoryEntry {
-  board: BoardState;
-  currentPlayer: Player;
-  movesThisTurn: number;
-  kingMoved: boolean;
-  turnCounter: number;
-  placementCursor: number;
-  currentPlacement: PendingPlacement | null;
-  piecesLeft: PiecesLeft;
-  phase: PhaseState;
-  lastAction: string;
-  message: string;
-  pendingTransform: PendingTransform | null;
-  pendingDefendedKing: PendingDefendedKing | null;
-  timeLeft: Record<Player, number>;
-}
-
-interface StartMatchOptions {
-  transformEnabled?: boolean;
-  aiEnabled?: boolean;
-  aiPlayer?: Player;
-  seed?: number;
-}
-
-interface SavedGame {
-  schema: 1 | 2;
-  appVersion?: string;
-  savedAt?: string;
-  board: ReturnType<typeof toPythonSnapshot>;
-  phase: PhaseState;
-  currentPlayer: Player;
-  movesThisTurn: number;
-  kingMoved: boolean;
-  turnCounter: number;
-  placementCursor: number;
-  currentPlacement: PendingPlacement | null;
-  piecesLeft: PiecesLeft;
-  lastAction: string;
-  message: string;
-  aiEnabled: boolean;
-  aiPlayer: Player;
-  hasActiveMatch: boolean;
-  matchConfig: MatchConfig | null;
-  timeLeft: Record<Player, number>;
-  pendingTransform?: PendingTransform | null;
-  pendingDefendedKing?: PendingDefendedKing | null;
-  history?: HistoryEntry[];
-}
-
-interface GameStore {
-  phase: PhaseState;
-  board: BoardState;
-  currentPlayer: Player;
-  movesThisTurn: number;
-  kingMoved: boolean;
-  turnCounter: number;
-  selected: Vec2 | null;
-  legalTargets: Vec2[];
-  placementCursor: number;
-  currentPlacement: PendingPlacement | null;
-  piecesLeft: PiecesLeft;
-  lastAction: string;
-  message: string;
-  history: HistoryEntry[];
-  pendingTransform: PendingTransform | null;
-  pendingDefendedKing: PendingDefendedKing | null;
-  aiEnabled: boolean;
-  aiPlayer: Player;
-  hasActiveMatch: boolean;
-  matchConfig: MatchConfig | null;
-  timeLeft: Record<Player, number>;
-  clockRunningFor: Player | null;
-  clockLastSyncMs: number | null;
-  startConfiguredMatch: (config: MatchConfig) => void;
-  startQuickMatch: (options?: StartMatchOptions) => void;
-  startManualPlacement: (options?: StartMatchOptions) => void;
-  startAiMatch: () => void;
-  startTransformMatch: () => void;
-  openRules: () => void;
-  returnHome: () => void;
-  activateSquare: (pos: Vec2) => void;
-  chooseDefender: (pos: Vec2) => void;
-  cancelDefenderSelection: () => void;
-  chooseTransform: (newType: PawnType) => void;
-  passTurn: () => void;
-  undo: () => void;
-  runAiTurn: () => void;
-  startClock: (now: number) => void;
-  stopClock: (now: number) => void;
-  tickClock: (now: number) => void;
-  saveGame: () => void;
-  loadGame: () => void;
-  exportSaveJson: () => string | null;
-  importSaveJson: (raw: string) => boolean;
-}
-
-function createInitialPiecesLeft(): PiecesLeft {
-  return {
-    Black: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
-    White: { King: 1, AttackPawn: 4, DefensePawn: 4, ConquestPawn: 4 },
-  };
-}
-
-function createEmptyPiecesLeft(): PiecesLeft {
-  return {
-    Black: { King: 0, AttackPawn: 0, DefensePawn: 0, ConquestPawn: 0 },
-    White: { King: 0, AttackPawn: 0, DefensePawn: 0, ConquestPawn: 0 },
-  };
-}
-
-function createBaseBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
-  const board = createBoard({ transformEnabled });
-  assignGeneratedSpecialSquares(board, seed);
-  updateControl(board);
-  return board;
-}
-
-function clonePiecesLeft(piecesLeft: PiecesLeft): PiecesLeft {
-  return {
-    Black: { ...piecesLeft.Black },
-    White: { ...piecesLeft.White },
-  };
-}
-
-function emptyHistoryEntry(state: GameStore): HistoryEntry {
-  return {
-    board: cloneBoard(state.board),
-    currentPlayer: state.currentPlayer,
-    movesThisTurn: state.movesThisTurn,
-    kingMoved: state.kingMoved,
-    turnCounter: state.turnCounter,
-    placementCursor: state.placementCursor,
-    currentPlacement: state.currentPlacement,
-    piecesLeft: clonePiecesLeft(state.piecesLeft),
-    phase: { ...state.phase },
-    lastAction: state.lastAction,
-    message: state.message,
-    pendingTransform: state.pendingTransform,
-    pendingDefendedKing: state.pendingDefendedKing,
-    timeLeft: { ...state.timeLeft },
-  };
-}
-
-function placementQueue(): PendingPlacement[] {
-  const remaining = createInitialPiecesLeft();
-  const queue: PendingPlacement[] = [];
-  for (const step of PLACEMENT_SCHEDULE) {
-    for (let index = 0; index < step.count; index += 1) {
-      const pieceType = nextPieceTypeFor(step.player, remaining);
-      if (!pieceType) {
-        throw new Error(`Placement queue overfilled ${step.player}`);
-      }
-      queue.push({ player: step.player, pieceType });
-      remaining[step.player][pieceType] -= 1;
-    }
-  }
-  return queue;
-}
-
-const QUEUE = placementQueue();
-
-function findKing(board: BoardState, player: Player): Vec2 | null {
-  for (let row = 0; row < board.config.rows; row += 1) {
-    for (let col = 0; col < board.config.cols; col += 1) {
-      const piece = board.grid[row][col];
-      if (piece?.player === player && piece.type === "King") {
-        return [row, col];
-      }
-    }
-  }
-  return null;
-}
-
-function chooseQuickPlacementSquare(board: BoardState, player: Player, pieceType: PieceType): Vec2 {
-  const kingPos = findKing(board, player);
-  const center = Math.floor(board.config.rows / 2);
-  const anchor: Vec2 =
-    pieceType === "King"
-      ? [center, player === "Black" ? 2 : board.config.cols - 3]
-      : pieceType === "AttackPawn"
-        ? [center, player === "Black" ? 0 : board.config.cols - 1]
-        : pieceType === "DefensePawn" && kingPos
-          ? kingPos
-          : pieceType === "ConquestPawn"
-            ? [center, player === "Black" ? 2 : board.config.cols - 3]
-            : [center, Math.floor(board.config.cols / 2)];
-
-  let best: Vec2 | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
-  for (let row = 0; row < board.config.rows; row += 1) {
-    for (let col = 0; col < board.config.cols; col += 1) {
-      const pos: Vec2 = [row, col];
-      if (!canPlacePiece(board, pos, player, pieceType).ok) {
-        continue;
-      }
-      let score = -2 * (Math.abs(row - anchor[0]) + Math.abs(col - anchor[1]));
-      if (pieceType === "DefensePawn" && kingPos) {
-        const d = Math.max(Math.abs(row - kingPos[0]), Math.abs(col - kingPos[1]));
-        if (d === 1) score += 100;
-        if (d === 2) score += 30;
-      }
-      if (pieceType === "ConquestPawn") {
-        const d = Math.min(...board.specialSquares.map((special) => Math.max(Math.abs(row - special[0]), Math.abs(col - special[1]))));
-        score += 60 / Math.max(1, d);
-      }
-      score += player === "White" ? col * 0.01 : -col * 0.01;
-      if (score > bestScore) {
-        bestScore = score;
-        best = pos;
-      }
-    }
-  }
-  if (!best) {
-    throw new Error(`No legal quick placement for ${player} ${pieceType}`);
-  }
-  return best;
-}
-
-function createQuickBalancedBoard(transformEnabled = false, seed = createSetupSeed()): BoardState {
-  const board = createBaseBoard(transformEnabled, seed);
-  for (const item of QUEUE) {
-    const pos = chooseQuickPlacementSquare(board, item.player, item.pieceType);
-    placePiece(board, pos, item.player, item.pieceType);
-  }
-  updateControl(board);
-  return board;
-}
-
-function describePiece(pieceType: PieceType): string {
-  return pieceType.replace("Pawn", " Pawn");
-}
-
-function actionTargets(board: BoardState, pos: Vec2, movesThisTurn: number, kingMoved: boolean): Vec2[] {
-  const targets: Vec2[] = [];
-  for (let dr = -2; dr <= 2; dr += 1) {
-    for (let dc = -2; dc <= 2; dc += 1) {
-      if (dr === 0 && dc === 0) continue;
-      const end: Vec2 = [pos[0] + dr, pos[1] + dc];
-      const action = buildAction(board, pos, end, { movesThisTurn, kingMoved });
-      if (!action.error) {
-        targets.push(end);
-      }
-    }
-  }
-  return targets;
-}
-
-function switchPlayer(player: Player): Player {
-  return player === "Black" ? "White" : "Black";
-}
-
-function squareName(pos: Vec2): string {
-  return `${String.fromCharCode("A".charCodeAt(0) + pos[1])}${12 - pos[0]}`;
-}
-
-function defenderPositions(board: BoardState, action: Action): Vec2[] {
-  if (!action.end) return [];
-  const king = getPiece(board, action.end);
-  return king ? adjacentDefendersForKing(board, action.end, king.player) : [];
-}
-
-function transformOptions(pieceType: PawnType): PawnType[] {
-  return PAWN_TYPES.filter((item) => item !== pieceType);
-}
-
-function describeAction(action: Action, end: Vec2): string {
-  if (action.defendedKing) {
-    return `${action.player} attacked a defended King; Attack Pawn bounced to ${squareName(action.defendedKing.landingPosition)}.`;
-  }
-  if (action.kind === "capture") {
-    return `${action.player} captured ${describePiece(action.capturedPieceType ?? "King")} on ${squareName(end)}.`;
-  }
-  return `${action.player} moved to ${squareName(end)}.`;
-}
-
-function transformEvent(result: TransitionResult): PendingTransform | null {
-  const event = result.events.find((item) => item.kind === "transform_available");
-  if (!event) return null;
-  return {
-    owner: event.data.player as Player,
-    pos: event.data.at as Vec2,
-    player: event.data.player as Player,
-    pieceType: event.data.piece_type as PawnType,
-    forceTurnSwitch: false,
-  };
-}
-
-function advanceHalfTurn(
-  board: BoardState,
-  state: GameStore,
-): { currentPlayer: Player; turnCounter: number; victory: TransitionResult["victory"] } {
-  const turnCounter = state.turnCounter + 1;
-  ensureTransformSquare(board, turnCounter, turnCounter);
-  const victory = refreshTerritoryClaim(board, turnCounter);
-  return { currentPlayer: switchPlayer(state.currentPlayer), turnCounter, victory };
-}
-
-function savedGameFromState(state: GameStore): SavedGame {
-  return {
-    schema: 2,
-    appVersion: "web-v1",
-    savedAt: new Date().toISOString(),
-    board: toPythonSnapshot(state.board),
-    phase: state.phase,
-    currentPlayer: state.currentPlayer,
-    movesThisTurn: state.movesThisTurn,
-    kingMoved: state.kingMoved,
-    turnCounter: state.turnCounter,
-    placementCursor: state.placementCursor,
-    currentPlacement: state.currentPlacement,
-    piecesLeft: state.piecesLeft,
-    lastAction: state.lastAction,
-    message: state.message,
-    aiEnabled: state.aiEnabled,
-    aiPlayer: state.aiPlayer,
-    hasActiveMatch: state.hasActiveMatch,
-    matchConfig: state.matchConfig,
-    timeLeft: state.timeLeft,
-    pendingTransform: state.pendingTransform,
-    pendingDefendedKing: state.pendingDefendedKing,
-    history: state.history,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isPlayer(value: unknown): value is Player {
-  return value === "Black" || value === "White";
-}
-
-function isValidTimeLeft(value: unknown): value is Record<Player, number> {
-  return isRecord(value) && typeof value.Black === "number" && typeof value.White === "number" && value.Black >= 0 && value.White >= 0;
-}
-
-const TOTAL_PLACEMENTS = PLACEMENT_SCHEDULE.reduce((sum, step) => sum + step.count, 0);
-const VALID_PIECE_TYPES = new Set<string>(["AttackPawn", "DefensePawn", "ConquestPawn", "King"]);
-const VALID_PHASES = new Set<string>(["home", "setup", "placement", "playing", "defenderSelection", "transformSelection", "gameOver"]);
-
-function isValidPiece(value: unknown): boolean {
-  return isRecord(value) && isPlayer(value.player) && typeof value.type === "string" && VALID_PIECE_TYPES.has(value.type);
-}
-
-function isWithinBounds(pos: unknown, rows: number, cols: number): boolean {
-  return (
-    Array.isArray(pos) &&
-    pos.length === 2 &&
-    Number.isInteger(pos[0]) &&
-    Number.isInteger(pos[1]) &&
-    pos[0] >= 0 &&
-    pos[0] < rows &&
-    pos[1] >= 0 &&
-    pos[1] < cols
-  );
-}
-
-function isValidBoardSnapshot(value: unknown): boolean {
-  if (!isRecord(value) || !isRecord(value.config)) return false;
-  const { rows, cols } = value.config;
-  if (typeof rows !== "number" || typeof cols !== "number" || rows <= 0 || cols <= 0) return false;
-  if (!Array.isArray(value.grid) || value.grid.length !== rows) return false;
-  for (const row of value.grid) {
-    if (!Array.isArray(row) || row.length !== cols) return false;
-    for (const cell of row) {
-      if (cell !== null && !isValidPiece(cell)) return false;
-    }
-  }
-  for (const key of ["special_squares", "transform_squares"] as const) {
-    if (!Array.isArray(value[key])) return false;
-    for (const pos of value[key] as unknown[]) {
-      if (!isWithinBounds(pos, rows, cols)) return false;
-    }
-  }
-  return true;
-}
-
-function isValidPendingOwner(value: unknown): boolean {
-  // Absent/null pending decisions are allowed; when present the owner must be a player.
-  return value == null || (isRecord(value) && isPlayer(value.owner));
-}
-
-function validateSavedGame(value: unknown): SavedGame | null {
-  if (!isRecord(value)) return null;
-  if (value.schema !== 1 && value.schema !== 2) return null;
-  if (!isRecord(value.phase) || typeof value.phase.phase !== "string" || !VALID_PHASES.has(value.phase.phase)) return null;
-  if (!isValidBoardSnapshot(value.board)) return null;
-  if (!isPlayer(value.currentPlayer) || !isPlayer(value.aiPlayer)) return null;
-  if (typeof value.movesThisTurn !== "number" || value.movesThisTurn < 0 || value.movesThisTurn > 2) return null;
-  if (typeof value.kingMoved !== "boolean") return null;
-  if (typeof value.turnCounter !== "number" || value.turnCounter < 0) return null;
-  if (typeof value.placementCursor !== "number" || value.placementCursor < 0 || value.placementCursor > TOTAL_PLACEMENTS) return null;
-  if (!isRecord(value.piecesLeft)) return null;
-  if (typeof value.lastAction !== "string" || typeof value.message !== "string") return null;
-  if (typeof value.aiEnabled !== "boolean" || typeof value.hasActiveMatch !== "boolean") return null;
-  if (!isValidTimeLeft(value.timeLeft)) return null;
-  if (!isValidPendingOwner(value.pendingDefendedKing) || !isValidPendingOwner(value.pendingTransform)) return null;
-  return value as unknown as SavedGame;
-}
-
-function loadSavedGame(raw: string): SavedGame | null {
-  try {
-    return validateSavedGame(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
-function localStorageAvailable(): boolean {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
-
-function initialTimeLeft(seconds: number): Record<Player, number> {
-  return { Black: seconds, White: seconds };
-}
-
-function monotonicNow(): number {
-  return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-
+// The store is a thin coordinator: it owns the Zustand instance, initial state
+// and the public action surface, and it wires set/get to the pure controller
+// modules (placement, turn/commit, clocks, history, persistence). Rules stay in
+// the engine; per-area logic stays in its controller. See
+// docs/game-store-contract.md.
 export const useGameStore = create<GameStore>((set, get) => {
-  function clockPatch(state: GameStore, now: number, stopRunning = false): Partial<GameStore> {
-    const runningFor = state.clockRunningFor;
-    if (!runningFor || state.clockLastSyncMs === null || state.phase.phase === "gameOver") {
-      return stopRunning ? { clockRunningFor: null, clockLastSyncMs: null } : {};
-    }
-
-    const elapsedMs = Math.max(0, now - state.clockLastSyncMs);
-    const remainingSeconds = state.timeLeft[runningFor];
-    if (remainingSeconds <= 0 || elapsedMs >= remainingSeconds * 1000) {
-      const winner = switchPlayer(runningFor);
-      return {
-        timeLeft: { ...state.timeLeft, [runningFor]: 0 },
-        phase: { phase: "gameOver", previousPhase: state.phase.phase },
-        selected: null,
-        legalTargets: [],
-        pendingTransform: null,
-        pendingDefendedKing: null,
-        clockRunningFor: null,
-        clockLastSyncMs: null,
-        lastAction: `${runningFor} ran out of time.`,
-        message: `${winner} wins by timeout.`,
-      };
-    }
-
-    const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    if (elapsedSeconds === 0) {
-      return stopRunning ? { clockRunningFor: null, clockLastSyncMs: null } : {};
-    }
-
-    return {
-      timeLeft: { ...state.timeLeft, [runningFor]: remainingSeconds - elapsedSeconds },
-      clockRunningFor: stopRunning ? null : runningFor,
-      clockLastSyncMs: stopRunning ? null : state.clockLastSyncMs + elapsedSeconds * 1000,
-    };
-  }
-
   function syncClock(now = monotonicNow(), stopRunning = false): void {
-    const patch = clockPatch(get(), now, stopRunning);
+    const patch = computeClockPatch(get(), now, stopRunning);
     if (Object.keys(patch).length > 0) {
       set(patch);
     }
@@ -503,33 +53,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   function restoreSavedGame(saved: SavedGame, message = "Game loaded."): boolean {
     try {
-      set({
-        board: fromPythonSnapshot(saved.board),
-        phase: saved.phase,
-        currentPlayer: saved.currentPlayer,
-        movesThisTurn: saved.movesThisTurn,
-        kingMoved: saved.kingMoved,
-        turnCounter: saved.turnCounter,
-        placementCursor: saved.placementCursor,
-        currentPlacement: saved.currentPlacement,
-        piecesLeft: clonePiecesLeft(saved.piecesLeft),
-        lastAction: saved.lastAction,
-        // Preserve the saved victory message for terminal matches so the victory
-        // presentation shows the correct winner/reason; otherwise use the load message.
-        message: saved.phase.phase === "gameOver" ? saved.message : message,
-        aiEnabled: saved.aiEnabled,
-        aiPlayer: saved.aiPlayer,
-        hasActiveMatch: saved.hasActiveMatch ?? true,
-        matchConfig: saved.matchConfig ?? null,
-        timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
-        clockRunningFor: null,
-        clockLastSyncMs: null,
-        selected: null,
-        legalTargets: [],
-        pendingTransform: saved.schema === 2 ? (saved.pendingTransform ?? null) : null,
-        pendingDefendedKing: saved.schema === 2 ? (saved.pendingDefendedKing ?? null) : null,
-        history: saved.schema === 2 ? (saved.history ?? []) : [],
-      });
+      set(buildRestorePatch(saved, message));
       return true;
     } catch {
       set({ message: "Saved data could not be restored safely." });
@@ -537,58 +61,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
   }
 
-  function commitAction(action: Action, state: GameStore): void {
-    const { board, result } = applyAction(state.board, action, {
-      movesThisTurn: state.movesThisTurn,
-      kingMoved: state.kingMoved,
-    });
-    if (result.error) {
-      set({ message: result.error, selected: null, legalTargets: [] });
-      return;
-    }
-
-    let currentPlayer = state.currentPlayer;
-    let turnCounter = state.turnCounter;
-    let victory = result.victory;
-    let pendingTransform = transformEvent(result);
-    let message = result.victory ? `${result.victory.winner} wins by ${result.victory.reason}.` : `${currentPlayer} to move.`;
-
-    if (result.endsTurn) {
-      const advanced = advanceHalfTurn(board, state);
-      currentPlayer = advanced.currentPlayer;
-      turnCounter = advanced.turnCounter;
-      victory ??= advanced.victory;
-      message = `${currentPlayer} to move.`;
-    }
-
-    if (pendingTransform) {
-      pendingTransform = { ...pendingTransform, forceTurnSwitch: !result.endsTurn };
-      message = `${pendingTransform.player}: choose a Transform for ${describePiece(pendingTransform.pieceType)} on ${squareName(pendingTransform.pos)}.`;
-    }
-
-    const lastAction = describeAction(action, action.defendedKing?.landingPosition ?? action.end ?? [0, 0]);
-    const nextPhase = victory
-      ? { phase: "gameOver", previousPhase: "playing" }
-      : pendingTransform
-        ? { phase: "transformSelection", previousPhase: "playing" }
-        : state.phase.phase === "defenderSelection"
-          ? { phase: "playing", previousPhase: "defenderSelection" }
-          : state.phase;
-    set({
-      board,
-      currentPlayer,
-      movesThisTurn: result.endsTurn ? 0 : result.nextMovesThisTurn,
-      kingMoved: result.endsTurn ? false : result.nextKingMoved,
-      turnCounter,
-      selected: null,
-      legalTargets: [],
-      pendingTransform,
-      pendingDefendedKing: null,
-      phase: nextPhase as PhaseState,
-      history: [...state.history, emptyHistoryEntry(state)],
-      lastAction,
-      message: victory ? `${victory.winner} wins by ${victory.reason}.` : message,
-    });
+  function commitAction(action: Action, state: GameState): void {
+    set(resolveCommit(state, action));
   }
 
   return {
@@ -631,7 +105,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           turnCounter: 0,
           selected: null,
           legalTargets: [],
-          placementCursor: QUEUE.length,
+          placementCursor: PLACEMENT_QUEUE.length,
           currentPlacement: null,
           piecesLeft: createEmptyPiecesLeft(),
           history: [],
@@ -650,7 +124,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      const first = QUEUE[0];
+      const first = PLACEMENT_QUEUE[0];
       set({
         phase: { phase: "placement", previousPhase: "setup" },
         board: createBaseBoard(resolved.transformEnabled, seed),
@@ -688,7 +162,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         turnCounter: 0,
         selected: null,
         legalTargets: [],
-        placementCursor: QUEUE.length,
+        placementCursor: PLACEMENT_QUEUE.length,
         currentPlacement: null,
         piecesLeft: createEmptyPiecesLeft(),
         history: [],
@@ -719,7 +193,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     startTransformMatch: () => get().startQuickMatch({ transformEnabled: true }),
 
     startManualPlacement: (options = {}) => {
-      const first = QUEUE[0];
+      const first = PLACEMENT_QUEUE[0];
       set({
         phase: { phase: "placement", previousPhase: "home" },
         board: createBaseBoard(options.transformEnabled ?? false, options.seed),
@@ -779,7 +253,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       if (state.phase.phase === "placement") {
-        const item = QUEUE[state.placementCursor];
+        const item = PLACEMENT_QUEUE[state.placementCursor];
         if (!item) return;
         if (state.aiEnabled && item.player === state.aiPlayer) {
           set({ message: `Computer is placing ${describePiece(item.pieceType)}.` });
@@ -795,7 +269,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const piecesLeft = clonePiecesLeft(state.piecesLeft);
         piecesLeft[item.player][item.pieceType] -= 1;
         const nextCursor = state.placementCursor + 1;
-        const nextItem = QUEUE[nextCursor];
+        const nextItem = PLACEMENT_QUEUE[nextCursor];
         updateControl(board);
         set({
           board,
@@ -804,7 +278,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           currentPlacement: nextItem ?? null,
           currentPlayer: nextItem?.player ?? "Black",
           phase: nextItem ? state.phase : { phase: "playing", previousPhase: "placement" },
-          history: [...state.history, emptyHistoryEntry(state)],
+          history: [...state.history, createHistoryEntry(state)],
           lastAction: `${item.player} placed ${describePiece(item.pieceType)} on ${squareName(pos)}.`,
           message: nextItem ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.` : "Deployment complete. Black to move.",
         });
@@ -943,7 +417,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         turnCounter: advanced.turnCounter,
         selected: null,
         legalTargets: [],
-        history: [...state.history, emptyHistoryEntry(state)],
+        history: [...state.history, createHistoryEntry(state)],
         phase: advanced.victory ? { phase: "gameOver", previousPhase: "playing" } : state.phase,
         lastAction: `${state.currentPlayer} passed.`,
         message: advanced.victory ? `${advanced.victory.winner} wins by ${advanced.victory.reason}.` : `${advanced.currentPlayer} to move.`,
@@ -957,34 +431,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ message: "Nothing to undo." });
         return;
       }
-      set({
-        board: cloneBoard(previous.board),
-        currentPlayer: previous.currentPlayer,
-        movesThisTurn: previous.movesThisTurn,
-        kingMoved: previous.kingMoved,
-        turnCounter: previous.turnCounter,
-        placementCursor: previous.placementCursor,
-        currentPlacement: previous.currentPlacement,
-        piecesLeft: clonePiecesLeft(previous.piecesLeft),
-        phase: previous.phase,
-        lastAction: previous.lastAction,
-        message: "Undone.",
-        timeLeft: { ...previous.timeLeft },
-        pendingTransform: previous.pendingTransform,
-        pendingDefendedKing: previous.pendingDefendedKing,
-        clockRunningFor: null,
-        clockLastSyncMs: null,
-        selected: null,
-        legalTargets: [],
-        history: state.history.slice(0, -1),
-      });
+      set(restoreHistoryPatch(previous, state.history.slice(0, -1)));
     },
 
     runAiTurn: () => {
       const state = get();
       if (!state.aiEnabled) return;
       if (state.phase.phase === "placement" && state.currentPlacement?.player === state.aiPlayer) {
-        const item = QUEUE[state.placementCursor];
+        const item = PLACEMENT_QUEUE[state.placementCursor];
         if (!item) return;
         const pos = chooseQuickPlacementSquare(state.board, item.player, item.pieceType);
         const board = cloneBoard(state.board);
@@ -992,7 +446,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const piecesLeft = clonePiecesLeft(state.piecesLeft);
         piecesLeft[item.player][item.pieceType] -= 1;
         const nextCursor = state.placementCursor + 1;
-        const nextItem = QUEUE[nextCursor];
+        const nextItem = PLACEMENT_QUEUE[nextCursor];
         updateControl(board);
         set({
           board,
@@ -1001,7 +455,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           currentPlacement: nextItem ?? null,
           currentPlayer: nextItem?.player ?? "Black",
           phase: nextItem ? state.phase : { phase: "playing", previousPhase: "placement" },
-          history: [...state.history, emptyHistoryEntry(state)],
+          history: [...state.history, createHistoryEntry(state)],
           lastAction: `${item.player} placed ${describePiece(item.pieceType)} on ${squareName(pos)}.`,
           message: nextItem ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.` : "Deployment complete. Black to move.",
         });
@@ -1075,7 +529,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       try {
-        window.localStorage.setItem("assalto-reale-save", JSON.stringify(savedGameFromState(state)));
+        window.localStorage.setItem(SAVE_KEY, JSON.stringify(savedGameFromState(state)));
       } catch {
         // Storage write can throw (e.g. quota exceeded). Never corrupt the
         // in-memory match; report the failure instead.
@@ -1090,7 +544,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ message: "Load is not available in this environment." });
         return;
       }
-      const saved = loadSavedGame(window.localStorage.getItem("assalto-reale-save") ?? "");
+      const saved = loadSavedGame(window.localStorage.getItem(SAVE_KEY) ?? "");
       if (!saved) {
         set({ message: "No valid local save found." });
         return;
@@ -1119,7 +573,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
       try {
         if (localStorageAvailable()) {
-          window.localStorage.setItem("assalto-reale-save", JSON.stringify(saved));
+          window.localStorage.setItem(SAVE_KEY, JSON.stringify(saved));
         }
       } catch {
         set({ message: "Imported save loaded, but could not be written to local storage." });
