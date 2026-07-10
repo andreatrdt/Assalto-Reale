@@ -24,7 +24,7 @@ function only<T extends ServerEvent["type"]>(
 }
 
 describe("authoritative idempotency and optimistic concurrency", () => {
-  it("joins by invitation code without trusting a client-supplied match id", async () => {
+  it("requires the matching invitation code for the targeted match", async () => {
     const { handler, store } = harness();
     const created = await handler.handle(
       message(
@@ -33,11 +33,12 @@ describe("authoritative idempotency and optimistic concurrency", () => {
       ),
     );
     const inviteCode = only(created, "MatchCreated").inviteCode;
+    const matchId = created[0]!.matchId!;
 
     const joined = await handler.handle(
       message(
         { type: "JoinMatch", inviteCode },
-        { commandId: "cmd_invite02", playerId: BOB },
+        { commandId: "cmd_invite02", playerId: BOB, matchId },
       ),
     );
 
