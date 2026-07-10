@@ -22,12 +22,7 @@ export function describePiece(pieceType: PieceType): string {
   return pieceType.replace("Pawn", " Pawn");
 }
 
-export function actionTargets(
-  board: BoardState,
-  pos: Vec2,
-  movesThisTurn: number,
-  kingMoved: boolean,
-): Vec2[] {
+export function actionTargets(board: BoardState, pos: Vec2, movesThisTurn: number, kingMoved: boolean): Vec2[] {
   const targets: Vec2[] = [];
   for (let dr = -2; dr <= 2; dr += 1) {
     for (let dc = -2; dc <= 2; dc += 1) {
@@ -70,12 +65,8 @@ export function describeAction(action: Action, end: Vec2): string {
   return `${action.player} moved to ${squareName(end)}.`;
 }
 
-export function transformEvent(
-  result: TransitionResult,
-): PendingTransform | null {
-  const event = result.events.find(
-    (item) => item.kind === "transform_available",
-  );
+export function transformEvent(result: TransitionResult): PendingTransform | null {
+  const event = result.events.find((item) => item.kind === "transform_available");
   if (!event) return null;
   return {
     owner: event.data.player as Player,
