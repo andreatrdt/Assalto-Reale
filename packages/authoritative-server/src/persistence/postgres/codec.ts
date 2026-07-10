@@ -11,13 +11,14 @@ import {
   type OnlineMatchConfig,
   type ServerEventEnvelope,
 } from "@assalto-reale/multiplayer-protocol";
+import type { QueryResultRow } from "pg";
 import type {
   MatchAggregate,
   MatchStatus,
 } from "../../domain/matchAggregate.js";
 import type { StoredCommandReceipt } from "../../repositories.js";
 
-export interface PostgresMatchRow {
+export interface PostgresMatchRow extends QueryResultRow {
   match_id: string;
   invite_code: string;
   version: number | string;
@@ -31,7 +32,7 @@ export interface PostgresMatchRow {
   end_reason: string | null;
 }
 
-export interface PostgresReceiptRow {
+export interface PostgresReceiptRow extends QueryResultRow {
   command_id: string;
   player_id: string;
   match_id: string | null;
