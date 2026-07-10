@@ -25,7 +25,7 @@ jobs:
 
       - name: Install authoritative server dependencies
         working-directory: packages/authoritative-server
-        run: npm install
+        run: npm ci
 
       - name: Typecheck
         working-directory: packages/authoritative-server
