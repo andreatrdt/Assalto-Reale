@@ -22,6 +22,7 @@
     "build": "npm run deps:build && tsc -p tsconfig.build.json --pretty false",
     "test": "npm run deps:build && vitest run --config vitest.config.ts",
     "test:coverage": "npm run deps:build && vitest run --config vitest.config.ts --coverage",
+    "test:postgres": "npm run deps:build && vitest run --config vitest.config.ts tests/postgresPersistence.test.ts",
     "lint": "node ../../web/node_modules/eslint/bin/eslint.js --config ../../web/eslint.config.js src tests scripts --max-warnings 0",
     "format:check": "prettier --check .",
     "smoke": "npm run build && node scripts/smoke.mjs",
@@ -29,10 +30,12 @@
   },
   "dependencies": {
     "@assalto-reale/game-core": "file:../game-core",
-    "@assalto-reale/multiplayer-protocol": "file:../multiplayer-protocol"
+    "@assalto-reale/multiplayer-protocol": "file:../multiplayer-protocol",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.20.0",
     "@vitest/coverage-v8": "^2.1.8",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
