@@ -1,0 +1,31 @@
+name: Format Debug
+
+on:
+  push:
+    branches:
+      - refactor/decompose-game-store
+
+jobs:
+  prettier-offenders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Capture files that differ from Prettier output
+        working-directory: web
+        run: |
+          npx prettier --list-different . > prettier-offenders.txt || true
+          cat prettier-offenders.txt
+      - name: Upload offender list
+        uses: actions/upload-artifact@v4
+        with:
+          name: prettier-offenders
+          path: web/prettier-offenders.txt
+          if-no-files-found: error
