@@ -1,0 +1,58 @@
+.onlineGameHud {
+  align-items: center;
+  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  gap: 0.8rem;
+  justify-content: space-between;
+  left: 50%;
+  max-width: min(58rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.7rem;
+  position: fixed;
+  top: 4.6rem;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 80;
+}
+
+.onlineGameHudPrimary,
+.onlineGameHudSecondary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.onlineGameHudPrimary span,
+.onlineGameHudSecondary > span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.onlineGameHudSecondary > span {
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .onlineGameHud {
+    align-items: stretch;
+    flex-direction: column;
+    top: 4rem;
+    width: calc(100vw - 1rem);
+  }
+
+  .onlineGameHudPrimary,
+  .onlineGameHudSecondary {
+    justify-content: space-between;
+  }
+
+  .onlineGameHudSecondary > span {
+    max-width: calc(100vw - 8rem);
+  }
+}
