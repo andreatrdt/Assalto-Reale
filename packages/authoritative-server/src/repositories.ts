@@ -1,9 +1,10 @@
 import type { ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
 import type { MatchAggregate } from "./domain/matchAggregate.js";
 
-// A stored idempotency receipt. When the same commandId is seen again with the
-// same payload, the exact recorded envelopes are replayed; a different payload
-// under the same commandId is a conflict.
+/**
+ * Stored idempotency result. Exact retries replay these envelopes verbatim;
+ * reusing the commandId for another semantic command is rejected.
+ */
 export interface StoredCommandReceipt {
   commandId: string;
   playerId: string;
@@ -22,9 +23,21 @@ export class ConcurrencyConflictError extends Error {
 }
 
 export class ReceiptConflictError extends Error {
-  constructor(message = "A different result already exists for this command.") {
+  constructor(message = "The commandId is already associated with a different command.") {
     super(message);
     this.name = "ReceiptConflictError";
+  }
+}
+
+/**
+ * Raised at commit time when another concurrent transaction already committed
+ * the same semantic command. The handler replays the committed receipt instead
+ * of returning a stale-version error.
+ */
+export class CommandAlreadyProcessedError extends Error {
+  constructor(readonly receipt: StoredCommandReceipt) {
+    super("The command was already processed by a concurrent transaction.");
+    this.name = "CommandAlreadyProcessedError";
   }
 }
 
@@ -45,7 +58,7 @@ export interface UnitOfWork {
   run<T>(work: (tx: Transaction) => Promise<T>): Promise<T>;
 }
 
-/** Read-only repository for queries that never mutate (e.g. RequestSync). */
+/** Read-only repository for diagnostics and post-conflict canonical snapshots. */
 export interface MatchRepository {
   load(matchId: string): Promise<MatchAggregate | null>;
   findByInviteCode(inviteCode: string): Promise<MatchAggregate | null>;
