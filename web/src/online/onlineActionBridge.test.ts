@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useGameStore } from "../game/state/gameStore";
-import {
-  installOnlineGameActionBridge,
-  restoreLocalGameActions,
-} from "./onlineActionBridge";
+import { installOnlineGameActionBridge, restoreLocalGameActions } from "./onlineActionBridge";
 import { useOnlineMatchStore } from "./onlineStore";
 
 beforeEach(() => {
@@ -41,9 +38,7 @@ describe("online action bridge", () => {
 
     expect(useGameStore.getState().activateSquare).not.toBe(localActivate);
     useGameStore.getState().activateSquare([0, 0]);
-    expect(useGameStore.getState().message).toBe(
-      "Reconnecting to the online match…",
-    );
+    expect(useGameStore.getState().message).toBe("Reconnecting to the online match…");
 
     restoreLocalGameActions();
     expect(useGameStore.getState().activateSquare).toBe(localActivate);
@@ -53,9 +48,7 @@ describe("online action bridge", () => {
     installOnlineGameActionBridge();
 
     useGameStore.getState().undo();
-    expect(useGameStore.getState().message).toBe(
-      "This action is unavailable during an online match.",
-    );
+    expect(useGameStore.getState().message).toBe("This action is unavailable during an online match.");
     expect(useGameStore.getState().exportSaveJson()).toBeNull();
     expect(useGameStore.getState().importSaveJson("{}")).toBe(false);
   });
