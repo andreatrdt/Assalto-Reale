@@ -14,15 +14,8 @@ import {
   type Player,
 } from "../engine";
 import { DEFAULT_MATCH_CONFIG, resolveMatchConfig } from "../setup/matchConfig";
-import {
-  computeClockPatch,
-  initialTimeLeft,
-  monotonicNow,
-} from "../clocks/clockController";
-import {
-  createHistoryEntry,
-  restoreHistoryPatch,
-} from "../history/historyController";
+import { computeClockPatch, initialTimeLeft, monotonicNow } from "../clocks/clockController";
+import { createHistoryEntry, restoreHistoryPatch } from "../history/historyController";
 import {
   PLACEMENT_QUEUE,
   chooseQuickPlacementSquare,
@@ -32,13 +25,7 @@ import {
   createInitialPiecesLeft,
   createQuickBalancedBoard,
 } from "../placement/placementSetup";
-import {
-  SAVE_KEY,
-  buildRestorePatch,
-  loadSavedGame,
-  localStorageAvailable,
-  savedGameFromState,
-} from "../persistence/saveGame";
+import { SAVE_KEY, buildRestorePatch, loadSavedGame, localStorageAvailable, savedGameFromState } from "../persistence/saveGame";
 import { resolveCommit } from "../turn/commitAction";
 import {
   actionTargets,
@@ -64,10 +51,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
   }
 
-  function restoreSavedGame(
-    saved: SavedGame,
-    message = "Game loaded.",
-  ): boolean {
+  function restoreSavedGame(saved: SavedGame, message = "Game loaded."): boolean {
     try {
       set(buildRestorePatch(saved, message));
       return true;
@@ -171,10 +155,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     startQuickMatch: (options = {}) => {
       set({
         phase: { phase: "playing", previousPhase: "home" },
-        board: createQuickBalancedBoard(
-          options.transformEnabled ?? false,
-          options.seed,
-        ),
+        board: createQuickBalancedBoard(options.transformEnabled ?? false, options.seed),
         currentPlayer: "Black",
         movesThisTurn: 0,
         kingMoved: false,
@@ -194,11 +175,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ...DEFAULT_MATCH_CONFIG,
           opponent: options.aiEnabled ? "Computer" : "Human",
           humanSide: options.aiPlayer === "Black" ? "White" : "Black",
-          resolvedHumanSide: options.aiEnabled
-            ? options.aiPlayer === "Black"
-              ? "White"
-              : "Black"
-            : null,
+          resolvedHumanSide: options.aiEnabled ? (options.aiPlayer === "Black" ? "White" : "Black") : null,
           aiSide: options.aiEnabled ? (options.aiPlayer ?? "White") : null,
           placementMode: "QuickBalanced",
           transformEnabled: options.transformEnabled ?? false,
@@ -213,8 +190,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     startAiMatch: () => get().startQuickMatch({ aiEnabled: true }),
-    startTransformMatch: () =>
-      get().startQuickMatch({ transformEnabled: true }),
+    startTransformMatch: () => get().startQuickMatch({ transformEnabled: true }),
 
     startManualPlacement: (options = {}) => {
       const first = PLACEMENT_QUEUE[0];
@@ -240,11 +216,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ...DEFAULT_MATCH_CONFIG,
           opponent: options.aiEnabled ? "Computer" : "Human",
           humanSide: options.aiPlayer === "Black" ? "White" : "Black",
-          resolvedHumanSide: options.aiEnabled
-            ? options.aiPlayer === "Black"
-              ? "White"
-              : "Black"
-            : null,
+          resolvedHumanSide: options.aiEnabled ? (options.aiPlayer === "Black" ? "White" : "Black") : null,
           aiSide: options.aiEnabled ? (options.aiPlayer ?? "White") : null,
           placementMode: "Manual",
           transformEnabled: options.transformEnabled ?? false,
@@ -271,9 +243,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         pendingDefendedKing: null,
         clockRunningFor: null,
         clockLastSyncMs: null,
-        message: get().hasActiveMatch
-          ? "Match preserved on the Home page."
-          : "Choose a match flow.",
+        message: get().hasActiveMatch ? "Match preserved on the Home page." : "Choose a match flow.",
       }),
 
     activateSquare: (pos) => {
@@ -294,12 +264,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           });
           return;
         }
-        const result = canPlacePiece(
-          state.board,
-          pos,
-          item.player,
-          item.pieceType,
-        );
+        const result = canPlacePiece(state.board, pos, item.player, item.pieceType);
         if (!result.ok) {
           set({ message: result.reason ?? "Invalid placement." });
           return;
@@ -317,14 +282,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           placementCursor: nextCursor,
           currentPlacement: nextItem ?? null,
           currentPlayer: nextItem?.player ?? "Black",
-          phase: nextItem
-            ? state.phase
-            : { phase: "playing", previousPhase: "placement" },
+          phase: nextItem ? state.phase : { phase: "playing", previousPhase: "placement" },
           history: [...state.history, createHistoryEntry(state)],
           lastAction: `${item.player} placed ${describePiece(item.pieceType)} on ${squareName(pos)}.`,
-          message: nextItem
-            ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.`
-            : "Deployment complete. Black to move.",
+          message: nextItem ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.` : "Deployment complete. Black to move.",
         });
         return;
       }
@@ -343,12 +304,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (piece?.player === state.currentPlayer) {
           set({
             selected: pos,
-            legalTargets: actionTargets(
-              state.board,
-              pos,
-              state.movesThisTurn,
-              state.kingMoved,
-            ),
+            legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
             message: `${piece.player} ${describePiece(piece.type)} selected.`,
           });
         }
@@ -358,12 +314,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (piece?.player === state.currentPlayer) {
         set({
           selected: pos,
-          legalTargets: actionTargets(
-            state.board,
-            pos,
-            state.movesThisTurn,
-            state.kingMoved,
-          ),
+          legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
           message: `${piece.player} ${describePiece(piece.type)} selected.`,
         });
         return;
@@ -426,14 +377,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         phase: { phase: "playing", previousPhase: "defenderSelection" },
         pendingDefendedKing: null,
         selected: pending?.action.start ?? null,
-        legalTargets: pending?.action.start
-          ? actionTargets(
-              state.board,
-              pending.action.start,
-              state.movesThisTurn,
-              state.kingMoved,
-            )
-          : [],
+        legalTargets: pending?.action.start ? actionTargets(state.board, pending.action.start, state.movesThisTurn, state.kingMoved) : [],
         message: "Defended-King attack cancelled.",
       });
     },
@@ -442,12 +386,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const state = get();
       const pending = state.pendingTransform;
       if (!pending) return;
-      const { board, result } = transformPiece(
-        state.board,
-        pending.pos,
-        newType,
-        state.turnCounter + 1,
-      );
+      const { board, result } = transformPiece(state.board, pending.pos, newType, state.turnCounter + 1);
       if (result.error) {
         set({ message: result.error });
         return;
@@ -474,9 +413,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           ? { phase: "gameOver", previousPhase: "transformSelection" }
           : { phase: "playing", previousPhase: "transformSelection" },
         lastAction: `${pending.player} transformed into ${describePiece(newType)} on ${squareName(pending.pos)}.`,
-        message: victory
-          ? `${victory.winner} wins by ${victory.reason}.`
-          : `${currentPlayer} to move.`,
+        message: victory ? `${victory.winner} wins by ${victory.reason}.` : `${currentPlayer} to move.`,
       });
     },
 
@@ -501,13 +438,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         selected: null,
         legalTargets: [],
         history: [...state.history, createHistoryEntry(state)],
-        phase: advanced.victory
-          ? { phase: "gameOver", previousPhase: "playing" }
-          : state.phase,
+        phase: advanced.victory ? { phase: "gameOver", previousPhase: "playing" } : state.phase,
         lastAction: `${state.currentPlayer} passed.`,
-        message: advanced.victory
-          ? `${advanced.victory.winner} wins by ${advanced.victory.reason}.`
-          : `${advanced.currentPlayer} to move.`,
+        message: advanced.victory ? `${advanced.victory.winner} wins by ${advanced.victory.reason}.` : `${advanced.currentPlayer} to move.`,
       });
     },
 
@@ -524,17 +457,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     runAiTurn: () => {
       const state = get();
       if (!state.aiEnabled) return;
-      if (
-        state.phase.phase === "placement" &&
-        state.currentPlacement?.player === state.aiPlayer
-      ) {
+      if (state.phase.phase === "placement" && state.currentPlacement?.player === state.aiPlayer) {
         const item = PLACEMENT_QUEUE[state.placementCursor];
         if (!item) return;
-        const pos = chooseQuickPlacementSquare(
-          state.board,
-          item.player,
-          item.pieceType,
-        );
+        const pos = chooseQuickPlacementSquare(state.board, item.player, item.pieceType);
         const board = cloneBoard(state.board);
         placePiece(board, pos, item.player, item.pieceType);
         const piecesLeft = clonePiecesLeft(state.piecesLeft);
@@ -548,14 +474,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           placementCursor: nextCursor,
           currentPlacement: nextItem ?? null,
           currentPlayer: nextItem?.player ?? "Black",
-          phase: nextItem
-            ? state.phase
-            : { phase: "playing", previousPhase: "placement" },
+          phase: nextItem ? state.phase : { phase: "playing", previousPhase: "placement" },
           history: [...state.history, createHistoryEntry(state)],
           lastAction: `${item.player} placed ${describePiece(item.pieceType)} on ${squareName(pos)}.`,
-          message: nextItem
-            ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.`
-            : "Deployment complete. Black to move.",
+          message: nextItem ? `${nextItem.player}: place ${describePiece(nextItem.pieceType)}.` : "Deployment complete. Black to move.",
         });
         return;
       }
@@ -572,12 +494,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
       if (state.currentPlayer !== state.aiPlayer) return;
       if (state.phase.phase !== "playing") return;
-      const action = chooseDeterministicAction(
-        state.board,
-        state.currentPlayer,
-        state.movesThisTurn,
-        state.kingMoved,
-      );
+      const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved);
       if (action.kind === "pass") {
         state.passTurn();
         return;
@@ -611,11 +528,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     startClock: (now) => {
       const state = get();
-      if (
-        !state.matchConfig ||
-        state.matchConfig.timerSeconds === 0 ||
-        state.phase.phase !== "playing"
-      ) {
+      if (!state.matchConfig || state.matchConfig.timerSeconds === 0 || state.phase.phase !== "playing") {
         return;
       }
       if (state.aiEnabled && state.currentPlayer === state.aiPlayer) {
@@ -641,10 +554,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       try {
-        window.localStorage.setItem(
-          SAVE_KEY,
-          JSON.stringify(savedGameFromState(state)),
-        );
+        window.localStorage.setItem(SAVE_KEY, JSON.stringify(savedGameFromState(state)));
       } catch {
         // Storage write can throw (e.g. quota exceeded). Never corrupt the
         // in-memory match; report the failure instead.
@@ -694,8 +604,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       } catch {
         set({
-          message:
-            "Imported save loaded, but could not be written to local storage.",
+          message: "Imported save loaded, but could not be written to local storage.",
         });
       }
       return true;
