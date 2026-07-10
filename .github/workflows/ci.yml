@@ -86,3 +86,56 @@ jobs:
       - name: Web e2e tests
         working-directory: web
         run: npm run e2e
+
+  web-e2e-cross-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps firefox webkit
+      - name: Cross-browser smoke (Firefox + WebKit)
+        working-directory: web
+        run: npm run e2e:cross
+
+  web-visual:
+    runs-on: ubuntu-latest
+    # Run inside the official Playwright image so rendering is pixel-identical
+    # to the environment the Linux-only baselines are generated in.
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Detect committed visual baselines
+        id: baselines
+        working-directory: web
+        run: |
+          if [ -d "tests/e2e/visual.spec.ts-snapshots" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Visual regression
+        if: steps.baselines.outputs.present == 'true'
+        working-directory: web
+        run: npm run e2e:visual
+      - name: Baselines not seeded
+        if: steps.baselines.outputs.present != 'true'
+        run: |
+          echo "::warning::Visual baselines are not committed yet. Generate them once inside the Playwright container (npm run e2e:update-snapshots) and commit web/tests/e2e/visual.spec.ts-snapshots to activate this gate. See docs/browser-quality.md."

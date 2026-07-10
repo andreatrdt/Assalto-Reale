@@ -275,107 +275,114 @@ export function GameBoard({
 
         <rect width={size} height={size} className="boardBed" rx="20" />
 
-        {board.grid.map((row, rowIndex) =>
-          row.map((piece, colIndex) => {
-            const pos: Vec2 = [rowIndex, colIndex];
-            const x = colIndex * cell;
-            const y = rowIndex * cell;
-            const isSpecial = hasPos(board.specialSquares, pos);
-            const isTransform = hasPos(board.transformSquares, pos);
-            const isSelected = selected ? selected[0] === rowIndex && selected[1] === colIndex : false;
-            const isLegalTarget = hasPos(legalTargets, pos);
-            const isPlacementValid = hasPos(placementValid, pos);
-            const isCaptureTarget = isLegalTarget && piece !== null;
-            const isDefendedKing = piece?.type === "King" && adjacentDefendersForKing(board, pos, piece.player).length > 0;
-            const controlledBy = board.controlledSquares.Black.some((item) => item[0] === rowIndex && item[1] === colIndex)
-              ? "Black"
-              : board.controlledSquares.White.some((item) => item[0] === rowIndex && item[1] === colIndex)
-                ? "White"
-                : null;
-            const label = `${squareLabel(pos, board.config.rows)}${piece ? `, ${piece.player} ${pieceLabel(piece)}` : ""}${isDefendedKing ? ", defended King" : ""}`;
-            const activate = () => {
-              if (!isAnimating) onSquareActivate?.(pos);
-            };
+        {board.grid.map((row, rowIndex) => (
+          // ARIA grid structure: gridcells must be wrapped in a row. The group
+          // carries no transform, so this is purely a semantic wrapper with no
+          // visual effect on cell positioning (each cell is absolutely placed).
+          <g role="row" key={`board-row-${rowIndex}`}>
+            {row.map((piece, colIndex) => {
+              const pos: Vec2 = [rowIndex, colIndex];
+              const x = colIndex * cell;
+              const y = rowIndex * cell;
+              const isSpecial = hasPos(board.specialSquares, pos);
+              const isTransform = hasPos(board.transformSquares, pos);
+              const isSelected = selected ? selected[0] === rowIndex && selected[1] === colIndex : false;
+              const isLegalTarget = hasPos(legalTargets, pos);
+              const isPlacementValid = hasPos(placementValid, pos);
+              const isCaptureTarget = isLegalTarget && piece !== null;
+              const isDefendedKing = piece?.type === "King" && adjacentDefendersForKing(board, pos, piece.player).length > 0;
+              const controlledBy = board.controlledSquares.Black.some((item) => item[0] === rowIndex && item[1] === colIndex)
+                ? "Black"
+                : board.controlledSquares.White.some((item) => item[0] === rowIndex && item[1] === colIndex)
+                  ? "White"
+                  : null;
+              const label = `${squareLabel(pos, board.config.rows)}${piece ? `, ${piece.player} ${pieceLabel(piece)}` : ""}${isDefendedKing ? ", defended King" : ""}`;
+              const activate = () => {
+                if (!isAnimating) onSquareActivate?.(pos);
+              };
 
-            return (
-              <g
-                key={`${rowIndex}-${colIndex}`}
-                role="gridcell"
-                aria-label={`${label}${isSelected ? ", selected" : ""}${isLegalTarget ? ", legal action" : ""}`}
-                aria-disabled={isAnimating || undefined}
-                tabIndex={0}
-                className={`boardCell${isAnimating ? " boardCellLocked" : ""}`}
-                onClick={activate}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    activate();
-                  }
-                }}
-              >
-                <rect
-                  x={x + 2}
-                  y={y + 2}
-                  width={cell - 4}
-                  height={cell - 4}
-                  rx="8"
-                  className={(rowIndex + colIndex) % 2 === 0 ? "tileDark" : "tileLight"}
-                />
-                {isPlacementValid && <rect x={x + 10} y={y + 10} width={cell - 20} height={cell - 20} rx="12" className="placementValid" />}
-                {isSpecial && (
-                  <g className={`specialMark ${controlledBy ? `controlled${controlledBy}` : ""}`} aria-hidden="true">
-                    <rect
-                      x={x + cell * 0.13}
-                      y={y + cell * 0.13}
-                      width={cell * 0.74}
-                      height={cell * 0.74}
-                      rx={cell * 0.08}
-                      className="specialSquareInset"
-                    />
-                    <path d={cornerMarkPath(x, y, cell)} className="specialCornerMarks" />
-                  </g>
-                )}
-                {isTransform && (
-                  <g className="transformMark" aria-hidden="true">
-                    <rect
-                      x={x + cell * 0.11}
-                      y={y + cell * 0.11}
-                      width={cell * 0.78}
-                      height={cell * 0.78}
-                      rx={cell * 0.1}
-                      className="transformSquareOuter"
-                    />
-                    <rect
-                      x={x + cell * 0.22}
-                      y={y + cell * 0.22}
-                      width={cell * 0.56}
-                      height={cell * 0.56}
-                      rx={cell * 0.08}
-                      className="transformSquareInner"
-                    />
-                  </g>
-                )}
-                {piece && !hiddenPieces.has(posKey(pos)) && (
-                  <svg x={x + cell * 0.16} y={y + cell * 0.1} width={cell * 0.68} height={cell * 0.78} viewBox="0 0 100 100">
-                    <PieceGlyph piece={piece} />
-                  </svg>
-                )}
-                {(rowIndex === 0 || colIndex === 0) && (
-                  <text x={x + 12} y={y + 24} className="coordLabel">
-                    {rowIndex === 0 ? String.fromCharCode("A".charCodeAt(0) + colIndex) : board.config.rows - rowIndex}
-                  </text>
-                )}
-                {isSelected && <rect x={x + 8} y={y + 8} width={cell - 16} height={cell - 16} rx="12" className="selectedRing" />}
-                {isLegalTarget && (
-                  <g className={isCaptureTarget ? "captureIndicator" : "moveIndicator"}>
-                    <circle cx={x + cell / 2} cy={y + cell / 2} r={isCaptureTarget ? cell * 0.32 : cell * 0.13} />
-                    {isCaptureTarget && <circle cx={x + cell / 2} cy={y + cell / 2} r={cell * 0.23} />}
-                  </g>
-                )}
-              </g>
-            );
-          }),
-        )}
+              return (
+                <g
+                  key={`${rowIndex}-${colIndex}`}
+                  role="gridcell"
+                  aria-label={`${label}${isSelected ? ", selected" : ""}${isLegalTarget ? ", legal action" : ""}`}
+                  aria-disabled={isAnimating || undefined}
+                  tabIndex={0}
+                  className={`boardCell${isAnimating ? " boardCellLocked" : ""}`}
+                  onClick={activate}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      activate();
+                    }
+                  }}
+                >
+                  <rect
+                    x={x + 2}
+                    y={y + 2}
+                    width={cell - 4}
+                    height={cell - 4}
+                    rx="8"
+                    className={(rowIndex + colIndex) % 2 === 0 ? "tileDark" : "tileLight"}
+                  />
+                  {isPlacementValid && (
+                    <rect x={x + 10} y={y + 10} width={cell - 20} height={cell - 20} rx="12" className="placementValid" />
+                  )}
+                  {isSpecial && (
+                    <g className={`specialMark ${controlledBy ? `controlled${controlledBy}` : ""}`} aria-hidden="true">
+                      <rect
+                        x={x + cell * 0.13}
+                        y={y + cell * 0.13}
+                        width={cell * 0.74}
+                        height={cell * 0.74}
+                        rx={cell * 0.08}
+                        className="specialSquareInset"
+                      />
+                      <path d={cornerMarkPath(x, y, cell)} className="specialCornerMarks" />
+                    </g>
+                  )}
+                  {isTransform && (
+                    <g className="transformMark" aria-hidden="true">
+                      <rect
+                        x={x + cell * 0.11}
+                        y={y + cell * 0.11}
+                        width={cell * 0.78}
+                        height={cell * 0.78}
+                        rx={cell * 0.1}
+                        className="transformSquareOuter"
+                      />
+                      <rect
+                        x={x + cell * 0.22}
+                        y={y + cell * 0.22}
+                        width={cell * 0.56}
+                        height={cell * 0.56}
+                        rx={cell * 0.08}
+                        className="transformSquareInner"
+                      />
+                    </g>
+                  )}
+                  {piece && !hiddenPieces.has(posKey(pos)) && (
+                    <svg x={x + cell * 0.16} y={y + cell * 0.1} width={cell * 0.68} height={cell * 0.78} viewBox="0 0 100 100">
+                      <PieceGlyph piece={piece} />
+                    </svg>
+                  )}
+                  {(rowIndex === 0 || colIndex === 0) && (
+                    <text x={x + 12} y={y + 24} className="coordLabel">
+                      {rowIndex === 0 ? String.fromCharCode("A".charCodeAt(0) + colIndex) : board.config.rows - rowIndex}
+                    </text>
+                  )}
+                  {isSelected && <rect x={x + 8} y={y + 8} width={cell - 16} height={cell - 16} rx="12" className="selectedRing" />}
+                  {isLegalTarget && (
+                    <g className={isCaptureTarget ? "captureIndicator" : "moveIndicator"}>
+                      <circle cx={x + cell / 2} cy={y + cell / 2} r={isCaptureTarget ? cell * 0.32 : cell * 0.13} />
+                      {isCaptureTarget && <circle cx={x + cell / 2} cy={y + cell / 2} r={cell * 0.23} />}
+                    </g>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        ))}
 
         {activeDefendedKingPreview && (
           <g className="defendedKingPreview" aria-hidden="true">

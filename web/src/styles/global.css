@@ -728,16 +728,18 @@ p {
 }
 
 /* Turn-transition feedback: the active clock/status gains emphasis, the inactive
-   one recedes. Transitions are neutralised under reduced motion (catch-all below). */
+   one recedes. De-emphasis is expressed through text colour and surface/border
+   rather than opacity — a blanket opacity would drop the clock's text below the
+   WCAG AA contrast floor. Transitions are neutralised under reduced motion. */
 .playerClock {
   transition:
     border-color var(--duration-medium) var(--ease-standard),
-    opacity var(--duration-medium) var(--ease-standard),
+    color var(--duration-medium) var(--ease-standard),
     background var(--duration-medium) var(--ease-standard);
 }
 
 .playerClock:not(.isActive) {
-  opacity: 0.62;
+  color: var(--text-muted);
 }
 
 .playerClock.isActive {
@@ -1251,4 +1253,38 @@ html[data-motion="reduced"] *::before,
 html[data-motion="reduced"] *::after {
   animation-duration: 1ms !important;
   transition-duration: 1ms !important;
+}
+
+/* ---- Forced colors (Windows High Contrast / forced-colors: active) ----
+   Once the OS flattens author colours to a system palette, backgrounds no
+   longer differentiate controls, so we keep an explicit boundary on every
+   control and guarantee a system-coloured focus indicator. This is a hard
+   accessibility contract (covered by a blocking e2e assertion). */
+@media (forced-colors: active) {
+  button,
+  a.gameButton,
+  .gameButton {
+    border: 1px solid ButtonText;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+/* ---- Increased contrast preference (distinct from forced-colors) ----
+   A softer, opt-in bump for users who ask for more contrast without the full
+   forced-colors takeover: darken the neutral text ramp and firm up borders. */
+@media (prefers-contrast: more) {
+  :root {
+    --text-muted: #333b34;
+    --text-faint: #333b34;
+    --border: #8a927f;
+    --border-strong: #5c6456;
+    --focus-ring: #1d2a1a;
+  }
 }

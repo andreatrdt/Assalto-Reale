@@ -68,10 +68,11 @@ completed phases; imports are validated atomically; storage failures fail safe.
 - **Save confirmation during active play**: the "Game saved locally." message is
   surfaced only during placement, not in the active-play controls panel — the
   save itself persists correctly. Presentation-only; tracked for a later UX pass.
-- **No automated visual-regression or accessibility-audit** coverage; a11y is
-  hand-verified plus semantic tests.
-- **Browser coverage** in CI is Chromium only (Playwright); Firefox/WebKit are a
-  future QA milestone.
+- **Visual-regression baselines are Linux-only** and seeded via the Playwright
+  Docker image; the CI `web-visual` job stays inert until they are committed
+  (see `docs/browser-quality.md`).
+- **Board keyboard navigation** is per-square tab stops with Enter/Space
+  activation; arrow-key roving grid navigation is not yet implemented.
 - **`gameStore.ts` is large** and concentrates match/placement/AI/timer/save/undo
   coordination; decomposition is deferred.
 - No online multiplayer, no Android packaging, no authentication/matchmaking.
@@ -92,16 +93,22 @@ request / final report; keep this list as the shape of the required gates):
 - Web unit: `vitest` with coverage thresholds.
 - Static quality: `tsc` typecheck, ESLint, Prettier check.
 - Production build: `tsc -b && vite build`.
-- Playwright: Chromium (smoke + game-feel + board-motion).
+- Playwright: Chromium full suite + Pixel-5 mobile (fast gate); Firefox/WebKit
+  cross-browser smoke; axe accessibility gate; Chromium visual regression
+  (Linux baselines, containerised CI job).
 - Production dependency audit: `npm audit --omit=dev` (must be clean).
 
 ## Future milestones (not in scope here)
 
-1. Persistence and match-lifecycle hardening (pending-decision save/load proofs).
-2. Visual-regression and accessibility-automation coverage.
-3. Broader Python/TypeScript lifecycle parity (seed-identical where feasible).
-4. `gameStore.ts` decomposition.
-5. A pure shared TypeScript `game-core` module.
-6. A stronger AI (search/evaluation).
-7. Online multiplayer.
+1. Broader Python/TypeScript lifecycle parity (seed-identical where feasible).
+2. `gameStore.ts` decomposition.
+3. A pure shared TypeScript `game-core` module.
+4. A stronger AI (search/evaluation).
+5. Online multiplayer.
+6. Arrow-key board navigation and bfcache/mobile-suspension lifecycle coverage
+   (deferred from browser-quality hardening; see `docs/browser-quality.md`).
+
+Delivered since: persistence & match-lifecycle hardening; browser-quality
+hardening (accessibility/axe, keyboard, cross-browser, visual regression,
+reduced-motion/high-contrast, PWA/offline).
 8. Android packaging.

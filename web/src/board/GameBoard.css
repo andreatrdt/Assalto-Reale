@@ -460,3 +460,27 @@ html[data-board-contrast="high"] .previewLanding circle {
     width: 1.75rem;
   }
 }
+
+/* ---- Forced colors (Windows High Contrast) ----
+   The board communicates state (focus, selection, legal/placement targets)
+   largely through fill/stroke colour. Under forced-colors the OS palette wins,
+   so we re-express those cues with system colours to keep them distinguishable
+   rather than letting them collapse into a single system colour. */
+@media (forced-colors: active) {
+  .boardCell:focus .tileDark,
+  .boardCell:focus .tileLight {
+    stroke: Highlight;
+    stroke-width: 5;
+  }
+
+  .selectedRing {
+    stroke: Highlight;
+  }
+
+  .placementValid,
+  .moveIndicator circle,
+  .captureIndicator circle {
+    stroke: Highlight;
+    fill: Canvas;
+  }
+}

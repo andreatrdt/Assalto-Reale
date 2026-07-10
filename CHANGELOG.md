@@ -6,6 +6,36 @@ metadata derive from it.
 
 ## Unreleased
 
+Browser-quality hardening — accessibility, keyboard/focus, cross-browser,
+responsive, reduced-motion/high-contrast, PWA/offline, runtime teardown and
+real-UI save import/export. No gameplay rules, AI, timer semantics or the visual
+design language changed. See
+[`docs/browser-quality.md`](docs/browser-quality.md).
+
+- Added a blocking axe-core accessibility gate (`web/tests/e2e/a11y.spec.ts`)
+  over every primary route and an active match; fails on `serious`/`critical`
+  violations. Fixes to clear the baseline: board `role="grid"` now wraps each
+  rank in a `role="row"`; the `/rules` capture table gained `role="cell"`; the
+  `/load` file input gained an `aria-label`.
+- Accessibility contrast: darkened the neutral text ramp (`--text-muted`,
+  `--text-faint`) to WCAG AA (>=4.5:1) on all surfaces, and replaced the inactive
+  player-clock `opacity` de-emphasis (which failed contrast) with a colour/border
+  treatment.
+- Added forced-colors (Windows High Contrast) support as a blocking contract and
+  `prefers-contrast: more` support (additive CSS); `Escape` now closes
+  dismissible modals while the Transform/Defended-King panels stay non-bypassable.
+- New e2e suites: keyboard/focus, motion-contrast, responsive
+  (desktop/tablet/mobile), PWA/offline, save import/export via the real UI, AI
+  paced-loop teardown, a Firefox+WebKit cross-browser smoke, and a Chromium-only
+  visual-regression spec (Linux baselines via Docker).
+- Playwright now runs Chromium (full suite) + Pixel-5 mobile in the fast gate,
+  with dedicated CI jobs for the Firefox/WebKit smoke and the containerised
+  visual regression. Default `npm run e2e` grew 32 -> 63 tests.
+- Removed the unused `web/src/game/ai/aiWorker.ts` (dead code; the AI runs
+  synchronously in the store). Added `@axe-core/playwright` (devDependency;
+  production audit stays at 0 vulnerabilities).
+- Web unit tests unchanged at 186; coverage 77.3% statements / 76.7% branches.
+
 Lifecycle & persistence hardening — characterisation tests plus two small,
 tested bug fixes. No gameplay rules, AI, timer semantics or UI design changed.
 

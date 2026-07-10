@@ -76,20 +76,20 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
                 <strong role="columnheader">May capture</strong>
               </div>
               <div role="row">
-                <span>Attack Pawn</span>
-                <span>Defense Pawn or King</span>
+                <span role="cell">Attack Pawn</span>
+                <span role="cell">Defense Pawn or King</span>
               </div>
               <div role="row">
-                <span>Defense Pawn</span>
-                <span>Conquest Pawn</span>
+                <span role="cell">Defense Pawn</span>
+                <span role="cell">Conquest Pawn</span>
               </div>
               <div role="row">
-                <span>Conquest Pawn</span>
-                <span>Attack Pawn</span>
+                <span role="cell">Conquest Pawn</span>
+                <span role="cell">Attack Pawn</span>
               </div>
               <div role="row">
-                <span>King</span>
-                <span>Any pawn</span>
+                <span role="cell">King</span>
+                <span role="cell">Any pawn</span>
               </div>
             </div>
             <p>

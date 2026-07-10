@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import type { AppRoute } from "../app/routes";
 import type { Player } from "../game/engine";
@@ -379,6 +380,18 @@ interface ModalProps {
 }
 
 export function Modal({ title, children, actions, onClose }: ModalProps) {
+  // Escape dismisses a modal only when it is genuinely dismissible (an onClose
+  // affordance exists). Inline decision panels (Transform, Defended King) are
+  // not Modals and deliberately have no Escape path, so they cannot be bypassed.
+  useEffect(() => {
+    if (!onClose) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div className="modalBackdrop" role="presentation">
       <section className="modalPanel" role="dialog" aria-modal="true" aria-labelledby="modal-title">

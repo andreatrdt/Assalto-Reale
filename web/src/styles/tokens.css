@@ -12,8 +12,11 @@
   --accent-hover: #4f6547;
 
   --text: #202622;
-  --text-muted: #687168; /* 4.6:1 on --bg */
-  --text-faint: #8a938a;
+  /* Neutral text ramp tuned to WCAG AA (>=4.5:1) on the darkest surface it is
+     painted on (--surface-2 #e9ece4), which guarantees AA on every lighter
+     surface too. Muted stays darker than faint to preserve the hierarchy. */
+  --text-muted: #586058; /* 5.45:1 on --surface-2, 5.94:1 on --bg */
+  --text-faint: #626a63; /* 4.67:1 on --surface-2, 5.10:1 on --bg */
 
   --border: #d8ddd4;
   --border-strong: #c4ccbf;
