@@ -3,8 +3,8 @@
 // (decrement, timeout victory, or stop). The store owns the set/get wiring; this
 // module owns the policy (inactive clocks never tick, terminal games freeze,
 // untimed matches never time out, wall time is not deducted while unloaded).
+import { opponent } from "../engine";
 import type { Player } from "../engine";
-import { switchPlayer } from "../turn/turnHelpers";
 import type { GameState, StatePatch } from "../state/storeTypes";
 
 export function initialTimeLeft(seconds: number): Record<Player, number> {
@@ -24,7 +24,7 @@ export function computeClockPatch(state: GameState, now: number, stopRunning = f
   const elapsedMs = Math.max(0, now - state.clockLastSyncMs);
   const remainingSeconds = state.timeLeft[runningFor];
   if (remainingSeconds <= 0 || elapsedMs >= remainingSeconds * 1000) {
-    const winner = switchPlayer(runningFor);
+    const winner = opponent(runningFor);
     return {
       timeLeft: { ...state.timeLeft, [runningFor]: 0 },
       phase: { phase: "gameOver", previousPhase: state.phase.phase },
