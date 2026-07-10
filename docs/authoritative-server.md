@@ -2,7 +2,7 @@
 
 ## Roadmap position
 
-This document defines the delivered authoritative-server stack through Phase C.8.3.
+This document defines the delivered authoritative stack through Phase C.9.
 
 ```text
 Phase A                               completed
@@ -13,19 +13,24 @@ Phase C.8 Authoritative server
   C.8.1 Application core              completed
   C.8.2 PostgreSQL adapter            completed
   C.8.3 Transport adapter             completed
-Phase C.9 Invite multiplayer          next
+Phase C.9 Invite multiplayer          completed
+Phase C.10 Accounts/continuity        next
 ```
 
-C.8.1 established the application boundary, C.8.2 implemented durable PostgreSQL persistence, and C.8.3 added a thin authenticated HTTP/WebSocket edge without changing command semantics or game rules.
+C.8 established the application, persistence and HTTP/WebSocket boundaries. C.9
+adds anonymous browser session bootstrap and a client that consumes the existing
+public contracts without changing command semantics or gameplay rules.
 
 ## Authority model
 
 ```text
-client
+web client
+  obtains a short-lived anonymous credential
   proposes a versioned protocol command
+  renders only canonical server snapshots
 
 server-transport
-  authenticates the WebSocket connection
+  authenticates the HTTP/WebSocket connection
   supplies the connection principal
   forwards commands and routes returned envelopes
 
@@ -44,7 +49,9 @@ game-core
   remains the only owner of gameplay rules
 ```
 
-The client never supplies canonical state, generated IDs or setup seeds. Client timestamps are diagnostics only.
+The client never supplies canonical state, generated IDs or setup seeds. Client
+timestamps are diagnostics only. Selection highlights are presentation; they do
+not commit an online move.
 
 ## Command pipeline
 
@@ -61,22 +68,17 @@ For every authenticated command, `CommandHandler` performs:
 9. atomic aggregate and receipt persistence;
 10. ordered event-envelope creation.
 
-A semantic command fingerprint includes protocol version, player identity, target match, expected match version and command payload. It intentionally excludes diagnostic send time and session ID so a player can retry the same command after reconnecting.
+A semantic command fingerprint includes protocol version, player identity, target
+match, expected match version and command payload. It excludes diagnostic send
+time and session ID so a player can retry the same command after reconnecting.
 
 ## Aggregate and concurrency
 
-`MatchAggregate` stores:
+`MatchAggregate` stores canonical `game-core` state, match ID, invitation code,
+server-generated seed, Black/White membership, lifecycle status, monotonic
+`version`, monotonic `streamSequence` and terminal reason.
 
-- canonical `game-core` match state;
-- match ID and invitation code;
-- server-generated deterministic seed;
-- Black/White membership;
-- lifecycle status;
-- monotonic `version`;
-- monotonic `streamSequence`;
-- terminal reason where applicable.
-
-State-changing commands use optimistic concurrency. PostgreSQL updates include both the match ID and the version read by the command:
+State-changing commands use optimistic concurrency:
 
 ```sql
 UPDATE authoritative_matches
@@ -84,7 +86,8 @@ SET version = :next_version, ...
 WHERE match_id = :match_id AND version = :expected_version;
 ```
 
-A zero-row update raises `ConcurrencyConflictError`. Therefore two commands that read the same version cannot both commit.
+A zero-row update raises `ConcurrencyConflictError`; two commands that read the
+same version cannot both commit.
 
 ## PostgreSQL schema
 
@@ -92,27 +95,25 @@ The versioned migration runner creates three tables.
 
 ### `authoritative_schema_migrations`
 
-Records migration version, name, checksum and application time. A PostgreSQL advisory lock serializes concurrent startup migration attempts. Applied migration checksums are verified so released migrations cannot be edited silently.
+Records migration version, name, checksum and application time. A PostgreSQL
+advisory lock serializes startup migration attempts and applied checksums prevent
+silent edits to released migrations.
 
 ### `authoritative_matches`
 
-Stores canonical match metadata and a validated `game-core` state snapshot:
+Stores canonical match metadata and validated `game-core` state as JSONB,
+including unique invite code, version, stream sequence, seed, config, membership,
+lifecycle status and timestamps.
 
-- primary key `match_id`;
-- unique `invite_code`;
-- `version` and `stream_sequence`;
-- server-generated `seed`;
-- JSONB match configuration;
-- Black and White player IDs;
-- lifecycle status and terminal reason;
-- JSONB canonical state;
-- creation and update timestamps.
-
-State is encoded with `game-core.serializeState` and validated with `game-core.deserializeState` when loaded. Match configuration and stored protocol envelopes are also runtime-validated before entering the application layer.
+State is encoded with `game-core.serializeState` and accepted only through
+`game-core.deserializeState`. Match configuration and stored protocol envelopes
+are runtime-validated before entering the application layer.
 
 ### `authoritative_command_receipts`
 
-Stores unique command IDs, authenticated player IDs, resolved match IDs, semantic payload fingerprints and exact emitted event envelopes as JSONB. Receipts intentionally do not have a match foreign key because rejected commands may refer to missing or invalid matches and must still be retry-safe.
+Stores unique command IDs, authenticated player IDs, resolved match IDs, semantic
+fingerprints and exact emitted envelopes. Rejected commands may reference missing
+matches, so receipts intentionally do not require a match foreign key.
 
 ## Atomic commit order
 
@@ -124,7 +125,9 @@ BEGIN
 COMMIT
 ```
 
-Receipt claiming happens before match mutation. This guarantees exact concurrent retry replay, rejection of changed command-ID reuse, rollback of receipts after later match conflicts, and no partially committed match/result pair.
+Receipt claiming before match mutation guarantees exact concurrent retry replay,
+changed command-ID rejection, rollback after later conflicts and no partially
+committed state/result pair.
 
 ## Supported commands
 
@@ -144,32 +147,64 @@ Mapped directly to `game-core`:
 - `ChooseTransform`
 - `PassTurn`
 
-`OfferRematch` and `RespondToRematch` remain protocol-valid but receive a structured `illegal_command` rejection until Phase C.9.
+`OfferRematch` and `RespondToRematch` remain protocol-valid but receive a
+structured `illegal_command` rejection. Rematch behavior is deferred.
+
+## Guest sessions
+
+C.9 adds `HmacGuestSessionService` and optional `POST /session` support to the
+transport package. Each credential contains a protocol-valid player ID, session
+ID and expiry, signed with HMAC-SHA256. Verification rejects malformed, tampered
+or expired tokens using constant-time signature comparison.
+
+`GuestSessionConnectionAuthenticator` accepts the token through a Bearer header
+or the `access_token` WebSocket query parameter. The query path exists because
+browser WebSocket constructors cannot set arbitrary authorization headers.
+
+Guest sessions are browser-session identities, not accounts. Production must
+provide a secret of at least 32 bytes outside source control, TLS and an explicit
+allowed web origin.
 
 ## Reconnect and idempotency
 
-`RequestSync` returns a canonical `MatchSnapshot` to a verified member without advancing match state. It is receipt-backed, so exact retries return the same event envelope.
+`RequestSync` returns a canonical `MatchSnapshot` to a verified member without
+advancing match state. It is receipt-backed, so exact retries return the same
+event envelope.
 
-Exact duplicate commands replay their original result. Reusing a command ID with a changed actor, target, expected version or payload returns `duplicate_command`. Two concurrent commands against the same match version cannot both commit.
-
-The transport sends player-addressed envelopes to all live sockets authenticated as that player. A successful `RequestSync` also subscribes a reconnecting socket to future match broadcasts.
+Exact duplicate commands replay their original result. Reusing a command ID with
+a changed actor, target, expected version or payload returns
+`duplicate_command`. The transport sends player-addressed envelopes to every live
+socket for that player; successful sync also subscribes a reconnecting socket to
+future match broadcasts.
 
 ## Package boundaries
 
-`packages/authoritative-server` owns application, domain and persistence concerns. It may depend on `game-core`, `multiplayer-protocol`, `pg`, Node standard modules and development tooling, but not browser or network frameworks.
+`packages/authoritative-server` owns application, domain and persistence concerns.
+It may depend on `game-core`, `multiplayer-protocol`, `pg`, Node standard modules
+and development tooling, but not browser or network frameworks.
 
-`packages/server-transport` owns only HTTP/WebSocket concerns. It may depend on the public authoritative-server API, multiplayer-protocol, Node HTTP modules and `ws`. It may not import game rules, PostgreSQL, React, Zustand, the web application, Socket.IO or an identity-provider SDK.
+`packages/server-transport` owns HTTP/WebSocket concerns and guest-session edge
+authentication. It may depend on the public authoritative-server API,
+multiplayer-protocol, Node modules and `ws`, but not game rules, PostgreSQL,
+React, Zustand, the web app, Socket.IO or identity-provider SDKs.
 
-See [`transport-adapter.md`](transport-adapter.md) for the complete transport contract.
+The React client consumes only the versioned protocol over the configured network
+endpoint. See [`transport-adapter.md`](transport-adapter.md) and
+[`invite-multiplayer.md`](invite-multiplayer.md).
 
 ## Validation
 
-The dedicated server workflow now runs two independent jobs.
+The dedicated server workflow runs independent authoritative/PostgreSQL and
+transport jobs. Together they verify strict TypeScript, architecture boundaries,
+formatting, coverage, PostgreSQL 16 integration, real HTTP/WebSocket behavior,
+guest signing/bootstrap, ESM smoke and production dependency audits.
 
-The authoritative-server job starts PostgreSQL 16 and verifies strict TypeScript, architecture boundaries, formatting, application/in-memory/PostgreSQL coverage, ESM smoke and production dependencies.
-
-The server-transport job verifies strict TypeScript, transport architecture boundaries, formatting, HTTP and real-WebSocket integration coverage, ESM smoke and production dependencies without requiring PostgreSQL.
+The web suite separately verifies guest storage, WebSocket lifecycle, reconnect,
+command/event reduction, canonical projection, action-boundary restoration and
+the visible online route.
 
 ## Next phase
 
-Phase C.9 uses this completed backend stack to expose invite-based untimed multiplayer in the web client. Accounts, public matchmaking, ratings and server-authoritative clocks remain later work.
+Phase C.10 replaces browser-session-only identity with durable accounts and
+cross-device continuity. Backend deployment, public matchmaking, ratings,
+rematches and server-authoritative clocks remain separate work.
