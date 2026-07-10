@@ -1,25 +1,20 @@
-// Shared state/action shapes for the game store and its controllers. Splitting
-// GameState (authoritative data) from GameActions (the command surface) lets the
-// controller modules type against the data slice without depending on the store.
 import type { PhaseState } from "../../app/phases";
-import type { MatchConfig } from "../setup/matchConfig";
-import type { Action, BoardState, DefendedKingPreview, PawnType, PieceType, Player, Vec2, toPythonSnapshot } from "../engine";
+import type {
+  BoardState,
+  PawnType,
+  PendingDefendedKing as CorePendingDefendedKing,
+  PendingPlacement,
+  PendingTransform as CorePendingTransform,
+  PiecesLeft as CorePiecesLeft,
+  Player,
+  Vec2,
+} from "../engine";
+import type { ResolvedMatchConfig } from "../setup/matchConfig";
 
-export type PiecesLeft = Record<Player, Record<PieceType, number>>;
-export type PendingPlacement = { player: Player; pieceType: PieceType };
-export type PendingTransform = {
-  owner: Player;
-  pos: Vec2;
-  player: Player;
-  pieceType: PawnType;
-  forceTurnSwitch: boolean;
-};
-export type PendingDefendedKing = {
-  owner: Player;
-  action: Action;
-  preview: DefendedKingPreview;
-  defenders: Vec2[];
-};
+export type PiecesLeft = CorePiecesLeft;
+export type PlacementItem = PendingPlacement;
+export type PendingTransform = CorePendingTransform;
+export type PendingDefendedKing = CorePendingDefendedKing;
 
 export interface HistoryEntry {
   board: BoardState;
@@ -28,7 +23,7 @@ export interface HistoryEntry {
   kingMoved: boolean;
   turnCounter: number;
   placementCursor: number;
-  currentPlacement: PendingPlacement | null;
+  currentPlacement: PlacementItem | null;
   piecesLeft: PiecesLeft;
   phase: PhaseState;
   lastAction: string;
@@ -38,39 +33,26 @@ export interface HistoryEntry {
   timeLeft: Record<Player, number>;
 }
 
-export interface StartMatchOptions {
-  transformEnabled?: boolean;
-  aiEnabled?: boolean;
-  aiPlayer?: Player;
-  seed?: number;
-}
-
 export interface SavedGame {
   schema: 1 | 2;
-  appVersion?: string;
-  savedAt?: string;
-  board: ReturnType<typeof toPythonSnapshot>;
-  phase: PhaseState;
+  board: unknown;
   currentPlayer: Player;
   movesThisTurn: number;
   kingMoved: boolean;
   turnCounter: number;
   placementCursor: number;
-  currentPlacement: PendingPlacement | null;
   piecesLeft: PiecesLeft;
+  phase: PhaseState;
   lastAction: string;
-  message: string;
+  pendingTransform: PendingTransform | null;
+  pendingDefendedKing: PendingDefendedKing | null;
   aiEnabled: boolean;
   aiPlayer: Player;
   hasActiveMatch: boolean;
-  matchConfig: MatchConfig | null;
+  matchConfig: ResolvedMatchConfig | null;
   timeLeft: Record<Player, number>;
-  pendingTransform?: PendingTransform | null;
-  pendingDefendedKing?: PendingDefendedKing | null;
-  history?: HistoryEntry[];
 }
 
-/** Authoritative + transient data the store holds (no action functions). */
 export interface GameState {
   phase: PhaseState;
   board: BoardState;
@@ -81,7 +63,7 @@ export interface GameState {
   selected: Vec2 | null;
   legalTargets: Vec2[];
   placementCursor: number;
-  currentPlacement: PendingPlacement | null;
+  currentPlacement: PlacementItem | null;
   piecesLeft: PiecesLeft;
   lastAction: string;
   message: string;
@@ -91,19 +73,18 @@ export interface GameState {
   aiEnabled: boolean;
   aiPlayer: Player;
   hasActiveMatch: boolean;
-  matchConfig: MatchConfig | null;
+  matchConfig: ResolvedMatchConfig | null;
   timeLeft: Record<Player, number>;
   clockRunningFor: Player | null;
   clockLastSyncMs: number | null;
 }
 
-/** The public command surface. */
 export interface GameActions {
-  startConfiguredMatch: (config: MatchConfig) => void;
-  startQuickMatch: (options?: StartMatchOptions) => void;
-  startManualPlacement: (options?: StartMatchOptions) => void;
+  startConfiguredMatch: (config: ResolvedMatchConfig) => void;
+  startQuickMatch: (options?: { aiEnabled?: boolean; aiPlayer?: Player; transformEnabled?: boolean; seed?: number }) => void;
   startAiMatch: () => void;
   startTransformMatch: () => void;
+  startManualPlacement: (options?: { aiEnabled?: boolean; aiPlayer?: Player; transformEnabled?: boolean; seed?: number }) => void;
   openRules: () => void;
   returnHome: () => void;
   activateSquare: (pos: Vec2) => void;
@@ -123,6 +104,4 @@ export interface GameActions {
 }
 
 export type GameStore = GameState & GameActions;
-
-/** A patch a controller returns for the store to apply via `set`. */
 export type StatePatch = Partial<GameState>;
