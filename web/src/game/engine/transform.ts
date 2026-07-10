@@ -1,5 +1,6 @@
 import { PAWN_TYPES } from "./config";
 import { cheb, cloneBoard, getPiece, hasPos, inBounds, setPiece, sortPositions } from "./board";
+import { choice, mulberry32 } from "./random";
 import { evaluateVictory } from "./victory";
 import { getSpecialControl, updateControl } from "./territory";
 import type { BoardState, PawnType, Piece, TransitionEvent, TransitionResult, Vec2 } from "./types";
@@ -15,13 +16,6 @@ function pawnEntries(board: BoardState): Array<{ pos: Vec2; piece: Piece }> {
     }
   }
   return entries;
-}
-
-function seededIndex(seed: number | undefined, length: number): number {
-  if (length <= 1 || seed === undefined) {
-    return 0;
-  }
-  return Math.abs(Math.trunc(seed)) % length;
 }
 
 export function generateTransformSquare(board: BoardState, seed?: number): boolean {
@@ -48,10 +42,14 @@ export function generateTransformSquare(board: BoardState, seed?: number): boole
   }
 
   const sorted = sortPositions(candidates);
-  const chosen = sorted[seededIndex(seed, sorted.length)];
-  if (!chosen) {
+  if (sorted.length === 0) {
     return false;
   }
+  // Seeded selection uses the shared Mulberry32 choice so the Python and
+  // TypeScript engines pick the same square for the same seed. The no-seed
+  // path (real matches that do not pin a seed) stays deterministic on the
+  // first sorted candidate; it is engine-local and not a parity contract.
+  const chosen = seed === undefined ? sorted[0] : (choice(sorted, mulberry32(seed)) as Vec2);
   board.transformSquares = [chosen];
   return true;
 }
