@@ -12,21 +12,8 @@ import type { GameState, SavedGame, StatePatch } from "../state/storeTypes";
 
 export const SAVE_KEY = "assalto-reale-save";
 
-const VALID_PIECE_TYPES = new Set<string>([
-  "AttackPawn",
-  "DefensePawn",
-  "ConquestPawn",
-  "King",
-]);
-const VALID_PHASES = new Set<string>([
-  "home",
-  "setup",
-  "placement",
-  "playing",
-  "defenderSelection",
-  "transformSelection",
-  "gameOver",
-]);
+const VALID_PIECE_TYPES = new Set<string>(["AttackPawn", "DefensePawn", "ConquestPawn", "King"]);
+const VALID_PHASES = new Set<string>(["home", "setup", "placement", "playing", "defenderSelection", "transformSelection", "gameOver"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -37,22 +24,11 @@ function isPlayer(value: unknown): value is Player {
 }
 
 function isValidTimeLeft(value: unknown): value is Record<Player, number> {
-  return (
-    isRecord(value) &&
-    typeof value.Black === "number" &&
-    typeof value.White === "number" &&
-    value.Black >= 0 &&
-    value.White >= 0
-  );
+  return isRecord(value) && typeof value.Black === "number" && typeof value.White === "number" && value.Black >= 0 && value.White >= 0;
 }
 
 function isValidPiece(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isPlayer(value.player) &&
-    typeof value.type === "string" &&
-    VALID_PIECE_TYPES.has(value.type)
-  );
+  return isRecord(value) && isPlayer(value.player) && typeof value.type === "string" && VALID_PIECE_TYPES.has(value.type);
 }
 
 function isWithinBounds(pos: unknown, rows: number, cols: number): boolean {
@@ -71,13 +47,7 @@ function isWithinBounds(pos: unknown, rows: number, cols: number): boolean {
 function isValidBoardSnapshot(value: unknown): boolean {
   if (!isRecord(value) || !isRecord(value.config)) return false;
   const { rows, cols } = value.config;
-  if (
-    typeof rows !== "number" ||
-    typeof cols !== "number" ||
-    rows <= 0 ||
-    cols <= 0
-  )
-    return false;
+  if (typeof rows !== "number" || typeof cols !== "number" || rows <= 0 || cols <= 0) return false;
   if (!Array.isArray(value.grid) || value.grid.length !== rows) return false;
   for (const row of value.grid) {
     if (!Array.isArray(row) || row.length !== cols) return false;
@@ -102,43 +72,18 @@ function isValidPendingOwner(value: unknown): boolean {
 export function validateSavedGame(value: unknown): SavedGame | null {
   if (!isRecord(value)) return null;
   if (value.schema !== 1 && value.schema !== 2) return null;
-  if (
-    !isRecord(value.phase) ||
-    typeof value.phase.phase !== "string" ||
-    !VALID_PHASES.has(value.phase.phase)
-  )
-    return null;
+  if (!isRecord(value.phase) || typeof value.phase.phase !== "string" || !VALID_PHASES.has(value.phase.phase)) return null;
   if (!isValidBoardSnapshot(value.board)) return null;
   if (!isPlayer(value.currentPlayer) || !isPlayer(value.aiPlayer)) return null;
-  if (
-    typeof value.movesThisTurn !== "number" ||
-    value.movesThisTurn < 0 ||
-    value.movesThisTurn > 2
-  )
-    return null;
+  if (typeof value.movesThisTurn !== "number" || value.movesThisTurn < 0 || value.movesThisTurn > 2) return null;
   if (typeof value.kingMoved !== "boolean") return null;
-  if (typeof value.turnCounter !== "number" || value.turnCounter < 0)
-    return null;
-  if (
-    typeof value.placementCursor !== "number" ||
-    value.placementCursor < 0 ||
-    value.placementCursor > TOTAL_PLACEMENTS
-  )
-    return null;
+  if (typeof value.turnCounter !== "number" || value.turnCounter < 0) return null;
+  if (typeof value.placementCursor !== "number" || value.placementCursor < 0 || value.placementCursor > TOTAL_PLACEMENTS) return null;
   if (!isRecord(value.piecesLeft)) return null;
-  if (typeof value.lastAction !== "string" || typeof value.message !== "string")
-    return null;
-  if (
-    typeof value.aiEnabled !== "boolean" ||
-    typeof value.hasActiveMatch !== "boolean"
-  )
-    return null;
+  if (typeof value.lastAction !== "string" || typeof value.message !== "string") return null;
+  if (typeof value.aiEnabled !== "boolean" || typeof value.hasActiveMatch !== "boolean") return null;
   if (!isValidTimeLeft(value.timeLeft)) return null;
-  if (
-    !isValidPendingOwner(value.pendingDefendedKing) ||
-    !isValidPendingOwner(value.pendingTransform)
-  )
-    return null;
+  if (!isValidPendingOwner(value.pendingDefendedKing) || !isValidPendingOwner(value.pendingTransform)) return null;
   return value as unknown as SavedGame;
 }
 
@@ -151,9 +96,7 @@ export function loadSavedGame(raw: string): SavedGame | null {
 }
 
 export function localStorageAvailable(): boolean {
-  return (
-    typeof window !== "undefined" && typeof window.localStorage !== "undefined"
-  );
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 export function savedGameFromState(state: GameState): SavedGame {
@@ -187,10 +130,7 @@ export function savedGameFromState(state: GameState): SavedGame {
  * Pure restore payload. May throw if `fromPythonSnapshot` rejects the board; the
  * caller wraps it so a bad save never corrupts the in-memory match.
  */
-export function buildRestorePatch(
-  saved: SavedGame,
-  message = "Game loaded.",
-): StatePatch {
+export function buildRestorePatch(saved: SavedGame, message = "Game loaded."): StatePatch {
   return {
     board: fromPythonSnapshot(saved.board),
     phase: saved.phase,
@@ -208,16 +148,13 @@ export function buildRestorePatch(
     aiPlayer: saved.aiPlayer,
     hasActiveMatch: saved.hasActiveMatch ?? true,
     matchConfig: saved.matchConfig ?? null,
-    timeLeft:
-      saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
+    timeLeft: saved.timeLeft ?? initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
     clockRunningFor: null,
     clockLastSyncMs: null,
     selected: null,
     legalTargets: [],
-    pendingTransform:
-      saved.schema === 2 ? (saved.pendingTransform ?? null) : null,
-    pendingDefendedKing:
-      saved.schema === 2 ? (saved.pendingDefendedKing ?? null) : null,
+    pendingTransform: saved.schema === 2 ? (saved.pendingTransform ?? null) : null,
+    pendingDefendedKing: saved.schema === 2 ? (saved.pendingDefendedKing ?? null) : null,
     history: saved.schema === 2 ? (saved.history ?? []) : [],
   };
 }
