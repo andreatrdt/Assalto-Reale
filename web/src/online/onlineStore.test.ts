@@ -1,16 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuestSessionCredentials } from "./onlineIdentity";
 import type { CommandContext, OnlineConnectionStatus } from "./onlineClient";
-import type {
-  CanonicalMatchSnapshot,
-  ClientCommand,
-  ServerEventEnvelope,
-} from "./protocol";
+import type { CanonicalMatchSnapshot, ClientCommand, ServerEventEnvelope } from "./protocol";
 
-type OnlineStoreHook =
-  typeof import("./onlineStore")["useOnlineMatchStore"];
-type GameStoreHook =
-  typeof import("../game/state/gameStore")["useGameStore"];
+type OnlineStoreHook = (typeof import("./onlineStore"))["useOnlineMatchStore"];
+type GameStoreHook = (typeof import("../game/state/gameStore"))["useGameStore"];
 
 interface MockClientOptions {
   onStatus(status: OnlineConnectionStatus, detail?: string): void;
@@ -24,7 +18,7 @@ const PRINCIPAL: GuestSessionCredentials = {
   expiresAt: "2030-01-01T00:00:00.000Z",
 };
 
-const SNAPSHOT = { schema: 2 } as CanonicalMatchSnapshot;
+const SNAPSHOT = { schema: 1 } as unknown as CanonicalMatchSnapshot;
 
 let configuredUrl: string | null = "ws://games.test/ws";
 let connectError: Error | null = null;
@@ -39,16 +33,12 @@ const applyOnlineSnapshot = vi.fn(() => true);
 const clearOnlineProjection = vi.fn();
 
 class MockOnlineClient {
-  readonly send = vi.fn(
-    (_command: ClientCommand, _context?: CommandContext): string => {
-      if (sendError) throw sendError;
-      sentId += 1;
-      return `command_mock${sentId}`;
-    },
-  );
-  readonly setMatchContext = vi.fn(
-    (_matchId: string | null, _matchVersion: number | null) => undefined,
-  );
+  readonly send = vi.fn((_command: ClientCommand, _context?: CommandContext): string => {
+    if (sendError) throw sendError;
+    sentId += 1;
+    return `command_mock${sentId}`;
+  });
+  readonly setMatchContext = vi.fn((_matchId: string | null, _matchVersion: number | null) => undefined);
   readonly disconnect = vi.fn(() => undefined);
 
   constructor(private readonly options: MockClientOptions) {
@@ -89,10 +79,7 @@ function memoryStorage(): Storage {
   };
 }
 
-function eventEnvelope(
-  event: ServerEventEnvelope["event"],
-  overrides: Partial<ServerEventEnvelope> = {},
-): ServerEventEnvelope {
+function eventEnvelope(event: ServerEventEnvelope["event"], overrides: Partial<ServerEventEnvelope> = {}): ServerEventEnvelope {
   sequence += 1;
   return {
     protocol: "assalto-reale",
@@ -215,33 +202,19 @@ describe("online match store", () => {
       message: "Online match created. Share the invite code with your opponent.",
       side: "Black",
     });
-    expect(window.sessionStorage.getItem("assalto:online-match")).toContain(
-      "match_online01",
-    );
-    expect(client().setMatchContext).toHaveBeenLastCalledWith(
-      "match_online01",
-      1,
-    );
+    expect(window.sessionStorage.getItem("assalto:online-match")).toContain("match_online01");
+    expect(client().setMatchContext).toHaveBeenLastCalledWith("match_online01", 1);
 
     const projectionCalls = applyOnlineSnapshot.mock.calls.length;
-    client().emit(
-      eventEnvelope(
-        { type: "MatchSnapshot", snapshot: SNAPSHOT },
-        { streamSequence: 1, matchVersion: 1 },
-      ),
-    );
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT }, { streamSequence: 1, matchVersion: 1 }));
     expect(applyOnlineSnapshot).toHaveBeenCalledTimes(projectionCalls);
   });
 
   it("normalizes invite codes and handles join and sync events", async () => {
     await expect(onlineStore.getState().joinMatch("x")).resolves.toBe(false);
-    expect(onlineStore.getState().lastError).toBe(
-      "Enter a valid invite code.",
-    );
+    expect(onlineStore.getState().lastError).toBe("Enter a valid invite code.");
 
-    await expect(
-      onlineStore.getState().joinMatch(" inv-0001 "),
-    ).resolves.toBe(true);
+    await expect(onlineStore.getState().joinMatch(" inv-0001 ")).resolves.toBe(true);
     expect(client().send).toHaveBeenLastCalledWith(
       { type: "JoinMatch", inviteCode: "INV-0001" },
       { matchId: null, expectedMatchVersion: null },
@@ -261,12 +234,7 @@ describe("online match store", () => {
       lastError: null,
     });
 
-    client().emit(
-      eventEnvelope(
-        { type: "MatchSnapshot", snapshot: SNAPSHOT },
-        { matchVersion: 3 },
-      ),
-    );
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT }, { matchVersion: 3 }));
     expect(onlineStore.getState()).toMatchObject({
       waitingForOpponent: false,
       matchVersion: 3,
@@ -336,9 +304,7 @@ describe("online match store", () => {
     );
     expect(gameStore.getState().message).toContain("Transform type");
 
-    client().emit(
-      eventEnvelope({ type: "TurnChanged", currentPlayer: "White" }),
-    );
+    client().emit(eventEnvelope({ type: "TurnChanged", currentPlayer: "White" }));
     expect(gameStore.getState().message).toBe("White to move.");
 
     client().emit(
@@ -392,9 +358,7 @@ describe("online match store", () => {
       onlineStore.setState({ pendingCommandId: null });
       expect(command()).toBe(true);
     }
-    const sentCommands = (
-      client().send.mock.calls as unknown as Array<[ClientCommand]>
-    ).map(([command]) => command);
+    const sentCommands = (client().send.mock.calls as unknown as Array<[ClientCommand]>).map(([command]) => command);
     expect(sentCommands).toEqual(
       expect.arrayContaining([
         {
@@ -463,9 +427,7 @@ describe("online match store", () => {
       lastRejectionCode: "illegal_command",
     });
     await expect(onlineStore.getState().resumeMatch()).resolves.toBe(true);
-    expect(gameStore.getState().message).toBe(
-      "Synchronizing online match…",
-    );
+    expect(gameStore.getState().message).toBe("Synchronizing online match…");
 
     sendError = new Error("socket write failed");
     onlineStore.setState({

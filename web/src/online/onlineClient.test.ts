@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnlineClient } from "./onlineClient";
 import { encodeServerMessage, type ServerEventEnvelope } from "./protocol";
 
+function closeEvent(code: number): Event {
+  const event = new Event("close") as Event & { code: number };
+  Object.defineProperty(event, "code", { value: code });
+  return event;
+}
+
 class FakeWebSocket extends EventTarget {
   static readonly CONNECTING = 0;
   static readonly OPEN = 1;
@@ -19,7 +25,7 @@ class FakeWebSocket extends EventTarget {
   close(code?: number, reason?: string): void {
     this.closeCalls.push([code, reason]);
     this.readyState = FakeWebSocket.CLOSED;
-    this.dispatchEvent(new CloseEvent("close", { code: code ?? 1000 }));
+    this.dispatchEvent(closeEvent(code ?? 1000));
   }
 
   open(): void {
@@ -37,7 +43,7 @@ class FakeWebSocket extends EventTarget {
 
   lose(code = 1006): void {
     this.readyState = FakeWebSocket.CLOSED;
-    this.dispatchEvent(new CloseEvent("close", { code }));
+    this.dispatchEvent(closeEvent(code));
   }
 }
 
@@ -96,9 +102,7 @@ describe("OnlineClient", () => {
       websocketUrl: "wss://games.example/ws",
       acquireSession,
       createWebSocket: (url) => {
-        expect(url).toBe(
-          "wss://games.example/ws?access_token=signed+guest+token",
-        );
+        expect(url).toBe("wss://games.example/ws?access_token=signed+guest+token");
         const socket = new FakeWebSocket();
         sockets.push(socket);
         return socket as unknown as WebSocket;
@@ -116,10 +120,7 @@ describe("OnlineClient", () => {
     expect(sockets).toHaveLength(1);
 
     sockets[0]?.open();
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      CREDENTIALS,
-      CREDENTIALS,
-    ]);
+    await expect(Promise.all([first, second])).resolves.toEqual([CREDENTIALS, CREDENTIALS]);
     expect(client.connected).toBe(true);
     expect(client.principal).toEqual({
       playerId: CREDENTIALS.playerId,
@@ -195,10 +196,7 @@ describe("OnlineClient", () => {
     expect(onEnvelope).toHaveBeenCalledWith(envelope);
 
     socket.message("not-json");
-    expect(onStatus).toHaveBeenCalledWith(
-      "error",
-      "Message is not valid JSON.",
-    );
+    expect(onStatus).toHaveBeenCalledWith("error", "Message is not valid JSON.");
 
     socket.message(new Uint8Array([1, 2, 3]));
     expect(onEnvelope).toHaveBeenCalledTimes(1);
@@ -263,10 +261,7 @@ describe("OnlineClient", () => {
     await initial;
     sockets[0]?.lose();
 
-    expect(statuses.at(-1)).toEqual([
-      "offline",
-      "Connection lost. Reconnecting…",
-    ]);
+    expect(statuses.at(-1)).toEqual(["offline", "Connection lost. Reconnecting…"]);
     expect(scheduled).toHaveLength(1);
 
     scheduled.shift()?.();
