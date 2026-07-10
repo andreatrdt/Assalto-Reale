@@ -3,16 +3,7 @@
 // controller modules type against the data slice without depending on the store.
 import type { PhaseState } from "../../app/phases";
 import type { MatchConfig } from "../setup/matchConfig";
-import type {
-  Action,
-  BoardState,
-  DefendedKingPreview,
-  PawnType,
-  PieceType,
-  Player,
-  Vec2,
-  toPythonSnapshot,
-} from "../engine";
+import type { Action, BoardState, DefendedKingPreview, PawnType, PieceType, Player, Vec2, toPythonSnapshot } from "../engine";
 
 export type PiecesLeft = Record<Player, Record<PieceType, number>>;
 export type PendingPlacement = { player: Player; pieceType: PieceType };
