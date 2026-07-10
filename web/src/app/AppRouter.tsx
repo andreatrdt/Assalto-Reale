@@ -5,6 +5,7 @@ import { useUiSettings } from "../ui/uiSettings";
 import { GamePage } from "../pages/GamePage";
 import { HomePage } from "../pages/HomePage";
 import { LoadPage } from "../pages/LoadPage";
+import { OnlinePage } from "../pages/OnlinePage";
 import { RulesPage } from "../pages/RulesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SetupPage } from "../pages/SetupPage";
@@ -40,6 +41,7 @@ export function AppRouter() {
   }, [hasActiveMatch, navigate, route]);
 
   if (route === "/setup") return <SetupPage route={route} navigate={navigate} />;
+  if (route === "/online") return <OnlinePage route={route} navigate={navigate} />;
   if (route === "/game" && hasActiveMatch) return <GamePage navigate={navigate} />;
   if (route === "/rules") return <RulesPage route={route} navigate={navigate} />;
   if (route === "/load") return <LoadPage route={route} navigate={navigate} />;
