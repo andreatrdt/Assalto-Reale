@@ -47,19 +47,13 @@ afterEach(() => {
 
 describe("online guest identity", () => {
   it("derives HTTP session and authenticated WebSocket URLs", () => {
-    expect(sessionEndpointFor("wss://games.example/ws?old=1")).toBe(
-      "https://games.example/session",
-    );
-    expect(
-      authenticatedWebSocketUrl("wss://games.example/ws", "a token"),
-    ).toBe("wss://games.example/ws?access_token=a+token");
+    expect(sessionEndpointFor("wss://games.example/ws?old=1")).toBe("https://games.example/session");
+    expect(authenticatedWebSocketUrl("wss://games.example/ws", "a token")).toBe("wss://games.example/ws?access_token=a+token");
   });
 
   it("round-trips a valid unexpired session through sessionStorage", () => {
     saveGuestSession(SESSION);
-    expect(loadGuestSession(Date.parse("2029-01-01T00:00:00.000Z"))).toEqual(
-      SESSION,
-    );
+    expect(loadGuestSession(Date.parse("2029-01-01T00:00:00.000Z"))).toEqual(SESSION);
     clearGuestSession();
     expect(loadGuestSession()).toBeNull();
   });
@@ -76,33 +70,28 @@ describe("online guest identity", () => {
   });
 
   it("acquires, validates and caches a server-issued session", async () => {
-    const fetcher = vi.fn(async () =>
-      new Response(JSON.stringify(SESSION), {
-        status: 201,
-        headers: { "content-type": "application/json" },
-      }),
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify(SESSION), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        }),
     );
 
-    await expect(
-      acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher),
-    ).resolves.toEqual(SESSION);
-    expect(fetcher).toHaveBeenCalledWith(
-      "http://127.0.0.1:8080/session",
-      expect.objectContaining({ method: "POST" }),
-    );
+    await expect(acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher)).resolves.toEqual(SESSION);
+    expect(fetcher).toHaveBeenCalledWith("http://127.0.0.1:8080/session", expect.objectContaining({ method: "POST" }));
 
     await acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed for an invalid server response", async () => {
-    const fetcher = vi.fn(async () =>
-      new Response(JSON.stringify({ token: "missing-principal" }), {
-        status: 201,
-      }),
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ token: "missing-principal" }), {
+          status: 201,
+        }),
     );
-    await expect(
-      acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher),
-    ).rejects.toThrow("invalid guest session");
+    await expect(acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher)).rejects.toThrow("invalid guest session");
   });
 });

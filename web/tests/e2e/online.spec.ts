@@ -8,22 +8,14 @@ test.describe("invite multiplayer shell", () => {
     await page.getByRole("button", { name: "Play Online" }).click();
     await expect(page).toHaveURL(/\/online$/);
     await expect(page.getByRole("heading", { name: "Play Online" })).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Create a private match" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Enter an invite code" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Create a private match" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Enter an invite code" })).toBeVisible();
   });
 
-  test("unconfigured deployments fail closed without hiding the feature", async ({
-    page,
-  }) => {
+  test("unconfigured deployments fail closed without hiding the feature", async ({ page }) => {
     await page.goto("/online");
     await expect(page.getByText("Server not configured")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Create Online Match" }),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Create Online Match" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Join Match" })).toBeDisabled();
     await expect(page.getByLabel("Invite code")).toBeVisible();
   });
@@ -32,9 +24,7 @@ test.describe("invite multiplayer shell", () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto("/online");
 
-    const noHorizontalScroll = await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
-    );
+    const noHorizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(noHorizontalScroll).toBeTruthy();
   });
 });

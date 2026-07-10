@@ -4,9 +4,7 @@ import { useGameStore } from "../game/state/gameStore";
 import { applyOnlineSnapshot, clearOnlineProjection } from "./onlineProjection";
 import type { CanonicalMatchSnapshot } from "./protocol";
 
-function snapshot(
-  placementMode: "Manual" | "QuickBalanced" = "QuickBalanced",
-): CanonicalMatchSnapshot {
+function snapshot(placementMode: "Manual" | "QuickBalanced" = "QuickBalanced"): CanonicalMatchSnapshot {
   return JSON.parse(
     serializeState(
       createMatch({

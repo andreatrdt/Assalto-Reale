@@ -11,9 +11,7 @@ afterEach(() => {
 
 describe("online multiplayer presentation", () => {
   it("renders the visible host and join experience when no server is configured", () => {
-    const html = renderToStaticMarkup(
-      <OnlinePage route="/online" navigate={navigate} />,
-    );
+    const html = renderToStaticMarkup(<OnlinePage route="/online" navigate={navigate} />);
 
     expect(html).toContain("Play Online");
     expect(html).toContain("Create a private match");
