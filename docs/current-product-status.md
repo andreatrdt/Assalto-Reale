@@ -100,11 +100,12 @@ request / final report; keep this list as the shape of the required gates):
 
 ## Future milestones (not in scope here)
 
-1. Complete Python/TypeScript parity: exhaustive complete-turn, Defended-King,
-   Transform and territory/victory-precedence fixtures plus property-based
-   generated scenarios (the randomness foundation is done — see
-   `docs/rules-parity-contract.md`).
-2. `gameStore.ts` decomposition.
+1. Remaining Python/TypeScript parity: exhaustive Defended-King bounce/Transform
+   candidate enumeration and larger generated-sequence budgets. Complete-turn,
+   Defended-King, Transform, territory, victory-precedence and seeded-generation
+   parity are now proven (see `docs/rules-parity-contract.md`); this is enough to
+   make a behaviour-preserving `gameStore.ts` decomposition safe.
+2. `gameStore.ts` decomposition (now unblocked by the parity net).
 3. A pure shared TypeScript `game-core` module.
 4. A stronger AI (search/evaluation).
 5. Online multiplayer.
@@ -115,4 +116,5 @@ request / final report; keep this list as the shape of the required gates):
 Delivered since: persistence & match-lifecycle hardening; browser-quality
 hardening (accessibility/axe, keyboard, cross-browser, visual regression,
 reduced-motion/high-contrast, PWA/offline); the Python⇄TypeScript shared PRNG
-and seeded-generation parity (`docs/rules-parity-contract.md`).
+and seeded-generation parity; and complete-turn + special-mechanic parity
+(`docs/rules-parity-contract.md`).

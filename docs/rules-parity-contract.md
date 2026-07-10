@@ -64,10 +64,36 @@ range-2 Attack (orthogonal) and Defense (diagonal) captures incl. blocked and
 after-first-action; King acts once per turn; placement restrictions; territory
 claim creation/maturation and special control; the Defended-King preview fields.
 
-Behaviours **not yet exhaustively proven** (tracked, see "Remaining"): full
-complete-turn sequences, every Defended-King defender/bounce permutation, every
-Transform permutation, territory cancellation/replacement and victory
-precedence at the turn boundary, and property-based generated sequences.
+Complete turns and special mechanics are additionally **proven equivalent** by
+the sequence suite (`sequenceParity.test.ts`, 55 scenarios). Each scenario
+replays the Python reference engine's step sequence through the TypeScript
+engine, threading action points and King-acted state exactly as the engine
+reports them (`next_moves_this_turn` / `next_king_moved`), and asserts, per step:
+the **legal-action set** (curated scenarios), the built action, the transition
+result and a compact normalized board snapshot. Coverage:
+
+- **Complete turns** (10): two actions by the same/different piece; move→move,
+  move→capture, capture→turn-end; move→pass and full pass; King action followed
+  by a legal non-King action; a rejected second King action; two-action turn end
+  and reset; and an inter-turn player change via an explicit turn reset.
+- **Defended King** (7): single and multiple defenders (each selectable);
+  invalid-defender rejection; bounce blocked by an occupant; bounce landing on a
+  Transform Square (`triggers_transform`); and a range-2 defended attack — each
+  emitting the `defended_king` → `capture` → `bounce` event chain.
+- **Transform** (3): move onto a Transform Square then convert to each pawn type,
+  with seeded Transform-Square relocation, and a no-relocation case.
+- **Territory** (3): claim creation → progression → maturation into a territory
+  victory at the turn boundary; and cancellation by both a move and a capture.
+- **Victory** (2): King-capture victory, and **precedence** — a King capture
+  wins even while the capturing side holds a mature-able territory majority.
+- **Generated** (30): deterministic seeded legal full-turn sequences (two turns
+  each) drive both engines through the shared PRNG; the seed is in each scenario
+  name for reproducible replay.
+
+No divergences were found: the TypeScript engine reproduced every Python
+reference value across all 55 scenarios (and the 66 single-action + 20 seeded
+fixtures). Terminal-state immutability and timeout are **store-level**
+orchestration, not pure-engine behaviour (see "Intentional non-parity").
 
 ## Randomness policy (canonical)
 
@@ -112,11 +138,11 @@ Transform Square outputs exactly.
 - **Reference oracle:** the **Python** engine (`assalto_core.py`). It generates
   the parity fixtures and remains the regression oracle.
 - **Transition criteria:** a behaviour becomes TS-authoritative once it is covered
-  by exact-parity fixtures generated from Python and green in CI. Until the
-  complete-turn / special-mechanic / property-based phases below are proven, new
-  rule changes must land in **both** engines and be fixture-checked. Python
-  becomes reference-only after those phases are complete; that transition is not
-  yet reached.
+  by exact-parity fixtures generated from Python and green in CI. Single actions,
+  complete turns, Defended King, Transform, territory, victory precedence and
+  seeded generation are now covered, so those areas are TS-authoritative with
+  Python as the oracle. New rule changes must still land in **both** engines and
+  be fixture-checked until the remaining permutations below are covered.
 
 This document does **not** authorize a `game-core` extraction or a `gameStore.ts`
 refactor — those are separate, later work.
@@ -129,15 +155,32 @@ Run from `web/`:
   from the Python engine (needs `python`; no pygame required).
 - `npm run parity:check` — fail if the committed fixtures are stale (regenerates
   into a temp file and byte-compares; never mutates the committed file).
-- `npm run parity:test` — run the TypeScript parity suites against the fixtures.
+- `npm run parity:test` — run the TypeScript parity suites (single-action,
+  seeded-generation and sequence) against the fixtures.
+
+## Intentional non-parity (store-level)
+
+The pure engines do not model these; they live in the web store / Python app and
+are **not** compared here:
+
+- **Turn orchestration** — whose turn it is, switching players and resetting
+  action points at the boundary. The parity harness drives these explicitly
+  (`reset_turn`) and compares the engine's per-action accounting.
+- **Terminal-state immutability** — refusing further input after a win is a
+  store concern; the engine still computes actions on a finished board.
+- **Timeouts** — the countdown/timeout victory exists only in the web store, not
+  the pure Python engine.
 
 ## Remaining (deferred, tracked)
 
-Proven so far: the shared PRNG + seeded generation parity, and the existing
-single-action / capture / placement / territory / defended-king-preview fixtures.
-Still to build for a complete contract: exhaustive complete-turn parity; full
-Defended-King and Transform permutation parity; territory
-cancellation/replacement and turn-boundary victory precedence; property-based
-generated seeded scenarios (fast-check ⇄ Hypothesis or a shared generator); and a
-CI parity job (added alongside this work). These do **not** yet constitute
-complete engine equivalence and must not be described as such.
+Proven: the shared PRNG + seeded generation parity; single-action / capture /
+placement fixtures; and complete-turn, Defended-King, Transform, territory,
+victory-precedence and generated-sequence parity (`sequenceParity.test.ts`).
+
+Still open (not blocking a behaviour-preserving `gameStore.ts` decomposition):
+exhaustive enumeration of every Defended-King bounce geometry and Transform
+candidate layout; larger generated-sequence budgets (more seeds / longer turns);
+and a property-based framework (Hypothesis ⇄ fast-check) — deliberately **not**
+adopted here in favour of the shared deterministic generator, which keeps one
+fixture pipeline. This is strong behavioural parity for full turns and special
+mechanics; it is not a proof of total equivalence for every reachable position.

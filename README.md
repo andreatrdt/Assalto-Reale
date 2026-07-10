@@ -207,10 +207,13 @@ npm run e2e
 npm run dev
 ```
 
-Parity fixtures are generated from the Python engine with:
+Python ⇄ TypeScript parity is fixture-driven (contract:
+[`docs/rules-parity-contract.md`](docs/rules-parity-contract.md)). From `web/`:
 
 ```bash
-python web/scripts/generate_engine_fixtures.py
+npm run parity:generate   # regenerate fixtures from the Python engine (needs python)
+npm run parity:check      # fail if the committed fixtures are stale
+npm run parity:test       # single-action + seeded-generation + complete-turn/mechanic parity
 ```
 
 To package a reviewable static artifact:
