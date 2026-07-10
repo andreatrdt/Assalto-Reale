@@ -1,4 +1,4 @@
-name: Retry C9 bootstrap patch
+name: Format C9 sources
 
 on:
   pull_request:
@@ -7,178 +7,31 @@ permissions:
   contents: write
 
 jobs:
-  apply:
+  format:
     if: ${{ github.event.pull_request.head.ref == 'feat/c9-invite-multiplayer' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/c9-invite-multiplayer
-      - name: Patch guest endpoint and coordinates
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          transport = Path("packages/server-transport/src/transportServer.ts")
-          source = transport.read_text()
-          if "guestSessions?: GuestSessionIssuer;" not in source:
-              source = source.replace(
-                  'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\n',
-                  'import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";\nimport type { GuestSessionIssuer } from "./guestSessions.js";\n',
-                  1,
-              )
-              source = source.replace(
-                  "  authenticateConnection: ConnectionAuthenticator;\n",
-                  "  authenticateConnection: ConnectionAuthenticator;\n  guestSessions?: GuestSessionIssuer;\n",
-                  1,
-              )
-              start = source.index("  private async handleHttp(")
-              end = source.index("  private async handleUpgrade(", start)
-              replacement = '''  private async handleHttp(
-            request: IncomingMessage,
-            response: ServerResponse,
-          ): Promise<void> {
-            const path = parsePath(request);
-            const origin = typeof request.headers.origin === "string" ? request.headers.origin : null;
-
-            if (path === "/session") {
-              if (!this.options.guestSessions) {
-                this.sendJson(response, 404, { status: "not_found" }, false, origin);
-                return;
-              }
-              if (!this.isOriginAllowed(origin)) {
-                this.sendJson(response, 403, { status: "forbidden" }, false);
-                return;
-              }
-              if (request.method === "OPTIONS") {
-                response.writeHead(204, this.corsHeaders(origin));
-                response.end();
-                return;
-              }
-              if (request.method !== "POST") {
-                this.sendJson(response, 405, { status: "method_not_allowed" }, request.method === "HEAD", origin);
-                return;
-              }
-              try {
-                const session = await this.options.guestSessions.issue();
-                this.sendJson(response, 201, session, false, origin);
-              } catch (error) {
-                this.logger.error("Guest session issuance failed.", {
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                this.sendJson(response, 503, { status: "service_unavailable" }, false, origin);
-              }
-              return;
-            }
-
-            if (request.method !== "GET" && request.method !== "HEAD") {
-              this.sendJson(response, 405, { status: "method_not_allowed" }, request.method === "HEAD");
-              return;
-            }
-            if (path === "/healthz") {
-              this.sendJson(response, 200, { status: "ok" }, request.method === "HEAD");
-              return;
-            }
-            if (path === "/readyz") {
-              let ready = true;
-              try {
-                ready = (await this.options.readiness?.check()) ?? true;
-              } catch (error) {
-                ready = false;
-                this.logger.error("Readiness probe failed.", {
-                  error: error instanceof Error ? error.message : String(error),
-                });
-              }
-              this.sendJson(
-                response,
-                ready ? 200 : 503,
-                { status: ready ? "ready" : "not_ready" },
-                request.method === "HEAD",
-              );
-              return;
-            }
-            this.sendJson(response, 404, { status: "not_found" }, request.method === "HEAD");
-          }
-
-          private isOriginAllowed(origin: string | null): boolean {
-            return !this.allowedOrigins || !origin || this.allowedOrigins.has(origin);
-          }
-
-          private corsHeaders(origin: string | null): Record<string, string> {
-            if (!origin) return {};
-            return {
-              "access-control-allow-origin": origin,
-              "access-control-allow-methods": "POST, OPTIONS",
-              "access-control-allow-headers": "content-type, accept",
-              vary: "Origin",
-            };
-          }
-
-          private sendJson(
-            response: ServerResponse,
-            statusCode: number,
-            payload: unknown,
-            headOnly: boolean,
-            origin: string | null = null,
-          ): void {
-            const body = JSON.stringify(payload);
-            response.writeHead(statusCode, {
-              "content-type": "application/json; charset=utf-8",
-              "cache-control": "no-store",
-              "content-length": Buffer.byteLength(body),
-              ...this.corsHeaders(origin),
-            });
-            response.end(headOnly ? undefined : body);
-          }
-
-          '''
-              source = source[:start] + replacement + source[end:]
-              source, count = re.subn(
-                  r'    const origin = request\.headers\.origin;\n    if \(\n      this\.allowedOrigins &&\n      typeof origin === "string" &&\n      !this\.allowedOrigins\.has\(origin\)\n    \) \{',
-                  '    const origin = request.headers.origin;\n    if (!this.isOriginAllowed(typeof origin === "string" ? origin : null)) {',
-                  source,
-                  count=1,
-              )
-              if count != 1:
-                  raise SystemExit("upgrade origin target missing")
-              transport.write_text(source)
-
-          store = Path("web/src/online/onlineStore.ts")
-          source = store.read_text()
-          source = source.replace(
-              '    sendPlacement: (position) => send({ type: "PlacePiece", position }),\n',
-              '    sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),\n',
-              1,
-          )
-          source = source.replace(
-              '    sendAction: (start, end) => send({ type: "SubmitAction", start, end }),\n',
-              '    sendAction: (start, end) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]] }),\n',
-              1,
-          )
-          source = source.replace(
-              '    chooseDefender: (position) => send({ type: "ChooseDefender", position }),\n',
-              '    chooseDefender: (position) => send({ type: "ChooseDefender", position: [position[0], position[1]] }),\n',
-              1,
-          )
-          source = source.replace(
-              '    case "MatchSnapshot":\n      set({ ...base, lastError: null, lastRejectionCode: null });\n',
-              '    case "MatchSnapshot":\n      set({ ...base, waitingForOpponent: envelope.matchVersion !== null ? envelope.matchVersion < 2 : state.waitingForOpponent, lastError: null, lastRejectionCode: null });\n',
-              1,
-          )
-          store.write_text(source)
-          PY
-      - name: Format
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install formatters
         run: |
           npm ci --prefix web
           npm ci --prefix packages/server-transport
-          cd web && npx prettier --write src/online/onlineStore.ts
-          cd ../packages/server-transport && npx prettier --write src/transportServer.ts src/guestSessions.ts tests/guestSessions.test.ts tests/guestEndpoint.test.ts
-      - name: Commit
+      - name: Format C9 sources
+        run: |
+          cd web
+          npx prettier --write src/online src/pages/OnlinePage.tsx src/pages/HomePage.tsx src/app/AppRouter.tsx src/app/routes.ts src/styles/online.css src/styles/onlineGameHud.css
+          cd ../packages/server-transport
+          npx prettier --write src/guestSessions.ts src/transportServer.ts src/index.ts tests/guestSessions.test.ts tests/guestEndpoint.test.ts
+      - name: Commit formatting
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/src/online/onlineStore.ts packages/server-transport/src packages/server-transport/tests
+          git add web/src packages/server-transport/src packages/server-transport/tests
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "feat: add guest session bootstrap"
+          git commit -m "style: format invite multiplayer sources"
           git push origin HEAD:feat/c9-invite-multiplayer
