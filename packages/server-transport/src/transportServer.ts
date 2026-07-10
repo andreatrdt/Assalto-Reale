@@ -98,10 +98,10 @@ function isPrincipal(
 ): value is AuthenticatedPrincipal {
   return Boolean(
     value &&
-      typeof value.playerId === "string" &&
-      value.playerId.length > 0 &&
-      typeof value.sessionId === "string" &&
-      value.sessionId.length > 0,
+    typeof value.playerId === "string" &&
+    value.playerId.length > 0 &&
+    typeof value.sessionId === "string" &&
+    value.sessionId.length > 0,
   );
 }
 
@@ -135,8 +135,7 @@ export class AuthoritativeTransportServer {
       options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
     this.heartbeatIntervalMs =
       options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-    this.shutdownGraceMs =
-      options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
+    this.shutdownGraceMs = options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
     this.websocketServer = new WebSocketServer({
       noServer: true,
       maxPayload: options.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES,
@@ -249,12 +248,7 @@ export class AuthoritativeTransportServer {
       return;
     }
     if (path === "/healthz") {
-      this.sendJson(
-        response,
-        200,
-        { status: "ok" },
-        request.method === "HEAD",
-      );
+      this.sendJson(response, 200, { status: "ok" }, request.method === "HEAD");
       return;
     }
     if (path === "/readyz") {
@@ -423,10 +417,7 @@ export class AuthoritativeTransportServer {
     envelopes: readonly ServerEventEnvelope[],
   ): void {
     for (const envelope of envelopes) {
-      if (
-        envelope.matchId &&
-        SUBSCRIPTION_EVENTS.has(envelope.event.type)
-      ) {
+      if (envelope.matchId && SUBSCRIPTION_EVENTS.has(envelope.event.type)) {
         this.subscribe(state, envelope.matchId);
       }
     }
@@ -452,10 +443,9 @@ export class AuthoritativeTransportServer {
         targets.add(origin.socket);
       }
     } else {
-      for (
-        const socket of
-        this.socketsByPlayer.get(envelope.recipient.playerId) ?? []
-      ) {
+      for (const socket of this.socketsByPlayer.get(
+        envelope.recipient.playerId,
+      ) ?? []) {
         targets.add(socket);
       }
     }

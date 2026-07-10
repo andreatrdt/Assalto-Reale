@@ -82,9 +82,9 @@ describe("authoritative HTTP/WebSocket transport", () => {
     expect(readiness.check).toHaveBeenCalledOnce();
 
     expect((await fetch(`${httpUrl}/missing`)).status).toBe(404);
-    expect(
-      (await fetch(`${httpUrl}/healthz`, { method: "POST" })).status,
-    ).toBe(405);
+    expect((await fetch(`${httpUrl}/healthz`, { method: "POST" })).status).toBe(
+      405,
+    );
 
     const second = await server.listen();
     expect(second.port).toBe(Number(new URL(httpUrl).port));
@@ -239,9 +239,7 @@ describe("authoritative HTTP/WebSocket transport", () => {
     expect(aliceJoinEvent).toEqual(bobJoinEvent);
     expect(bobJoinEvent.event.type).toBe("PlayerJoined");
 
-    const aliceReconnect = track(
-      await openSocket(wsUrl, { token: "alice2" }),
-    );
+    const aliceReconnect = track(await openSocket(wsUrl, { token: "alice2" }));
     const oldSessionSync = nextEnvelope(alice);
     const reconnectSync = nextEnvelope(aliceReconnect);
     sendJson(
