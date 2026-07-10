@@ -8,7 +8,13 @@ import { applyAction, type Action } from "../engine";
 import type { PhaseState } from "../../app/phases";
 import { createHistoryEntry } from "../history/historyController";
 import type { GameState, StatePatch } from "../state/storeTypes";
-import { advanceHalfTurn, describeAction, describePiece, squareName, transformEvent } from "./turnHelpers";
+import {
+  advanceHalfTurn,
+  describeAction,
+  describePiece,
+  squareName,
+  transformEvent,
+} from "./turnHelpers";
 
 export function resolveCommit(state: GameState, action: Action): StatePatch {
   const { board, result } = applyAction(state.board, action, {
@@ -23,7 +29,9 @@ export function resolveCommit(state: GameState, action: Action): StatePatch {
   let turnCounter = state.turnCounter;
   let victory = result.victory;
   let pendingTransform = transformEvent(result);
-  let message = result.victory ? `${result.victory.winner} wins by ${result.victory.reason}.` : `${currentPlayer} to move.`;
+  let message = result.victory
+    ? `${result.victory.winner} wins by ${result.victory.reason}.`
+    : `${currentPlayer} to move.`;
 
   if (result.endsTurn) {
     const advanced = advanceHalfTurn(board, state);
@@ -34,11 +42,17 @@ export function resolveCommit(state: GameState, action: Action): StatePatch {
   }
 
   if (pendingTransform) {
-    pendingTransform = { ...pendingTransform, forceTurnSwitch: !result.endsTurn };
+    pendingTransform = {
+      ...pendingTransform,
+      forceTurnSwitch: !result.endsTurn,
+    };
     message = `${pendingTransform.player}: choose a Transform for ${describePiece(pendingTransform.pieceType)} on ${squareName(pendingTransform.pos)}.`;
   }
 
-  const lastAction = describeAction(action, action.defendedKing?.landingPosition ?? action.end ?? [0, 0]);
+  const lastAction = describeAction(
+    action,
+    action.defendedKing?.landingPosition ?? action.end ?? [0, 0],
+  );
   const nextPhase = victory
     ? { phase: "gameOver", previousPhase: "playing" }
     : pendingTransform
