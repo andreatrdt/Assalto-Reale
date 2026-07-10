@@ -72,4 +72,26 @@ test.describe("match lifecycle persistence", () => {
     await completePlacement(page);
     await expect(page.getByRole("button", { name: "Pass" })).toBeVisible();
   });
+
+  test("browser lifecycle events do not silently auto-save an unsaved match", async ({ page }) => {
+    // Persistence policy is explicit-save-only. Backgrounding or hiding the tab
+    // must NOT write a save behind the user's back, so an unsaved match is gone
+    // after a reload. (bfcache restore and realistic mobile process suspension
+    // are documented as out-of-scope limitations in docs/browser-quality.md.)
+    await startHumanMatch(page);
+    await placeValid(page, 3);
+
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("pagehide"));
+      window.dispatchEvent(new Event("beforeunload"));
+    });
+
+    await page.reload();
+    await page.goto("/load");
+
+    // No save was created, so there is nothing to continue.
+    await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+    await expect(page.getByText("No saved match")).toBeVisible();
+  });
 });
