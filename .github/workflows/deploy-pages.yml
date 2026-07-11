@@ -44,6 +44,7 @@ jobs:
       # The exact commit tested by CI (workflow_run) or the dispatched ref.
       SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
       BASE_PATH: ${{ github.event.inputs.base_path || '/Assalto-Reale/' }}
+      VITE_MULTIPLAYER_WS_URL: wss://assalto-reale-production.up.railway.app/ws
     outputs:
       source_commit: ${{ steps.resolve.outputs.sha }}
     steps:
