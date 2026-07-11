@@ -242,12 +242,17 @@ function validateCommandRouting(
         );
   }
   if (command.type === "JoinMatch") {
-    return matchId !== null && expectedMatchVersion === null
+    // A JoinMatch is resolved by its invite code. The joining device only knows
+    // the code, not the matchId, so matchId is optional: the authoritative core
+    // loads by matchId when one is supplied and otherwise resolves the invite
+    // (see authoritative-server CommandHandler). It never carries an expected
+    // version — membership is decided by the server, not by an optimistic check.
+    return expectedMatchVersion === null
       ? { ok: true, value: true }
       : error(
           "invalid_envelope",
           "expectedMatchVersion",
-          "JoinMatch requires a matchId and no expected version.",
+          "JoinMatch must not carry an expected match version.",
         );
   }
   if (command.type === "RequestSync") {
