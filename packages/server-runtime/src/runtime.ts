@@ -98,13 +98,11 @@ export function createRuntime(
       try {
         if (composed) await composed.server.close();
       } finally {
-        await pool
-          .end()
-          .catch((error) =>
-            logger.error("Error closing PostgreSQL pool.", {
-              error: messageOf(error),
-            }),
-          );
+        await pool.end().catch((error) =>
+          logger.error("Error closing PostgreSQL pool.", {
+            error: messageOf(error),
+          }),
+        );
       }
       logger.info("Multiplayer server stopped.");
     })();
