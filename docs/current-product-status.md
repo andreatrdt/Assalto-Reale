@@ -104,11 +104,22 @@ Phase C.9 adds invite-based untimed client integration:
 Anonymous guest sessions are not accounts. Cross-device continuity, production
 account identity and long-lived profile ownership remain Phase C.10.
 
+Phase C.9.5 adds the operational runtime that composes those packages into one
+runnable server (`packages/server-runtime`): validated fail-fast configuration,
+PostgreSQL pool + automatic migrations, liveness/readiness, structured logging,
+graceful shutdown, a multi-stage Docker image and a local `docker compose` stack.
+The composed stack is exercised end to end (HTTP guest session + two WebSocket
+players + gameplay + reconnect) in CI, including a PostgreSQL-backed run. See
+[`multiplayer-deployment.md`](multiplayer-deployment.md). It is **runnable and
+container-buildable but not publicly deployed**.
+
 ## Known limitations (currently true)
 
-- **The online backend is not deployed.** The web interface is present and fails
-  closed until a deployment supplies the WebSocket/session endpoint and the web
-  build is configured with `VITE_MULTIPLAYER_WS_URL`.
+- **The online backend is runnable but not publicly deployed.** The server can be
+  started locally (`docker compose up --build`) and built as a container, but no
+  external infrastructure is provisioned. The web interface fails closed until a
+  deployment supplies the WebSocket/session endpoint and the web build sets
+  `VITE_MULTIPLAYER_WS_URL`. See [`multiplayer-deployment.md`](multiplayer-deployment.md).
 - **Online matches are invite-only and untimed.** There is no public matchmaking,
   rating, spectator mode, rematch implementation or server-authoritative clock.
 - **Anonymous identity is browser-session scoped.** Clearing session storage or

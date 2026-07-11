@@ -6,6 +6,33 @@ metadata derive from it.
 
 ## Unreleased
 
+Operational multiplayer runtime (Phase C.9.5) — turns the tested backend packages
+into one runnable, containerized full-stack server. No accounts, matchmaking,
+timers or game rules. The backend is now locally runnable and container-buildable
+but is **not** publicly deployed. See
+[`docs/multiplayer-deployment.md`](docs/multiplayer-deployment.md).
+
+- Added `@assalto-reale/server-runtime`, a composition root that wires the
+  authoritative application core (commands, membership, idempotency, optimistic
+  concurrency, PostgreSQL repositories + migrations) to the HTTP/WebSocket
+  transport and HMAC guest sessions. It adds no game rules, protocol,
+  authentication or persistence logic of its own.
+- Validated fail-fast configuration (production rejects weak/missing guest
+  secret, missing origin allowlist and non-postgres `DATABASE_URL`; secrets are
+  never logged); crypto-backed clock/id/seed ports; structured JSON logging; a
+  production `createRuntime` (pool, automatic migrations, DB readiness probe,
+  graceful idempotent shutdown, non-zero exit on fatal startup).
+- Added a multi-stage Dockerfile (non-root, healthchecked), root
+  `docker-compose.yml` (PostgreSQL + server, health-gated), `.dockerignore`, and
+  `packages/server-runtime/.env.example` + `web/.env.example`.
+- Added a real composed-stack integration (HTTP guest sessions + two WebSocket
+  clients + gameplay + reconnect) over in-memory persistence, plus a
+  PostgreSQL-backed runtime integration gated on `TEST_DATABASE_URL`; config,
+  architecture-boundary and logger tests; a plain-Node smoke.
+- Extended `server-ci.yml` with a `server-runtime` job: strict typecheck, lint,
+  formatting, PostgreSQL-backed coverage, Node smoke, production audit and a
+  Docker image build.
+
 Invite-based untimed multiplayer — completes Phase C.9 at the code and validation
 level. The online UI is visible in the web client; a deployed and configured
 backend is still required for public online matches. See

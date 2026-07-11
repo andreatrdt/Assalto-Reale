@@ -208,3 +208,11 @@ the visible online route.
 Phase C.10 replaces browser-session-only identity with durable accounts and
 cross-device continuity. Backend deployment, public matchmaking, ratings,
 rematches and server-authoritative clocks remain separate work.
+
+## Composed runtime (Phase C.9.5)
+
+`packages/server-runtime` composes this application core (including its
+PostgreSQL repositories and `runPostgresMigrations`) with the transport into a
+runnable process. It does not reimplement commands, idempotency, concurrency or
+persistence — it only wires the public exports. See
+[`multiplayer-deployment.md`](multiplayer-deployment.md).

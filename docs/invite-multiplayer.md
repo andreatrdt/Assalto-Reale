@@ -108,3 +108,12 @@ and green.
 - public matchmaking, ratings and spectators;
 - rematch implementation;
 - server-authoritative clocks and timed online play.
+
+## Running the backend (Phase C.9.5)
+
+The composed, runnable server lives in `packages/server-runtime`. Start the local
+full stack with `docker compose up --build` and point the client at it with
+`VITE_MULTIPLAYER_WS_URL`. See [`multiplayer-deployment.md`](multiplayer-deployment.md)
+for configuration, migrations, health/readiness, security assumptions and the
+production checklist. The backend is runnable and container-buildable but not yet
+publicly deployed.
