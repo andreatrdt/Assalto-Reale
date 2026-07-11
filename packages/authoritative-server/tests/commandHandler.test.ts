@@ -100,6 +100,50 @@ describe("authoritative command handler (C.8.1)", () => {
     expect(aggregate.version).toBe(2);
   });
 
+  it("JoinMatch resolves the match by invite code when matchId is omitted", async () => {
+    // The real two-device flow: the joining device only has the invite code, not
+    // the matchId, so the envelope carries matchId=null and the server resolves
+    // the invite. (The client can never know the matchId before joining.)
+    const { handler, store } = harness();
+    const created = await handler.handle(
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_create01", playerId: ALICE },
+      ),
+    );
+    const inviteCode = only(created, "MatchCreated").inviteCode;
+    const matchId = [...store.matches.keys()][0]!;
+
+    const joined = await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_join0001", playerId: BOB, matchId: null },
+      ),
+    );
+
+    // The server resolved the invite and stamped the canonical matchId on the
+    // emitted events even though the client supplied none.
+    const playerJoined = only(joined, "PlayerJoined");
+    expect(playerJoined.assignedSide).toBe("White");
+    expect(joined[0]!.matchId).toBe(matchId);
+    const aggregate = store.matches.get(matchId)!;
+    expect(aggregate.members.White).toBe(BOB);
+    expect(aggregate.status).toBe("active");
+    expect(aggregate.version).toBe(2);
+  });
+
+  it("JoinMatch with an unknown invite code is rejected as invite_invalid", async () => {
+    const { handler } = harness();
+    const rejected = await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode: "NOSUCH01" },
+        { commandId: "cmd_join0001", playerId: BOB, matchId: null },
+      ),
+    );
+    const rejection = only(rejected, "CommandRejected");
+    expect(rejection.code).toBe("invite_invalid");
+  });
+
   it("a duplicate identical command returns the same result", async () => {
     const { handler, store } = harness();
     const msg = message(
