@@ -1,0 +1,57 @@
+# Local full-stack multiplayer backend: PostgreSQL + the composed authoritative
+# server. Start it with:  docker compose up --build
+# The Vite web client then connects with VITE_MULTIPLAYER_WS_URL=ws://127.0.0.1:8080/ws
+#
+# This is a DEVELOPMENT composition. The guest-session secret below is a
+# clearly-labelled local placeholder; production must supply a real secret and a
+# managed database (see docs/multiplayer-deployment.md).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: assalto
+      POSTGRES_PASSWORD: assalto
+      POSTGRES_DB: assalto_reale
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assalto -d assalto_reale"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  multiplayer-server:
+    build:
+      context: .
+      dockerfile: packages/server-runtime/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: "8080"
+      DATABASE_URL: postgresql://assalto:assalto@postgres:5432/assalto_reale
+      MULTIPLAYER_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      # Local development placeholder (>=32 bytes). NEVER use in production.
+      GUEST_SESSION_SECRET: local-development-guest-session-secret-change-me
+      WEBSOCKET_PATH: /ws
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/readyz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+# Named volume: the database survives `docker compose up/down`. Remove it with
+# `docker compose down -v` for a clean slate.
+volumes:
+  pgdata:

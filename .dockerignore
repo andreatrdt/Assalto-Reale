@@ -1,0 +1,28 @@
+# Keep the Docker build context small and free of host build artifacts. The
+# multiplayer server image (packages/server-runtime/Dockerfile) only needs the
+# backend package sources plus web's package manifests for the toolchain.
+**/node_modules
+**/dist
+.git
+.github
+**/*.log
+
+# Web app build/test artifacts (only web/package*.json is copied by the image).
+web/src
+web/tests
+web/public
+web/dist
+web/test-results
+web/playwright-report
+web/coverage
+
+# Unrelated to the backend image.
+PY_Assalto_reale
+assalto_pygbag_ready
+matlab_Assalto_reale
+Assalto_png
+pawns_png
+release
+docs
+tests
+*.md

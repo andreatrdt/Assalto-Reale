@@ -115,3 +115,11 @@ Permanent CI verifies:
 Backend deployment, production accounts, cross-device identity, public
 matchmaking, ratings, spectators, rematches and server-authoritative clocks remain
 outside the transport adapter.
+
+## Composed runtime (Phase C.9.5)
+
+`packages/server-runtime` composes this transport (guest sessions, HTTP/WebSocket)
+with the authoritative application core and PostgreSQL persistence into a runnable
+server, and adds validated configuration, health/readiness, structured logging,
+containerization and graceful shutdown. See
+[`multiplayer-deployment.md`](multiplayer-deployment.md).
