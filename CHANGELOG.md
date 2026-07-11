@@ -32,6 +32,13 @@ but is **not** publicly deployed. See
 - Extended `server-ci.yml` with a `server-runtime` job: strict typecheck, lint,
   formatting, PostgreSQL-backed coverage, Node smoke, production audit and a
   Docker image build.
+- Fixed the PostgreSQL-backed runtime integration, which fed an out-of-range
+  `PORT=0` to the fail-fast config loader (`loadConfig` requires `1–65535`, by
+  contract). It threw in `beforeAll` before the database ran — invisible locally
+  (the test is `TEST_DATABASE_URL`-gated) but failing the coverage step in CI and
+  skipping the smoke, audit and Docker steps. The test now binds an OS-assigned
+  ephemeral port without weakening the config contract; the full `server-runtime`
+  job (PostgreSQL integration, smoke, audit, Docker build) passes.
 
 Invite-based untimed multiplayer — completes Phase C.9 at the code and validation
 level. The online UI is visible in the web client; a deployed and configured

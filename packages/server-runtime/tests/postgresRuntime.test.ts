@@ -4,6 +4,7 @@ import {
   createRuntime,
   loadConfig,
   type Runtime,
+  type RuntimeConfig,
 } from "../src/index.js";
 import {
   QUICK_CONFIG,
@@ -27,14 +28,20 @@ describePostgres("composed runtime over PostgreSQL", () => {
   let wsBase: string;
 
   beforeAll(async () => {
-    const config = loadConfig({
-      NODE_ENV: "development",
-      DATABASE_URL: databaseUrl,
-      MULTIPLAYER_ALLOWED_ORIGINS: TEST_ORIGIN,
-      GUEST_SESSION_SECRET: TEST_SECRET,
-      HOST: "127.0.0.1",
-      PORT: "0",
-    });
+    // Bind an OS-assigned ephemeral port for the test. loadConfig deliberately
+    // rejects PORT=0 (a real deployment must bind a known port, see config.ts /
+    // config.test.ts), and start() returns the actually-bound address — so build
+    // a fully-validated config and override only the listen port to 0.
+    const config: RuntimeConfig = {
+      ...loadConfig({
+        NODE_ENV: "development",
+        DATABASE_URL: databaseUrl,
+        MULTIPLAYER_ALLOWED_ORIGINS: TEST_ORIGIN,
+        GUEST_SESSION_SECRET: TEST_SECRET,
+        HOST: "127.0.0.1",
+      }),
+      port: 0,
+    };
     runtime = createRuntime(config, {
       logger: createJsonLogger({ write: () => undefined }),
     });
