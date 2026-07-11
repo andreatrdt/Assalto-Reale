@@ -66,7 +66,7 @@ RespondToRematch
 
 `CreateMatch` has `matchId = null` and `expectedMatchVersion = null`. The client selects public game options but never supplies the deterministic setup seed; the server generates and persists it.
 
-`JoinMatch` supplies the target `matchId` and invitation code, with no expected version. The server validates the invitation and assigns the open side.
+`JoinMatch` supplies the invitation code, with no expected version. `matchId` is optional: the joining device only knows the code, so it normally sends `matchId = null` and the server resolves the invite. When a `matchId` is supplied the server loads it directly; either way it validates the invitation and assigns the open side.
 
 `RequestSync` supplies `lastSeenMatchVersion` and no expected version. The first server implementation may always answer with a full canonical snapshot. A later implementation can return events since the requested version without changing the command shape.
 

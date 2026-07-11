@@ -65,18 +65,23 @@ describe("composed multiplayer stack (in-memory)", () => {
       (created.event as { snapshot: { schema: number } }).snapshot.schema,
     ).toBe(1);
 
-    // 4 + 5: player B joins by code; both receive canonical state.
+    // 4 + 5: player B joins with ONLY the invite code (matchId omitted → null),
+    // exactly as the second device does: it never learns the matchId until the
+    // server resolves the invite. Both connections then receive canonical state.
     const clientB = await TestClient.connect(wsBase, sessionB);
     clientB.send(
       commandMessage(
         sessionB,
         { type: "JoinMatch", inviteCode },
-        { commandId: "cmd_join_b0001", matchId },
+        { commandId: "cmd_join_b0001" },
       ),
     );
     const joinedForB = await clientB.waitFor("PlayerJoined");
     const joinedForA = await clientA.waitFor("PlayerJoined");
     expect(joinedForA.matchVersion).toBe(2);
+    // The server stamped the canonical matchId onto the events it broadcast, even
+    // though B supplied none.
+    expect(joinedForB.matchId).toBe(matchId);
     expect((joinedForB.event as { assignedSide: string }).assignedSide).toBe(
       "White",
     );

@@ -147,6 +147,37 @@ describe("OnlineClient", () => {
     expect(sockets).toHaveLength(1);
   });
 
+  it("encodes an invite-code JoinMatch with no matchId (the second-device join)", async () => {
+    const socket = new FakeWebSocket();
+    const client = new OnlineClient({
+      websocketUrl: "wss://games.example/ws",
+      acquireSession: async () => CREDENTIALS,
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: vi.fn(),
+      onEnvelope: vi.fn(),
+      setTimeout: vi.fn() as unknown as typeof window.setTimeout,
+      clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
+    });
+
+    const connected = client.connect();
+    await allowConnectionSetup();
+    socket.open();
+    await connected;
+
+    // The joining device only knows the invite code, so matchId is null. This
+    // must produce a valid envelope, not throw (the production join-by-code bug).
+    let id = "";
+    expect(() => {
+      id = client.send({ type: "JoinMatch", inviteCode: "ABCD1234" }, { matchId: null, expectedMatchVersion: null });
+    }).not.toThrow();
+    expect(JSON.parse(socket.sent.at(-1) ?? "{}")).toMatchObject({
+      commandId: id,
+      matchId: null,
+      expectedMatchVersion: null,
+      command: { type: "JoinMatch", inviteCode: "ABCD1234" },
+    });
+  });
+
   it("requests a canonical sync when a match context reconnects", async () => {
     const socket = new FakeWebSocket();
     const client = new OnlineClient({

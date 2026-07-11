@@ -6,6 +6,20 @@ metadata derive from it.
 
 ## Unreleased
 
+Fixed join-by-invite-code, which failed on the first real two-device match with
+`expectedMatchVersion: JoinMatch requires a matchId and no expected version.` The
+joining device only knows the invite code, not the `matchId`, so it sends
+`JoinMatch` with `matchId = null` — the exact shape the authoritative server was
+built to resolve (it loads by `matchId` when present, otherwise resolves the
+invite). The shared protocol validator wrongly required a non-null `matchId` for
+`JoinMatch`, so `encodeClientMessage` threw before the command was ever sent.
+Validation now accepts an invite-code `JoinMatch` with no `matchId` (still
+forbidding an expected version); the wire shape, server authority, idempotency,
+expected-version semantics and reconnect are unchanged. Regression coverage added
+across the protocol consumers (authoritative core resolves by invite, the composed
+stack joins with the code only, and the browser client encodes a null-`matchId`
+`JoinMatch`).
+
 Operational multiplayer runtime (Phase C.9.5) — turns the tested backend packages
 into one runnable, containerized full-stack server. No accounts, matchmaking,
 timers or game rules. The backend is now locally runnable and container-buildable
