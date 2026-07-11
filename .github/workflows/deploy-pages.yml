@@ -34,17 +34,15 @@ concurrency:
 
 jobs:
   build:
-    # Deploy on manual dispatch, or only when CI succeeded on main.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     env:
-      # The exact commit tested by CI (workflow_run) or the dispatched ref.
       SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
       BASE_PATH: ${{ github.event.inputs.base_path || '/Assalto-Reale/' }}
-      VITE_MULTIPLAYER_WS_URL: wss://assalto-reale-production.up.railway.app/ws
+
     outputs:
       source_commit: ${{ steps.resolve.outputs.sha }}
     steps:
@@ -66,8 +64,11 @@ jobs:
       - name: Web unit tests (guard for manual dispatch)
         working-directory: web
         run: npm run test
+
       - name: Production build (with Pages base path)
         working-directory: web
+        env:
+          VITE_MULTIPLAYER_WS_URL: wss://assalto-reale-production.up.railway.app/ws
         run: npm run build -- --base "$BASE_PATH"
       - name: Write release metadata (records tested commit)
         working-directory: web
