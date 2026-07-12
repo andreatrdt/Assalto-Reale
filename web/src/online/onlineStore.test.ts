@@ -244,7 +244,7 @@ describe("online match store", () => {
     // the canonical reconnect/RequestSync response and always rehydrates the
     // board (this is the refresh-reconnect fix).
     const projectionCalls = applyOnlineSnapshot.mock.calls.length;
-    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT }, { streamSequence: 1, matchVersion: 1 }));
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "active" }, { streamSequence: 1, matchVersion: 1 }));
     expect(applyOnlineSnapshot).toHaveBeenCalledTimes(projectionCalls + 1);
   });
 
@@ -272,7 +272,7 @@ describe("online match store", () => {
       lastError: null,
     });
 
-    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT }, { matchVersion: 3 }));
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "active" }, { matchVersion: 3 }));
     expect(onlineStore.getState()).toMatchObject({
       waitingForOpponent: false,
       matchVersion: 3,
@@ -545,7 +545,7 @@ describe("online reconnect synchronization", () => {
 
     // The server answers with the canonical snapshot at the SAME stream position
     // the client persisted before the refresh; it must rehydrate, not be dropped.
-    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT }, { streamSequence: 5, matchVersion: 5 }));
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "active" }, { streamSequence: 5, matchVersion: 5 }));
 
     expect(applyOnlineSnapshot).toHaveBeenCalledTimes(before + 1);
     expect(onlineStore.getState().syncStatus).toBe("synchronized");
@@ -665,5 +665,72 @@ describe("online rematch", () => {
     expect(applyOnlineSnapshot).toHaveBeenLastCalledWith(SNAPSHOT, expect.objectContaining({ side: "Black" }));
     // The successor's live stream is requested so future events arrive.
     expect(client().send).toHaveBeenCalledWith({ type: "RequestSync", lastSeenMatchVersion: 1 }, { expectedMatchVersion: null });
+  });
+});
+
+describe("online lifecycle recovery (audit)", () => {
+  async function connectedMatch(matchId = "match_online01") {
+    await onlineStore.getState().connect();
+    onlineStore.setState({
+      matchId,
+      side: "Black",
+      connectionStatus: "connected",
+      matchVersion: 4,
+      streamSequence: 4,
+    });
+  }
+
+  it("clears a stuck pending command when a canonical snapshot arrives (lost-response recovery)", async () => {
+    await connectedMatch();
+    // The response to this command was lost after the server committed it.
+    onlineStore.setState({ pendingCommandId: "command_lost01" });
+
+    // Reconnect delivers a canonical snapshot caused by RequestSync, not the lost command.
+    client().emit(
+      eventEnvelope(
+        { type: "MatchSnapshot", snapshot: SNAPSHOT, status: "active" },
+        { matchVersion: 5, streamSequence: 5, causationCommandId: "command_sync01" },
+      ),
+    );
+
+    expect(onlineStore.getState().pendingCommandId).toBeNull();
+    // The client is unblocked: the next action is accepted, not "wait for previous".
+    expect(onlineStore.getState().passTurn()).toBe(true);
+  });
+
+  it("ignores a late event addressed to a previous match", async () => {
+    await connectedMatch("match_new0001");
+    const before = applyOnlineSnapshot.mock.calls.length;
+
+    // A stale Match A update arrives after we switched to the successor Match B.
+    client().emit(
+      eventEnvelope(
+        { type: "MatchUpdated", snapshot: SNAPSHOT, domainEvents: [] },
+        { matchId: "match_old0001", matchVersion: 9, streamSequence: 9 },
+      ),
+    );
+
+    expect(onlineStore.getState().matchId).toBe("match_new0001");
+    expect(onlineStore.getState().matchVersion).toBe(4);
+    expect(applyOnlineSnapshot).toHaveBeenCalledTimes(before);
+  });
+
+  it("derives waiting/completed from snapshot status, not the match version", async () => {
+    await connectedMatch();
+
+    // A rematch is version 1 with BOTH players present: active, not waiting.
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "active" }, { matchVersion: 1, streamSequence: 5 }));
+    expect(onlineStore.getState().waitingForOpponent).toBe(false);
+    expect(onlineStore.getState().completed).toBe(false);
+
+    // A freshly created match still awaiting the opponent.
+    client().emit(
+      eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "awaitingOpponent" }, { matchVersion: 1, streamSequence: 6 }),
+    );
+    expect(onlineStore.getState().waitingForOpponent).toBe(true);
+
+    // An ended match restores completion.
+    client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "ended" }, { matchVersion: 5, streamSequence: 7 }));
+    expect(onlineStore.getState().completed).toBe(true);
   });
 });
