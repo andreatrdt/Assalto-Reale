@@ -6,6 +6,21 @@ metadata derive from it.
 
 ## Unreleased
 
+Online-match lifecycle audit hardening. Three confirmed canonical-state defects
+fixed: (A) a lost command response after the server committed left
+`pendingCommandId` stuck forever, deadlocking the client — a `MatchSnapshot` now
+clears it, treating canonical synchronization as the authoritative resolution of
+in-flight uncertainty (no blind resend; command-id receipts still guard any manual
+retry). (D) event handling is now match-scoped: an event addressed to a different
+match than the active one is ignored (only `RematchCreated` may introduce the
+successor), so a late event from a previous match can no longer switch the client
+back or overwrite the active successor. (E) the client no longer infers
+`waitingForOpponent` from `matchVersion < 2` — a `MatchSnapshot` now carries the
+authoritative lifecycle status (`awaitingOpponent`/`active`/`ended`), so
+reconnecting into a rematch (version 1 with both players present) correctly opens
+the board, and completion is restored from the snapshot. Protocol: `MatchSnapshot`
+gains a required `status` field. No migration or persistence change.
+
 Implemented server-authoritative online rematch. Previously the online "Rematch"
 button routed to the local restart action (blocked during online play) and the
 server rejected rematch commands, so a rematch never started. A rematch is now a
