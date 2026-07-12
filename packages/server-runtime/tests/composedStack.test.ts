@@ -14,6 +14,8 @@ import {
   TestClient,
   acquireGuestSession,
   commandMessage,
+  placementView,
+  snapshotFromEvent,
 } from "./support.js";
 
 // A real composed-stack test: HTTP guest sessions + two authenticated WebSocket
@@ -171,16 +173,13 @@ describe("composed multiplayer stack (in-memory)", () => {
     );
     const snapshot = await clientA2.waitFor("MatchSnapshot");
     expect(snapshot.matchVersion).toBe(3);
-    const state = (snapshot.event as { snapshot: unknown }).snapshot as {
-      schema: number;
-      phase: string;
-      placementCursor: number;
-    };
-    expect(state.schema).toBe(1);
+    const canonical = snapshotFromEvent(snapshot.event);
+    expect(canonical.schema).toBe(1);
+    const placement = placementView(canonical);
     // Still in placement, with exactly the one placed piece reflected (the queue
     // advanced from Black King to the next placement).
-    expect(state.phase).toBe("placement");
-    expect(state.placementCursor).toBe(1);
+    expect(placement.phase).toBe("placement");
+    expect(placement.placementCursor).toBe(1);
 
     await clientB.close();
     await clientA2.close();
@@ -256,13 +255,9 @@ describe("composed multiplayer stack (in-memory)", () => {
       "Black",
     );
     // Fresh manual-placement board.
-    const snapshot = (
-      rematchForB.event as {
-        snapshot: { phase: string; placementCursor: number };
-      }
-    ).snapshot;
-    expect(snapshot.phase).toBe("placement");
-    expect(snapshot.placementCursor).toBe(0);
+    const rematchBoard = placementView(snapshotFromEvent(rematchForB.event));
+    expect(rematchBoard.phase).toBe("placement");
+    expect(rematchBoard.placementCursor).toBe(0);
 
     // The new match is live: B (now Black) places the first piece.
     clientB.send(
