@@ -57,6 +57,20 @@ CREATE INDEX authoritative_command_receipts_match_id_idx
   ON authoritative_command_receipts (match_id);
 `,
   },
+  {
+    version: 2,
+    name: "add_rematch_lineage_columns",
+    sql: `
+ALTER TABLE authoritative_matches
+  ADD COLUMN rematch_offered_by TEXT,
+  ADD COLUMN successor_match_id TEXT,
+  ADD COLUMN predecessor_match_id TEXT;
+
+CREATE UNIQUE INDEX authoritative_matches_successor_match_id_key
+  ON authoritative_matches (successor_match_id)
+  WHERE successor_match_id IS NOT NULL;
+`,
+  },
 ] as const;
 
 function checksum(sql: string): string {

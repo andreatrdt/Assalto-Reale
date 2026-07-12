@@ -27,6 +27,9 @@ export interface PostgresMatchRow extends QueryResultRow {
   status: string;
   state: unknown;
   end_reason: string | null;
+  rematch_offered_by: string | null;
+  successor_match_id: string | null;
+  predecessor_match_id: string | null;
 }
 
 export interface PostgresReceiptRow extends QueryResultRow {
@@ -49,6 +52,9 @@ export interface EncodedMatchAggregate {
   status: MatchStatus;
   state: unknown;
   endReason: MatchEndReason | null;
+  rematchOfferedBy: string | null;
+  successorMatchId: string | null;
+  predecessorMatchId: string | null;
 }
 
 function safeInteger(value: number | string, field: string): number {
@@ -131,6 +137,9 @@ export function encodeMatchAggregate(
     status: aggregate.status,
     state: JSON.parse(serializeState(aggregate.state)) as unknown,
     endReason: aggregate.endReason,
+    rematchOfferedBy: aggregate.rematchOfferedBy,
+    successorMatchId: aggregate.successorMatchId,
+    predecessorMatchId: aggregate.predecessorMatchId,
   };
 }
 
@@ -153,6 +162,9 @@ export function decodeMatchAggregate(row: PostgresMatchRow): MatchAggregate {
     status: matchStatus(row.status),
     state,
     endReason: endReason(row.end_reason),
+    rematchOfferedBy: row.rematch_offered_by,
+    successorMatchId: row.successor_match_id,
+    predecessorMatchId: row.predecessor_match_id,
   };
 }
 

@@ -204,6 +204,11 @@ export function seedMatch(
     streamSequence?: number;
     members?: MatchMembers;
     transformEnabled?: boolean;
+    status?: MatchAggregate["status"];
+    endReason?: MatchAggregate["endReason"];
+    rematchOfferedBy?: string | null;
+    successorMatchId?: string | null;
+    predecessorMatchId?: string | null;
   } = {},
 ): MatchAggregate {
   const aggregate: MatchAggregate = {
@@ -217,9 +222,12 @@ export function seedMatch(
       transformEnabled: options.transformEnabled ?? false,
     },
     members: options.members ?? { Black: ALICE, White: BOB },
-    status: "active",
+    status: options.status ?? "active",
     state,
-    endReason: null,
+    endReason: options.endReason ?? null,
+    rematchOfferedBy: options.rematchOfferedBy ?? null,
+    successorMatchId: options.successorMatchId ?? null,
+    predecessorMatchId: options.predecessorMatchId ?? null,
   };
   store.matches.set(aggregate.matchId, aggregate);
   store.invites.set(aggregate.inviteCode, aggregate.matchId);

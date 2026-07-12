@@ -30,7 +30,10 @@ const MATCH_COLUMNS = `
   white_player_id,
   status,
   state,
-  end_reason
+  end_reason,
+  rematch_offered_by,
+  successor_match_id,
+  predecessor_match_id
 `;
 
 interface StagedMatch {
@@ -182,6 +185,9 @@ class PostgresTransaction implements Transaction {
       encoded.status,
       JSON.stringify(encoded.state),
       encoded.endReason,
+      encoded.rematchOfferedBy,
+      encoded.successorMatchId,
+      encoded.predecessorMatchId,
     ];
 
     if (staged.precondition.kind === "create") {
@@ -199,10 +205,14 @@ class PostgresTransaction implements Transaction {
               white_player_id,
               status,
               state,
-              end_reason
+              end_reason,
+              rematch_offered_by,
+              successor_match_id,
+              predecessor_match_id
             )
             VALUES (
-              $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb, $11
+              $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb, $11,
+              $12, $13, $14
             )
           `,
           values,
@@ -232,8 +242,11 @@ class PostgresTransaction implements Transaction {
           status = $9,
           state = $10::jsonb,
           end_reason = $11,
+          rematch_offered_by = $12,
+          successor_match_id = $13,
+          predecessor_match_id = $14,
           updated_at = NOW()
-        WHERE match_id = $1 AND version = $12
+        WHERE match_id = $1 AND version = $15
       `,
       [...values, staged.precondition.version],
     );

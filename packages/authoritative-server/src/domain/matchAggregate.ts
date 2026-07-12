@@ -48,6 +48,12 @@ export interface MatchAggregate {
   status: MatchStatus;
   state: MatchState;
   endReason: MatchEndReason | null;
+  /** Player who has an open rematch offer on this (terminal) match, if any. */
+  rematchOfferedBy: string | null;
+  /** The rematch created from this match, once one exists. At most one. */
+  successorMatchId: string | null;
+  /** The match this one is a rematch of, if any. */
+  predecessorMatchId: string | null;
 }
 
 export interface Emission {
@@ -55,6 +61,10 @@ export interface Emission {
   recipient: "all" | { playerId: string };
   matchVersion: number;
   streamSequence: number;
+  /** Target match stream when the emission is not about the loaded aggregate
+   * (e.g. a RematchCreated announcing the successor match). Defaults to the
+   * aggregate's own matchId. */
+  matchId?: string;
 }
 
 export type OperationOutcome =
@@ -126,6 +136,9 @@ export function createMatchAggregate(input: CreateMatchInput): {
     status: "awaitingOpponent",
     state,
     endReason: null,
+    rematchOfferedBy: null,
+    successorMatchId: null,
+    predecessorMatchId: null,
   };
 
   const emissions: Emission[] = [
@@ -312,6 +325,179 @@ export function resignAggregate(
         streamSequence: next.streamSequence,
       },
     ],
+  };
+}
+
+/** The opponent of a member, or null if the given player is not a member. */
+export function otherMember(
+  aggregate: MatchAggregate,
+  playerId: string,
+): string | null {
+  if (aggregate.members.Black === playerId) return aggregate.members.White;
+  if (aggregate.members.White === playerId) return aggregate.members.Black;
+  return null;
+}
+
+/** A rematch may only be negotiated once the match has reached a terminal state. */
+export function isTerminalMatch(aggregate: MatchAggregate): boolean {
+  return aggregate.status === "ended";
+}
+
+/** Record an open rematch offer and notify the opponent. */
+export function withRematchOffer(
+  aggregate: MatchAggregate,
+  offererPlayerId: string,
+): { aggregate: MatchAggregate; emissions: Emission[] } {
+  const next = cloneAggregate(aggregate);
+  next.rematchOfferedBy = offererPlayerId;
+  next.version += 1;
+  next.streamSequence += 1;
+  const opponentId = otherMember(aggregate, offererPlayerId);
+  const emissions: Emission[] = opponentId
+    ? [
+        {
+          event: { type: "RematchOffered", offeredByPlayerId: offererPlayerId },
+          recipient: { playerId: opponentId },
+          matchVersion: next.version,
+          streamSequence: next.streamSequence,
+        },
+      ]
+    : [];
+  return { aggregate: next, emissions };
+}
+
+/** Clear an open rematch offer and notify the original offerer of the decline. */
+export function withRematchDecline(
+  aggregate: MatchAggregate,
+  declinerPlayerId: string,
+): { aggregate: MatchAggregate; emissions: Emission[] } {
+  const offererId = aggregate.rematchOfferedBy;
+  const next = cloneAggregate(aggregate);
+  next.rematchOfferedBy = null;
+  next.version += 1;
+  next.streamSequence += 1;
+  const emissions: Emission[] = offererId
+    ? [
+        {
+          event: {
+            type: "RematchDeclined",
+            declinedByPlayerId: declinerPlayerId,
+          },
+          recipient: { playerId: offererId },
+          matchVersion: next.version,
+          streamSequence: next.streamSequence,
+        },
+      ]
+    : [];
+  return { aggregate: next, emissions };
+}
+
+export interface RematchIds {
+  matchId: string;
+  inviteCode: string;
+  seed: number;
+}
+
+export interface RematchCreation {
+  /** The completed match, updated with the successor link and cleared offer. */
+  previous: MatchAggregate;
+  /** The brand-new rematch aggregate. */
+  rematch: MatchAggregate;
+  /** A RematchCreated per player, targeting the new match's stream. */
+  emissions: Emission[];
+}
+
+/**
+ * Create a fresh authoritative rematch between the same two players. Sides swap
+ * (each player takes the opposite colour), the board is a new manual-placement
+ * match with its own version/stream baseline, and no history/result/clock is
+ * inherited. The completed match records the successor for idempotency and
+ * reconnect discovery; there is at most one successor per match.
+ */
+export function createRematchAggregate(
+  previous: MatchAggregate,
+  ids: RematchIds,
+): RematchCreation {
+  const config: OnlineMatchConfig = {
+    ...previous.config,
+    placementMode: "Manual",
+  };
+  const state = coreCreateMatch({
+    placementMode: "Manual",
+    transformEnabled: config.transformEnabled,
+    seed: ids.seed,
+  });
+  // Swap: the previous White player becomes Black and vice versa.
+  const members: MatchMembers = {
+    Black: previous.members.White,
+    White: previous.members.Black,
+  };
+  const rematch: MatchAggregate = {
+    matchId: ids.matchId,
+    inviteCode: ids.inviteCode,
+    version: 1,
+    streamSequence: 1,
+    seed: ids.seed,
+    config,
+    members,
+    status: "active",
+    state,
+    endReason: null,
+    rematchOfferedBy: null,
+    successorMatchId: null,
+    predecessorMatchId: previous.matchId,
+  };
+  const updatedPrevious = cloneAggregate(previous);
+  updatedPrevious.rematchOfferedBy = null;
+  updatedPrevious.successorMatchId = rematch.matchId;
+  updatedPrevious.version += 1;
+  updatedPrevious.streamSequence += 1;
+
+  const snapshot = snapshotOf(rematch.state);
+  const sides: PlayerSide[] = ["Black", "White"];
+  const emissions: Emission[] = sides.flatMap((side) => {
+    const playerId = members[side];
+    if (!playerId) return [];
+    return [
+      {
+        event: {
+          type: "RematchCreated",
+          newMatchId: rematch.matchId,
+          inviteCode: rematch.inviteCode,
+          assignedSide: side,
+          snapshot,
+        },
+        recipient: { playerId },
+        matchVersion: rematch.version,
+        streamSequence: rematch.streamSequence,
+        matchId: rematch.matchId,
+      },
+    ];
+  });
+
+  return { previous: updatedPrevious, rematch, emissions };
+}
+
+/** Announce an already-created rematch to a single player (idempotent replays,
+ * reconnect discovery). Reads the successor; never mutates state. */
+export function rematchCreatedEmission(
+  successor: MatchAggregate,
+  recipientPlayerId: string,
+): Emission | null {
+  const side = memberSide(successor, recipientPlayerId);
+  if (!side) return null;
+  return {
+    event: {
+      type: "RematchCreated",
+      newMatchId: successor.matchId,
+      inviteCode: successor.inviteCode,
+      assignedSide: side,
+      snapshot: snapshotOf(successor.state),
+    },
+    recipient: { playerId: recipientPlayerId },
+    matchVersion: successor.version,
+    streamSequence: successor.streamSequence,
+    matchId: successor.matchId,
   };
 }
 
