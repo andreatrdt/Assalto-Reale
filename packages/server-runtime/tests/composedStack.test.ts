@@ -186,6 +186,121 @@ describe("composed multiplayer stack (in-memory)", () => {
     await clientA2.close();
   }, 20000);
 
+  it("starts a server-authoritative rematch with the same two players after a match ends", async () => {
+    const sessionA = await acquireGuestSession(baseUrl);
+    const sessionB = await acquireGuestSession(baseUrl);
+    const clientA = await TestClient.connect(wsBase, sessionA);
+
+    // A creates (Black), B joins (White).
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_rm_create1" }),
+    );
+    const created = await clientA.waitFor("MatchCreated");
+    const matchId = created.matchId!;
+    const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+
+    const clientB = await TestClient.connect(wsBase, sessionB);
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_rm_join001" },
+      ),
+    );
+    await clientB.waitFor("PlayerJoined");
+    await clientA.waitFor("PlayerJoined");
+
+    // End the match: A resigns.
+    clientA.send(
+      commandMessage(
+        sessionA,
+        { type: "Resign" },
+        { commandId: "cmd_rm_resign1", matchId, expectedMatchVersion: 2 },
+      ),
+    );
+    await clientB.waitFor("MatchEnded");
+
+    // A requests a rematch; B is notified and accepts.
+    clientA.send(
+      commandMessage(
+        sessionA,
+        { type: "OfferRematch" },
+        { commandId: "cmd_rm_offer01", matchId },
+      ),
+    );
+    const offered = await clientB.waitFor("RematchOffered");
+    expect(
+      (offered.event as { offeredByPlayerId: string }).offeredByPlayerId,
+    ).toBe(sessionA.playerId);
+
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "RespondToRematch", accept: true },
+        { commandId: "cmd_rm_accept1", matchId },
+      ),
+    );
+
+    // Both clients receive the same new match id, with swapped sides.
+    const rematchForA = await clientA.waitFor("RematchCreated");
+    const rematchForB = await clientB.waitFor("RematchCreated");
+    const newMatchId = (rematchForA.event as { newMatchId: string }).newMatchId;
+    expect(newMatchId).not.toBe(matchId);
+    expect((rematchForB.event as { newMatchId: string }).newMatchId).toBe(
+      newMatchId,
+    );
+    expect((rematchForA.event as { assignedSide: string }).assignedSide).toBe(
+      "White",
+    );
+    expect((rematchForB.event as { assignedSide: string }).assignedSide).toBe(
+      "Black",
+    );
+    // Fresh manual-placement board.
+    const snapshot = (
+      rematchForB.event as {
+        snapshot: { phase: string; placementCursor: number };
+      }
+    ).snapshot;
+    expect(snapshot.phase).toBe("placement");
+    expect(snapshot.placementCursor).toBe(0);
+
+    // The new match is live: B (now Black) places the first piece.
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "PlacePiece", position: [0, 0] },
+        {
+          commandId: "cmd_rm_place01",
+          matchId: newMatchId,
+          expectedMatchVersion: 1,
+        },
+      ),
+    );
+    const placed = await clientB.waitFor("MatchUpdated");
+    expect(placed.matchVersion).toBe(2);
+
+    // Reconnect A: syncing the OLD match resolves to the rematch, not the completed match.
+    await clientA.close();
+    const clientA2 = await TestClient.connect(wsBase, sessionA);
+    clientA2.send(
+      commandMessage(
+        sessionA,
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        { commandId: "cmd_rm_sync001", matchId },
+      ),
+    );
+    const resolved = await clientA2.waitFor("RematchCreated");
+    expect((resolved.event as { newMatchId: string }).newMatchId).toBe(
+      newMatchId,
+    );
+    expect((resolved.event as { assignedSide: string }).assignedSide).toBe(
+      "White",
+    );
+
+    await clientB.close();
+    await clientA2.close();
+  }, 20000);
+
   it("rejects a WebSocket upgrade without a valid guest token", async () => {
     await expect(
       new Promise((resolve, reject) => {
