@@ -46,7 +46,7 @@ export const useGameStore = create<GameStore>((set, get) => {
   }
 
   const initialMatch = createMatchState({
-    placementMode: "QuickBalanced",
+    placementMode: "Manual",
     transformEnabled: DEFAULT_MATCH_CONFIG.transformEnabled,
     seed: 0,
   });
@@ -80,8 +80,11 @@ export const useGameStore = create<GameStore>((set, get) => {
       const resolved = resolveMatchConfig(config);
       const aiEnabled = resolved.opponent === "Computer";
       const aiPlayer = resolved.aiSide ?? "White";
+      // Every match always begins in the placement phase. There is no quick or
+      // preconfigured deployment: Manual is forced regardless of the incoming
+      // config (e.g. restarting a legacy saved game that stored another mode).
       const match = createMatchState({
-        placementMode: resolved.placementMode,
+        placementMode: "Manual",
         transformEnabled: resolved.transformEnabled,
         // resolveMatchConfig always assigns setupSeed; the fallback only
         // satisfies the optional type and is never reached at runtime.
@@ -92,49 +95,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         aiEnabled,
         aiPlayer,
         hasActiveMatch: true,
-        matchConfig: resolved,
+        matchConfig: { ...resolved, placementMode: "Manual" },
         timeLeft: initialTimeLeft(resolved.timerSeconds),
         clockRunningFor: null,
         clockLastSyncMs: null,
-        lastAction: resolved.placementMode === "QuickBalanced" ? "Quick Balanced deployment complete." : "Manual deployment started.",
-        message:
-          resolved.placementMode === "QuickBalanced"
-            ? "Black to move."
-            : `${match.currentPlacement?.player}: place ${describePiece(match.currentPlacement?.pieceType ?? "King")}.`,
+        lastAction: "Manual deployment started.",
+        message: `${match.currentPlacement?.player}: place ${describePiece(match.currentPlacement?.pieceType ?? "King")}.`,
       });
     },
-
-    startQuickMatch: (options = {}) => {
-      const match = createMatchState({
-        placementMode: "QuickBalanced",
-        transformEnabled: options.transformEnabled ?? false,
-        seed: options.seed ?? Math.floor(Math.random() * 0xffffffff) >>> 0,
-      });
-      set({
-        ...storePatchFromCoreMatch(match, "home"),
-        aiEnabled: options.aiEnabled ?? false,
-        aiPlayer: options.aiPlayer ?? "White",
-        hasActiveMatch: true,
-        matchConfig: {
-          ...DEFAULT_MATCH_CONFIG,
-          opponent: options.aiEnabled ? "Computer" : "Human",
-          humanSide: options.aiPlayer === "Black" ? "White" : "Black",
-          resolvedHumanSide: options.aiEnabled ? (options.aiPlayer === "Black" ? "White" : "Black") : null,
-          aiSide: options.aiEnabled ? (options.aiPlayer ?? "White") : null,
-          placementMode: "QuickBalanced",
-          transformEnabled: options.transformEnabled ?? false,
-          setupSeed: options.seed ?? 0,
-        },
-        timeLeft: initialTimeLeft(DEFAULT_MATCH_CONFIG.timerSeconds),
-        clockRunningFor: null,
-        clockLastSyncMs: null,
-        lastAction: "Quick Balanced deployment complete.",
-        message: "Black to move.",
-      });
-    },
-
-    startAiMatch: () => get().startQuickMatch({ aiEnabled: true }),
-    startTransformMatch: () => get().startQuickMatch({ transformEnabled: true }),
 
     startManualPlacement: (options = {}) => {
       const seed = options.seed ?? Math.floor(Math.random() * 0xffffffff) >>> 0;

@@ -5,7 +5,6 @@ import {
   createBaseBoard as createCoreBaseBoard,
   createEmptyPiecesLeft,
   createInitialPiecesLeft,
-  createQuickBalancedBoard as createCoreQuickBalancedBoard,
   PLACEMENT_QUEUE,
   TOTAL_PLACEMENTS,
   type BoardState,
@@ -19,8 +18,4 @@ export { clonePiecesLeft, createEmptyPiecesLeft, createInitialPiecesLeft, PLACEM
 
 export function createBaseBoard(transformEnabled: boolean, seed = randomSeed()): BoardState {
   return createCoreBaseBoard(transformEnabled, seed);
-}
-
-export function createQuickBalancedBoard(transformEnabled: boolean, seed = randomSeed()): BoardState {
-  return createCoreQuickBalancedBoard(transformEnabled, seed);
 }

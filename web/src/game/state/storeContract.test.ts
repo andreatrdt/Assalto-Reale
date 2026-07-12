@@ -34,10 +34,7 @@ const STATE_FIELDS = [
 
 const ACTIONS = [
   "startConfiguredMatch",
-  "startQuickMatch",
   "startManualPlacement",
-  "startAiMatch",
-  "startTransformMatch",
   "openRules",
   "returnHome",
   "activateSquare",

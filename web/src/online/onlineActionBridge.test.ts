@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { installOnlineGameActionBridge, restoreLocalGameActions } from "./onlineActionBridge";
 import { useOnlineMatchStore } from "./onlineStore";
@@ -42,6 +43,35 @@ describe("online action bridge", () => {
 
     restoreLocalGameActions();
     expect(useGameStore.getState().activateSquare).toBe(localActivate);
+  });
+
+  it("routes a placement tap to the server during manual placement, and blocks the opponent's", () => {
+    const placements: Vec2[] = [];
+    useOnlineMatchStore.setState({
+      connectionStatus: "connected",
+      side: "Black",
+      sendPlacement: (pos: Vec2): boolean => {
+        placements.push(pos);
+        return true;
+      },
+    });
+    useGameStore.setState({
+      phase: { phase: "placement" },
+      currentPlacement: { player: "Black", pieceType: "King" },
+    });
+    installOnlineGameActionBridge();
+
+    // It is Black's placement and this client is Black: the tap is sent as a
+    // PlacePiece command (online matches now always go through placement).
+    useGameStore.getState().activateSquare([0, 0]);
+    expect(placements).toEqual([[0, 0]]);
+    expect(useGameStore.getState().message).toBe("Confirming placement with the server…");
+
+    // When it is the opponent's placement, the tap is blocked, not sent.
+    useGameStore.setState({ currentPlacement: { player: "White", pieceType: "King" } });
+    useGameStore.getState().activateSquare([1, 1]);
+    expect(placements).toEqual([[0, 0]]);
+    expect(useGameStore.getState().message).toBe("It is your opponent's placement.");
   });
 
   it("prevents local persistence and undo from becoming online authority", () => {

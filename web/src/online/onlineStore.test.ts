@@ -165,7 +165,7 @@ describe("online match store", () => {
         type: "CreateMatch",
         config: expect.objectContaining({
           visibility: "invite",
-          placementMode: "QuickBalanced",
+          placementMode: "Manual",
           transformEnabled: true,
           timeControl: { kind: "untimed" },
         }),

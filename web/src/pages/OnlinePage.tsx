@@ -112,7 +112,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               </div>
               <div>
                 <dt>Format</dt>
-                <dd>Untimed · Quick deployment</dd>
+                <dd>Untimed · Manual placement</dd>
               </div>
               <div>
                 <dt>Match</dt>
@@ -145,7 +145,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               </div>
               <ul className="onlineRules">
                 <li>Untimed</li>
-                <li>Quick deployment</li>
+                <li>Manual placement</li>
                 <li>Transform enabled</li>
               </ul>
               <GameButton variant="primary" size="lg" disabled={!configured || busy} onClick={() => void hostMatch()}>

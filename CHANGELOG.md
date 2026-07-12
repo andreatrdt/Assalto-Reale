@@ -6,6 +6,18 @@ metadata derive from it.
 
 ## Unreleased
 
+Removed the quick/preconfigured deployment from all production match creation:
+every match — local, online invite, resumed, reconnected or restarted — now
+always begins in the placement phase and transitions to gameplay only once
+placement completes. The online `CreateMatch` config now requests manual
+placement (was `QuickBalanced`), and the offline store no longer exposes or
+defaults to any quick-start path (the unused `startQuickMatch`/`startAiMatch`/
+`startTransformMatch` store actions were deleted and `startConfiguredMatch`
+always forces manual placement). User-facing "Quick deployment/setup" labels were
+replaced with manual-placement wording. `QuickBalanced` survives only as an
+internal, test-only path (game-core/protocol fixtures and deserialization of
+already-persisted matches and saves); no product flow can select or reach it.
+
 Fixed join-by-invite-code, which failed on the first real two-device match with
 `expectedMatchVersion: JoinMatch requires a matchId and no expected version.` The
 joining device only knows the invite code, not the `matchId`, so it sends

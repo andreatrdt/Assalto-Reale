@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildAction, createBoard, getPiece, setPiece, updateControl, type Vec2 } from "../engine";
+import { buildAction, chooseQuickPlacementSquare, createBoard, getPiece, setPiece, updateControl, type Vec2 } from "../engine";
 import { DEFAULT_MATCH_CONFIG, type MatchConfig } from "../setup/matchConfig";
 import { useGameStore } from "./gameStore";
 
@@ -41,13 +41,38 @@ function findFirstLegalMove(): { start: Vec2; end: Vec2 } {
   throw new Error("No legal move found");
 }
 
+// Drive the real manual-placement flow to completion so the store reaches the
+// playing phase exactly as production does — there is no quick deployment. The
+// human side is placed by activateSquare; any AI side auto-places via runAiTurn.
+function completePlacement(): void {
+  for (let guard = 0; guard < 64; guard += 1) {
+    const state = useGameStore.getState();
+    if (state.phase.phase !== "placement" || !state.currentPlacement) break;
+    const { player, pieceType } = state.currentPlacement;
+    if (state.aiEnabled && player === state.aiPlayer) {
+      useGameStore.getState().runAiTurn();
+    } else {
+      useGameStore.getState().activateSquare(chooseQuickPlacementSquare(state.board, player, pieceType));
+    }
+  }
+}
+
+// Start a match through the public configured flow and finish placement, leaving
+// the store in the playing phase with a full board. Placement is recorded in
+// history; clear it so gameplay tests start from a clean playing slate.
+function startPlayingMatch(config: Partial<MatchConfig> = {}): void {
+  useGameStore.getState().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, ...config });
+  completePlacement();
+  useGameStore.setState({ history: [] });
+}
+
 describe("game store wiring", () => {
   beforeEach(() => {
     installLocalStorage();
-    useGameStore.getState().startQuickMatch();
+    startPlayingMatch({ setupSeed: 11 });
   });
 
-  it("starts a quick match with a full deployment and applies an engine move", () => {
+  it("reaches a full deployment through placement and applies an engine move", () => {
     const state = useGameStore.getState();
     expect(state.phase.phase).toBe("playing");
     expect(state.board.grid.flat().filter(Boolean)).toHaveLength(26);
@@ -98,7 +123,7 @@ describe("game store wiring", () => {
     useGameStore.getState().activateSquare([5, 2]);
     useGameStore.getState().saveGame();
 
-    useGameStore.getState().startQuickMatch({ seed: 11 });
+    startPlayingMatch({ setupSeed: 11 });
     useGameStore.getState().loadGame();
 
     const loaded = useGameStore.getState();
@@ -121,7 +146,7 @@ describe("game store wiring", () => {
     expect(parsed.schema).toBe(2);
     expect(parsed.history).toHaveLength(1);
 
-    useGameStore.getState().startQuickMatch({ seed: 11 });
+    startPlayingMatch({ setupSeed: 11 });
     expect(useGameStore.getState().phase.phase).toBe("playing");
 
     expect(useGameStore.getState().importSaveJson(exported ?? "")).toBe(true);
@@ -133,7 +158,7 @@ describe("game store wiring", () => {
   });
 
   it("rejects malformed imported saves", () => {
-    useGameStore.getState().startQuickMatch({ seed: 12 });
+    startPlayingMatch({ setupSeed: 12 });
     expect(useGameStore.getState().importSaveJson("{not json")).toBe(false);
     expect(useGameStore.getState().message).toBe("Imported save is invalid or unsupported.");
     expect(useGameStore.getState().phase.phase).toBe("playing");
@@ -229,12 +254,7 @@ describe("game store wiring", () => {
   });
 
   it("counts down the active player clock with monotonic ticks and ends on timeout", () => {
-    useGameStore.getState().startConfiguredMatch({
-      ...DEFAULT_MATCH_CONFIG,
-      placementMode: "QuickBalanced",
-      timerSeconds: 300,
-      setupSeed: 31,
-    });
+    startPlayingMatch({ timerSeconds: 300, setupSeed: 31 });
 
     useGameStore.getState().startClock(1000);
     useGameStore.getState().tickClock(3500);
@@ -253,27 +273,13 @@ describe("game store wiring", () => {
   });
 
   it("does not run clocks for untimed matches or AI-owned turns", () => {
-    useGameStore.getState().startConfiguredMatch({
-      ...DEFAULT_MATCH_CONFIG,
-      opponent: "Computer",
-      humanSide: "Black",
-      placementMode: "QuickBalanced",
-      timerSeconds: 0,
-      setupSeed: 32,
-    });
+    startPlayingMatch({ opponent: "Computer", humanSide: "Black", timerSeconds: 0, setupSeed: 32 });
 
     useGameStore.getState().startClock(1000);
     useGameStore.getState().tickClock(5000);
     expect(useGameStore.getState().timeLeft.Black).toBe(0);
 
-    useGameStore.getState().startConfiguredMatch({
-      ...DEFAULT_MATCH_CONFIG,
-      opponent: "Computer",
-      humanSide: "White",
-      placementMode: "QuickBalanced",
-      timerSeconds: 300,
-      setupSeed: 33,
-    });
+    startPlayingMatch({ opponent: "Computer", humanSide: "White", timerSeconds: 300, setupSeed: 33 });
 
     expect(useGameStore.getState().currentPlayer).toBe("Black");
     expect(useGameStore.getState().aiPlayer).toBe("Black");
@@ -360,45 +366,49 @@ describe("game store wiring", () => {
   });
 
   it("runs a wired AI action through the engine", () => {
-    useGameStore.getState().startAiMatch();
+    startPlayingMatch({ opponent: "Computer" });
     useGameStore.setState({ currentPlayer: "White" });
     useGameStore.getState().runAiTurn();
     const after = useGameStore.getState();
     expect(after.aiEnabled).toBe(true);
     expect(after.history.length).toBeGreaterThan(0);
-    expect(after.lastAction).not.toBe("Quick Balanced deployment complete.");
   });
 
-  it("starts a configured computer quick match with AI as Black", () => {
+  it("starts a configured computer match in placement, then reaches play through manual placement", () => {
     const config: MatchConfig = {
       ...DEFAULT_MATCH_CONFIG,
       opponent: "Computer",
       humanSide: "White",
       aiDifficulty: "Hard",
-      placementMode: "QuickBalanced",
       transformEnabled: true,
       timerSeconds: 300,
       setupSeed: 44,
     };
 
     useGameStore.getState().startConfiguredMatch(config);
-    const state = useGameStore.getState();
+    const started = useGameStore.getState();
 
-    expect(state.phase.phase).toBe("playing");
-    expect(state.aiEnabled).toBe(true);
-    expect(state.aiPlayer).toBe("Black");
-    expect(state.matchConfig).toMatchObject({
+    // Every configured match begins in the placement phase — never pre-deployed.
+    expect(started.phase.phase).toBe("placement");
+    expect(started.aiEnabled).toBe(true);
+    expect(started.aiPlayer).toBe("Black");
+    expect(started.matchConfig).toMatchObject({
       opponent: "Computer",
       humanSide: "White",
       resolvedHumanSide: "White",
       aiSide: "Black",
       aiDifficulty: "Hard",
-      placementMode: "QuickBalanced",
+      placementMode: "Manual",
       transformEnabled: true,
       timerSeconds: 300,
     });
-    expect(state.timeLeft).toEqual({ Black: 300, White: 300 });
-    expect(state.board.grid.flat().filter(Boolean)).toHaveLength(26);
+    expect(started.timeLeft).toEqual({ Black: 300, White: 300 });
+
+    // Completing placement transitions automatically into normal gameplay.
+    completePlacement();
+    const playing = useGameStore.getState();
+    expect(playing.phase.phase).toBe("playing");
+    expect(playing.board.grid.flat().filter(Boolean)).toHaveLength(26);
   });
 
   it("resolves Random human side deterministically from the setup seed", () => {
@@ -406,7 +416,7 @@ describe("game store wiring", () => {
       ...DEFAULT_MATCH_CONFIG,
       opponent: "Computer",
       humanSide: "Random",
-      placementMode: "QuickBalanced",
+      placementMode: "Manual",
       timerSeconds: 300,
       setupSeed: 12345,
     };
