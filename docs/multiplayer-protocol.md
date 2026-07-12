@@ -112,6 +112,8 @@ type OnlineMatchConfig = {
 };
 ```
 
+Product clients always send `placementMode: "Manual"` — every match is played through the placement phase. The `"QuickBalanced"` value is retained in the type only for backward compatibility with already-persisted matches and internal tests; no production create flow emits it.
+
 Phase C.9 launches invite-based **untimed** matches first. The clock variant is reserved by v1 for Phase C.11; the initial server may reject it until server-authoritative clock policy is implemented.
 
 ## Server event envelope

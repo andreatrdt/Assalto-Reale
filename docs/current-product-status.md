@@ -42,8 +42,10 @@ built against a deployed C.8 backend; no fake local fallback is used.
 These exist in code for old saves, tests, parity, online setup or internal
 tooling and are intentionally not exposed in the local-match setup interface:
 
-- `QuickBalanced` placement mode — used by authoritative invite matches and
-  internal helpers, but not offered in public local setup.
+- `QuickBalanced` placement mode — retained only for deterministic tests,
+  fixtures and deserializing already-persisted matches/saves. **No production
+  match uses it:** every match — local, online invite, resumed, reconnected or
+  restarted — always begins in the placement phase.
 - `transformEnabled: false` — supported when loading older saves; newly created
   public matches use Transform.
 - `aiDifficulty` (`Easy/Medium/Hard`) — retained in the config model but hidden

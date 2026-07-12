@@ -18,7 +18,7 @@ The public web experience uses:
 - timed or untimed play
 - local save/load and save-file import/export
 
-The internal `QuickBalanced` setup path and older configuration values remain in the codebase for tests, fixtures and save compatibility. They are not offered in the public setup screen.
+The internal `QuickBalanced` setup path and older configuration values remain in the codebase only for tests, fixtures and deserializing already-persisted matches/saves. They are not used by any production match — every game (local, online, resumed or restarted) always begins with the placement phase.
 
 Four-player mode, 2v2, Red/Blue factions and 18×18 standard play are not active product modes.
 
@@ -146,7 +146,7 @@ Placement restrictions:
 - White Attack Pawns in the final two columns
 - Conquest Pawns at Chebyshev distance at least three from every Special Square
 
-`QuickBalanced` remains an internal compatibility path and is not shown in the public setup interface.
+`QuickBalanced` remains an internal, test-only compatibility path (fixtures and historical save/match deserialization). No production match uses it; every match is played through manual placement.
 
 ## Special Squares and territory victory
 
