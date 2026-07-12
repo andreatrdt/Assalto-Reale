@@ -26,6 +26,19 @@ export const QUICK_CONFIG: ClientCommand = {
   },
 };
 
+// The production online configuration: manual placement, so matches open in the
+// placement phase (used to exercise reconnect-during-placement).
+export const MANUAL_CONFIG: ClientCommand = {
+  type: "CreateMatch",
+  config: {
+    visibility: "invite",
+    placementMode: "Manual",
+    transformEnabled: false,
+    preferredSide: "Black",
+    timeControl: { kind: "untimed" },
+  },
+};
+
 export async function acquireGuestSession(
   baseUrl: string,
   origin = TEST_ORIGIN,
