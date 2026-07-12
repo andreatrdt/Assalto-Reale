@@ -451,11 +451,33 @@ describe("authoritative command handler (C.8.1)", () => {
     );
     const snapshot = only(out, "MatchSnapshot");
     expect(snapshot.snapshot.schema).toBe(1);
+    expect(snapshot.status).toBe("active");
     expect(out[0]!.matchVersion).toBe(4);
     expect(out[0]!.streamSequence).toBe(7);
     expect(out[0]!.recipient).toEqual({ playerId: ALICE });
     // Read-only: version is not advanced.
     expect(store.matches.get("match_seed01")!.version).toBe(4);
+  });
+
+  it("RequestSync reports the authoritative lifecycle status", async () => {
+    const { handler, store } = harness();
+    const board = boardWith([["Black", "AttackPawn", [5, 5]]]);
+    for (const status of ["awaitingOpponent", "ended"] as const) {
+      store.matches.clear();
+      store.invites.clear();
+      seedMatch(store, playingState(board), { status });
+      const out = await handler.handle(
+        message(
+          { type: "RequestSync", lastSeenMatchVersion: null },
+          {
+            commandId: `cmd_sync_${status}`,
+            playerId: ALICE,
+            matchId: "match_seed01",
+          },
+        ),
+      );
+      expect(only(out, "MatchSnapshot").status).toBe(status);
+    }
   });
 
   it("multiple events from one command receive deterministic, increasing stream sequences", async () => {

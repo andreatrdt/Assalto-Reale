@@ -179,6 +179,16 @@ describe("multiplayer protocol", () => {
     expect(validateServerMessage(transform).ok).toBe(true);
   });
 
+  it("carries the authoritative lifecycle status on a MatchSnapshot", () => {
+    const valid = serverEnvelope({ type: "MatchSnapshot", snapshot, status: "active" });
+    for (const status of ["awaitingOpponent", "active", "ended"] as const) {
+      expect(validateServerMessage(serverEnvelope({ type: "MatchSnapshot", snapshot, status })).ok).toBe(true);
+    }
+    // The status is required and validated (invalid wire payloads are unknown).
+    expect(validateServerMessage({ ...valid, event: { type: "MatchSnapshot", snapshot } }).ok).toBe(false);
+    expect(validateServerMessage({ ...valid, event: { type: "MatchSnapshot", snapshot, status: "bogus" } }).ok).toBe(false);
+  });
+
   it("supports structured stale-version rejection with a canonical snapshot", () => {
     const rejection: ServerEventEnvelope = {
       ...serverEnvelope({

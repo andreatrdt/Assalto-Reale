@@ -218,15 +218,25 @@ function handleEnvelope(
   get: () => OnlineMatchStore,
 ): void {
   const state = get();
+  // Match-scoped ordering: ignore any event addressed to a different match than
+  // the active one. Only a RematchCreated may introduce a new matchId (the
+  // successor); a late event from a previous match must never switch the client
+  // back or overwrite the active successor. The initial create/join is allowed
+  // because the client has no active match yet (matchId is null).
+  if (
+    envelope.event.type !== "RematchCreated" &&
+    envelope.matchId !== null &&
+    state.matchId !== null &&
+    envelope.matchId !== state.matchId
+  ) {
+    return;
+  }
   // A MatchSnapshot is a full canonical state (the RequestSync/reconnect
   // response) and must always be applied — even at the same stream position the
   // client already persisted before a refresh. Only incremental events are
-  // de-duplicated by stream sequence.
+  // de-duplicated by stream sequence, scoped to the current match's own stream.
   if (
     envelope.event.type !== "MatchSnapshot" &&
-    // Only de-duplicate within the current match's own stream. A RematchCreated
-    // carries a different (new) matchId with its own baseline sequence and must
-    // never be dropped against the old match's position.
     envelope.matchId === state.matchId &&
     envelope.streamSequence !== null &&
     state.streamSequence !== null &&
@@ -286,7 +296,19 @@ function handleEnvelope(
     case "MatchSnapshot":
       set({
         ...base,
-        waitingForOpponent: envelope.matchVersion !== null ? envelope.matchVersion < 2 : state.waitingForOpponent,
+        // A canonical snapshot is the authoritative resolution of any in-flight
+        // command: after a full sync the client holds the true post-command state
+        // whether or not a lost-response command applied, so it must stop waiting.
+        // The user acts next from canonical state; we never blindly resend, and
+        // server idempotency (commandId receipts) still guards any manual retry.
+        pendingCommandId: null,
+        // Derive lifecycle from the authoritative status the snapshot carries,
+        // never from the match version (a rematch starts at version 1 with both
+        // players present, which the old matchVersion < 2 heuristic mis-flagged as
+        // still waiting for an opponent).
+        waitingForOpponent: envelope.event.status === "awaitingOpponent",
+        completed: envelope.event.status === "ended",
+        winner: envelope.event.status === "ended" ? state.winner : null,
         lastError: null,
         lastRejectionCode: null,
       });

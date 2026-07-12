@@ -8,6 +8,7 @@ import {
   type CommandRejectionCode,
   type Coordinate,
   type JsonObject,
+  type MatchLifecycleStatus,
   type OnlineMatchConfig,
   type PawnType,
   type PendingDecisionWire,
@@ -26,6 +27,11 @@ const PAWN_TYPES = new Set<PawnType>([
   "ConquestPawn",
 ]);
 const PLAYER_SIDES = new Set<PlayerSide>(["Black", "White"]);
+const MATCH_LIFECYCLE = new Set<MatchLifecycleStatus>([
+  "awaitingOpponent",
+  "active",
+  "ended",
+]);
 const REJECTION_CODES = new Set<CommandRejectionCode>([
   "invalid_message",
   "unsupported_protocol_version",
@@ -74,6 +80,13 @@ function isTimestamp(value: unknown): value is string {
 
 function isPlayerSide(value: unknown): value is PlayerSide {
   return typeof value === "string" && PLAYER_SIDES.has(value as PlayerSide);
+}
+
+function isMatchLifecycleStatus(value: unknown): value is MatchLifecycleStatus {
+  return (
+    typeof value === "string" &&
+    MATCH_LIFECYCLE.has(value as MatchLifecycleStatus)
+  );
 }
 
 function isPawnType(value: unknown): value is PawnType {
@@ -461,7 +474,7 @@ function validateServerEvent(value: unknown): ValidationResult<ServerEvent> {
         ? { ok: true, value: value as ServerEvent }
         : error("invalid_event", "event", "RematchCreated payload is invalid.");
     case "MatchSnapshot":
-      return isSnapshot(value.snapshot)
+      return isSnapshot(value.snapshot) && isMatchLifecycleStatus(value.status)
         ? { ok: true, value: value as ServerEvent }
         : error(
             "invalid_event",

@@ -296,6 +296,74 @@ describe("composed multiplayer stack (in-memory)", () => {
     await clientA2.close();
   }, 20000);
 
+  it("recovers canonically when a command's response is lost after the server commits", async () => {
+    const sessionA = await acquireGuestSession(baseUrl);
+    const sessionB = await acquireGuestSession(baseUrl);
+    const clientA = await TestClient.connect(wsBase, sessionA);
+
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_lr_create1" }),
+    );
+    const created = await clientA.waitFor("MatchCreated");
+    const matchId = created.matchId!;
+    const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+
+    const clientB = await TestClient.connect(wsBase, sessionB);
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_lr_join001" },
+      ),
+    );
+    await clientB.waitFor("PlayerJoined");
+    await clientA.waitFor("PlayerJoined");
+
+    // A places the first piece (Black King). The server commits, but A "loses"
+    // the response: it drops the socket before processing its own MatchUpdated.
+    clientA.send(
+      commandMessage(
+        sessionA,
+        { type: "PlacePiece", position: [0, 0] },
+        { commandId: "cmd_lr_place01", matchId, expectedMatchVersion: 2 },
+      ),
+    );
+    // The opponent's broadcast confirms the server committed (version 3).
+    const committed = await clientB.waitFor("MatchUpdated");
+    expect(committed.matchVersion).toBe(3);
+    await clientA.close();
+
+    // A reconnects and requests canonical sync: the committed placement is there.
+    const clientA2 = await TestClient.connect(wsBase, sessionA);
+    clientA2.send(
+      commandMessage(
+        sessionA,
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        { commandId: "cmd_lr_sync001", matchId },
+      ),
+    );
+    const snapshot = await clientA2.waitFor("MatchSnapshot");
+    expect(snapshot.matchVersion).toBe(3);
+    expect((snapshot.event as { status: string }).status).toBe("active");
+    const recovered = placementView(snapshotFromEvent(snapshot.event));
+    expect(recovered.phase).toBe("placement");
+    expect(recovered.placementCursor).toBe(1); // Black King already placed
+
+    // The next valid command proceeds from the recovered version (White King).
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "PlacePiece", position: [0, 11] },
+        { commandId: "cmd_lr_place02", matchId, expectedMatchVersion: 3 },
+      ),
+    );
+    const next = await clientA2.waitFor("MatchUpdated");
+    expect(next.matchVersion).toBe(4);
+
+    await clientB.close();
+    await clientA2.close();
+  }, 20000);
+
   it("rejects a WebSocket upgrade without a valid guest token", async () => {
     await expect(
       new Promise((resolve, reject) => {
