@@ -6,6 +6,18 @@ metadata derive from it.
 
 ## Unreleased
 
+Fixed online reconnect after a browser refresh. Two bugs kept the match on the
+"Reconnect to your match" screen with "Synchronize Match" doing nothing: (1) the
+client dropped the reconnect `MatchSnapshot` because its stream sequence equalled
+the value persisted before the refresh, so the board never rehydrated; a
+`MatchSnapshot` is now always applied (only incremental events are de-duplicated).
+(2) `resumeMatch` only opened the socket and relied on the client's open handler
+to send `RequestSync`, so on an already-open socket nothing was sent; reconnect is
+now an explicit state machine (`idle → connecting → synchronizing → synchronized
+→ failed`) that ensures exactly one `RequestSync`, times out with a clear retry
+message, and auto-reconnects once on refresh. Navigation still waits for hydrated
+canonical state, and placement/board/side/version are restored intact.
+
 Removed the quick/preconfigured deployment from all production match creation:
 every match — local, online invite, resumed, reconnected or restarted — now
 always begins in the placement phase and transitions to gameplay only once

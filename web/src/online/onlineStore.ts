@@ -8,6 +8,15 @@ import type { ClientCommand, CommandRejectionCode, JsonObject, ServerEventEnvelo
 
 const MATCH_STORAGE_KEY = "assalto:online-match";
 
+// Explicit reconnect/synchronization lifecycle. "Connected" alone is not enough:
+// a match is only usable once its canonical snapshot has been applied.
+export type OnlineSyncStatus = "idle" | "connecting" | "synchronizing" | "synchronized" | "failed";
+
+// If the server never answers a RequestSync, restore the button so the user can
+// retry instead of being stuck on a silent "synchronizing" state.
+const SYNC_TIMEOUT_MS = 12_000;
+const SYNC_FAILED_MESSAGE = "Could not synchronize the match. Check your connection and try again.";
+
 interface PersistedOnlineMatch {
   matchId: string;
   inviteCode: string | null;
@@ -20,6 +29,7 @@ interface PersistedOnlineMatch {
 export interface OnlineMatchState {
   connectionStatus: OnlineConnectionStatus;
   connectionDetail: string | null;
+  syncStatus: OnlineSyncStatus;
   playerId: string | null;
   sessionId: string | null;
   matchId: string | null;
@@ -109,6 +119,14 @@ function persistMatch(state: OnlineMatchState): void {
 
 const persisted = loadPersistedMatch();
 let client: OnlineClient | null = null;
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function clearSyncTimeout(): void {
+  if (syncTimeout !== null) {
+    clearTimeout(syncTimeout);
+    syncTimeout = null;
+  }
+}
 
 function eventMessage(envelope: ServerEventEnvelope): string {
   switch (envelope.event.type) {
@@ -188,7 +206,16 @@ function handleEnvelope(
   get: () => OnlineMatchStore,
 ): void {
   const state = get();
-  if (envelope.streamSequence !== null && state.streamSequence !== null && envelope.streamSequence <= state.streamSequence) {
+  // A MatchSnapshot is a full canonical state (the RequestSync/reconnect
+  // response) and must always be applied — even at the same stream position the
+  // client already persisted before a refresh. Only incremental events are
+  // de-duplicated by stream sequence.
+  if (
+    envelope.event.type !== "MatchSnapshot" &&
+    envelope.streamSequence !== null &&
+    state.streamSequence !== null &&
+    envelope.streamSequence <= state.streamSequence
+  ) {
     return;
   }
 
@@ -291,6 +318,12 @@ function handleEnvelope(
       break;
   }
 
+  // A pending synchronization resolves as soon as canonical state is in hand.
+  if ((get().syncStatus === "connecting" || get().syncStatus === "synchronizing") && useGameStore.getState().hasActiveMatch) {
+    clearSyncTimeout();
+    set({ syncStatus: "synchronized" });
+  }
+
   const latest = get();
   client?.setMatchContext(latest.matchId, latest.matchVersion);
   persistMatch(latest);
@@ -345,6 +378,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
   return {
     connectionStatus: "idle",
     connectionDetail: null,
+    syncStatus: "idle",
     playerId: null,
     sessionId: null,
     matchId: persisted?.matchId ?? null,
@@ -424,15 +458,59 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     },
 
     resumeMatch: async () => {
-      if (!get().matchId) {
+      const current = get();
+      if (!current.matchId) {
         set({ lastError: "There is no online match to resume." });
         return false;
       }
-      const connected = await connect();
-      if (connected) {
-        useGameStore.setState({ message: "Synchronizing online match…" });
+      // Ignore duplicate clicks / overlapping auto-reconnects: a synchronization
+      // is already in flight.
+      if (current.syncStatus === "connecting" || current.syncStatus === "synchronizing") {
+        return false;
       }
-      return connected;
+
+      clearSyncTimeout();
+      set({ syncStatus: "connecting", lastError: null, lastRejectionCode: null });
+
+      // Whether a fresh socket has to be opened decides who sends RequestSync:
+      // a fresh open triggers it from the client's open handler; an already-open
+      // socket needs it sent explicitly here (the open handler will not re-fire).
+      const alreadyOpen = client?.connected ?? false;
+      const connected = await connect();
+      if (!connected) {
+        clearSyncTimeout();
+        set({ syncStatus: "failed" });
+        return false;
+      }
+      // A fresh open may have already delivered the snapshot during the await.
+      if (get().syncStatus === "synchronized") {
+        clearSyncTimeout();
+        return true;
+      }
+
+      set({ syncStatus: "synchronizing" });
+      useGameStore.setState({ message: "Synchronizing online match…" });
+
+      if (alreadyOpen) {
+        try {
+          client?.requestSync();
+        } catch {
+          clearSyncTimeout();
+          set({ syncStatus: "failed", lastError: SYNC_FAILED_MESSAGE });
+          return false;
+        }
+      }
+
+      // If no canonical snapshot arrives, fail loudly and restore the button.
+      clearSyncTimeout();
+      syncTimeout = setTimeout(() => {
+        syncTimeout = null;
+        if (get().syncStatus === "synchronizing" || get().syncStatus === "connecting") {
+          set({ syncStatus: "failed", lastError: SYNC_FAILED_MESSAGE });
+        }
+      }, SYNC_TIMEOUT_MS);
+
+      return true;
     },
 
     sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),
@@ -444,11 +522,13 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     resign: () => send({ type: "Resign" }),
 
     disconnect: (preserveMatch = true) => {
+      clearSyncTimeout();
       client?.disconnect();
       client = null;
       set({
         connectionStatus: "idle",
         connectionDetail: null,
+        syncStatus: "idle",
         pendingCommandId: null,
         lastError: null,
         ...(preserveMatch

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { useGameStore } from "../game/state/gameStore";
 import { configuredWebSocketUrl } from "../online/onlineIdentity";
@@ -11,12 +11,23 @@ interface OnlinePageProps {
   navigate: (route: AppRoute, replace?: boolean) => void;
 }
 
+/**
+ * Return to the canonical board only when a match has actually been hydrated
+ * (its snapshot applied → `hasActiveMatch`) and it is not still waiting for an
+ * opponent. A connected socket alone is not enough. Placement and playing
+ * matches both reopen the same `/game` board, which renders the correct phase.
+ */
+export function shouldReopenBoard(input: { matchId: string | null; hasActiveMatch: boolean; waitingForOpponent: boolean }): boolean {
+  return Boolean(input.matchId) && input.hasActiveMatch && !input.waitingForOpponent;
+}
+
 export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const [inviteInput, setInviteInput] = useState("");
   const [copied, setCopied] = useState(false);
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
   const connectionStatus = useOnlineMatchStore((state) => state.connectionStatus);
   const connectionDetail = useOnlineMatchStore((state) => state.connectionDetail);
+  const syncStatus = useOnlineMatchStore((state) => state.syncStatus);
   const matchId = useOnlineMatchStore((state) => state.matchId);
   const inviteCode = useOnlineMatchStore((state) => state.inviteCode);
   const side = useOnlineMatchStore((state) => state.side);
@@ -29,12 +40,26 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const disconnect = useOnlineMatchStore((state) => state.disconnect);
   const clearError = useOnlineMatchStore((state) => state.clearError);
   const configured = Boolean(configuredWebSocketUrl());
+  const autoResumeStarted = useRef(false);
 
+  // Navigate to the board only once canonical state is actually hydrated, not
+  // merely because the socket is connected.
   useEffect(() => {
-    if (matchId && hasActiveMatch && !waitingForOpponent) {
+    if (shouldReopenBoard({ matchId, hasActiveMatch, waitingForOpponent })) {
       navigate("/game", true);
     }
   }, [hasActiveMatch, matchId, navigate, waitingForOpponent]);
+
+  // On refresh, automatically reconnect and request the canonical snapshot when a
+  // match is persisted. Runs once; the button remains as a fallback on failure.
+  useEffect(() => {
+    if (autoResumeStarted.current) return;
+    if (!configured || !matchId) return;
+    if (syncStatus !== "idle") return;
+    if (connectionStatus === "connected" || connectionStatus === "connecting" || connectionStatus === "reconnecting") return;
+    autoResumeStarted.current = true;
+    void resumeMatch();
+  }, [configured, matchId, syncStatus, connectionStatus, resumeMatch]);
 
   async function copyInvite() {
     if (!inviteCode) return;
@@ -53,7 +78,8 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
     clearError();
   }
 
-  const busy = connectionStatus === "connecting" || connectionStatus === "reconnecting" || Boolean(pendingCommandId);
+  const synchronizing = syncStatus === "connecting" || syncStatus === "synchronizing";
+  const busy = connectionStatus === "connecting" || connectionStatus === "reconnecting" || synchronizing || Boolean(pendingCommandId);
 
   return (
     <PageShell activeRoute={route} navigate={navigate} className="onlineShell">
@@ -128,7 +154,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
 
             <div className="onlineActions">
               <GameButton variant="primary" disabled={!configured || busy} onClick={() => void resumeMatch()}>
-                {connectionStatus === "connected" ? "Synchronize Match" : "Reconnect"}
+                {synchronizing ? "Synchronizing…" : connectionStatus === "connected" ? "Synchronize Match" : "Reconnect"}
               </GameButton>
               <GameButton variant="ghost" onClick={abandonMatch}>
                 Forget Match

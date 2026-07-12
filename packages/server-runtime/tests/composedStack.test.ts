@@ -7,6 +7,7 @@ import {
   type ComposedServer,
 } from "../src/index.js";
 import {
+  MANUAL_CONFIG,
   QUICK_CONFIG,
   TEST_ORIGIN,
   TEST_SECRET,
@@ -117,6 +118,69 @@ describe("composed multiplayer stack (in-memory)", () => {
     expect(
       (snapshot.event as { snapshot: { schema: number } }).snapshot.schema,
     ).toBe(1);
+
+    await clientB.close();
+    await clientA2.close();
+  }, 20000);
+
+  it("restores a manual-placement match after a client disconnects and reconnects", async () => {
+    // Production reconnect scenario: a browser refresh during placement.
+    const sessionA = await acquireGuestSession(baseUrl);
+    const sessionB = await acquireGuestSession(baseUrl);
+    const clientA = await TestClient.connect(wsBase, sessionA);
+
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_m_create01" }),
+    );
+    const created = await clientA.waitFor("MatchCreated");
+    const matchId = created.matchId!;
+    const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+
+    const clientB = await TestClient.connect(wsBase, sessionB);
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_m_join0001" },
+      ),
+    );
+    await clientB.waitFor("PlayerJoined");
+    await clientA.waitFor("PlayerJoined");
+
+    // Black (the creator) places the first piece (King, placement cursor 0).
+    clientA.send(
+      commandMessage(
+        sessionA,
+        { type: "PlacePiece", position: [0, 0] },
+        { commandId: "cmd_m_place001", matchId, expectedMatchVersion: 2 },
+      ),
+    );
+    const placed = await clientB.waitFor("MatchUpdated");
+    expect(placed.matchVersion).toBe(3);
+
+    // Client A "refreshes": drop the socket, reconnect on the same guest session,
+    // and RequestSync — the canonical placement state must come back intact.
+    await clientA.close();
+    const clientA2 = await TestClient.connect(wsBase, sessionA);
+    clientA2.send(
+      commandMessage(
+        sessionA,
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        { commandId: "cmd_m_sync0001", matchId },
+      ),
+    );
+    const snapshot = await clientA2.waitFor("MatchSnapshot");
+    expect(snapshot.matchVersion).toBe(3);
+    const state = (snapshot.event as { snapshot: unknown }).snapshot as {
+      schema: number;
+      phase: string;
+      placementCursor: number;
+    };
+    expect(state.schema).toBe(1);
+    // Still in placement, with exactly the one placed piece reflected (the queue
+    // advanced from Black King to the next placement).
+    expect(state.phase).toBe("placement");
+    expect(state.placementCursor).toBe(1);
 
     await clientB.close();
     await clientA2.close();
