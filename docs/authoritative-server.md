@@ -147,8 +147,33 @@ Mapped directly to `game-core`:
 - `ChooseTransform`
 - `PassTurn`
 
-`OfferRematch` and `RespondToRematch` remain protocol-valid but receive a
-structured `illegal_command` rejection. Rematch behavior is deferred.
+### Rematch lifecycle
+
+A rematch is a **new authoritative match between the same two players**, never a
+mutation of the completed one. Once a match is terminal:
+
+- `OfferRematch` (by a member) records an open offer and emits `RematchOffered` to
+  the opponent. Offering again is a no-op re-notify; a non-terminal match, or a
+  non-member, is rejected (`illegal_command` / `unauthorized`).
+- `RespondToRematch { accept: true }` (by the opponent only) creates the
+  successor match; `{ accept: false }` clears the offer and emits
+  `RematchDeclined`. The offerer cannot answer their own offer. If the opponent
+  also sends `OfferRematch` instead of responding, that second offer accepts —
+  so near-simultaneous mutual requests still yield exactly one rematch.
+- The successor is a fresh aggregate: new `matchId`, new invite code, `version`
+  and `streamSequence` reset to 1, an empty manual-placement board, the same two
+  memberships with **sides swapped**, `predecessorMatchId` set to the old match,
+  and no inherited history/result/clock. The completed match records
+  `successorMatchId` (unique) so **at most one** successor can ever exist, even
+  under duplicate or concurrent acceptance — a second acceptance simply re-emits
+  the same `RematchCreated`.
+- Both aggregates are persisted in one transaction (create successor +
+  optimistic-version update of the completed match).
+- `RequestSync` on a completed match that has a successor returns
+  `RematchCreated` (with the new snapshot + the caller's assigned side), so a
+  client that was offline during creation discovers and enters the new match on
+  reconnect. Stale gameplay commands against the completed match are still
+  rejected (`match_ended` / `stale_match_version`).
 
 ## Guest sessions
 
@@ -207,7 +232,7 @@ the visible online route.
 
 Phase C.10 replaces browser-session-only identity with durable accounts and
 cross-device continuity. Backend deployment, public matchmaking, ratings,
-rematches and server-authoritative clocks remain separate work.
+server-authoritative clocks remain separate work.
 
 ## Composed runtime (Phase C.9.5)
 

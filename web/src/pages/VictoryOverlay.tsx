@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import type { OnlineRematchStatus } from "../online/onlineStore";
 import { GameButton, Icon } from "../ui/components";
 import { describeOutcome } from "./victoryOutcome";
+
+/** Online rematch controls; when present, they replace the local rematch flow. */
+export interface OnlineRematchControls {
+  status: OnlineRematchStatus;
+  busy: boolean;
+  offer: () => void;
+  accept: () => void;
+  decline: () => void;
+}
 
 interface VictoryOverlayProps {
   message: string;
@@ -10,6 +20,39 @@ interface VictoryOverlayProps {
   newMatch: () => void;
   home: () => void;
   saveGame: () => void;
+  /** Present only for online matches; drives the server-authoritative rematch. */
+  online?: OnlineRematchControls;
+}
+
+function OnlineRematchActions({ online }: { online: OnlineRematchControls }) {
+  if (online.status === "received") {
+    return (
+      <>
+        <p className="victoryRematchNote">Your opponent wants a rematch.</p>
+        <GameButton variant="primary" disabled={online.busy} onClick={online.accept}>
+          Accept Rematch
+        </GameButton>
+        <GameButton variant="secondary" disabled={online.busy} onClick={online.decline}>
+          Decline
+        </GameButton>
+      </>
+    );
+  }
+  if (online.status === "sent") {
+    return (
+      <GameButton variant="primary" disabled>
+        Waiting for your opponent…
+      </GameButton>
+    );
+  }
+  return (
+    <>
+      {online.status === "declined" && <p className="victoryRematchNote">Your opponent declined the rematch.</p>}
+      <GameButton variant="primary" disabled={online.busy} onClick={online.offer}>
+        Rematch
+      </GameButton>
+    </>
+  );
 }
 
 /**
@@ -18,7 +61,7 @@ interface VictoryOverlayProps {
  * and offers the standard actions. Escape (deliberately) reveals the final board
  * rather than leaving the match.
  */
-export function VictoryOverlay({ message, humanIsWinner, rematch, newMatch, home, saveGame }: VictoryOverlayProps) {
+export function VictoryOverlay({ message, humanIsWinner, rematch, newMatch, home, saveGame, online }: VictoryOverlayProps) {
   const [dismissed, setDismissed] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const outcome = describeOutcome(message);
@@ -60,18 +103,29 @@ export function VictoryOverlay({ message, humanIsWinner, rematch, newMatch, home
           {outcome.sentence}
         </p>
         <div className="victoryActions">
-          <GameButton variant="primary" onClick={rematch}>
-            Rematch
-          </GameButton>
-          <GameButton variant="primary" icon="play" onClick={newMatch}>
-            New Match
-          </GameButton>
-          <GameButton variant="secondary" icon="save" onClick={saveGame}>
-            Save
-          </GameButton>
-          <GameButton variant="ghost" icon="home" onClick={home}>
-            Home
-          </GameButton>
+          {online ? (
+            <>
+              <OnlineRematchActions online={online} />
+              <GameButton variant="ghost" icon="home" onClick={home}>
+                Leave
+              </GameButton>
+            </>
+          ) : (
+            <>
+              <GameButton variant="primary" onClick={rematch}>
+                Rematch
+              </GameButton>
+              <GameButton variant="primary" icon="play" onClick={newMatch}>
+                New Match
+              </GameButton>
+              <GameButton variant="secondary" icon="save" onClick={saveGame}>
+                Save
+              </GameButton>
+              <GameButton variant="ghost" icon="home" onClick={home}>
+                Home
+              </GameButton>
+            </>
+          )}
         </div>
         <button type="button" className="victoryDismiss" onClick={() => setDismissed(true)}>
           View final board

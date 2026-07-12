@@ -4,6 +4,7 @@ import { GameBoard, PieceGlyph } from "../board/GameBoard";
 import { canPlacePiece, PAWN_TYPES, type BoardState, type PieceType, type Player, type Vec2 } from "../game/engine";
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
+import { useOnlineMatchStore } from "../online/onlineStore";
 import { ConfirmDialog, FactionBadge, GameButton, Icon, IconButton, StatusBadge } from "../ui/components";
 import { usePresentationSound } from "../audio/usePresentationSound";
 import { VictoryOverlay } from "./VictoryOverlay";
@@ -44,8 +45,26 @@ export function GamePage({ navigate }: GamePageProps) {
   const returnHome = useGameStore((state) => state.returnHome);
   const startConfiguredMatch = useGameStore((state) => state.startConfiguredMatch);
   const runAiTurn = useGameStore((state) => state.runAiTurn);
+  const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
+  const onlineConnection = useOnlineMatchStore((state) => state.connectionStatus);
+  const rematchStatus = useOnlineMatchStore((state) => state.rematchStatus);
+  const offerRematch = useOnlineMatchStore((state) => state.offerRematch);
+  const respondToRematch = useOnlineMatchStore((state) => state.respondToRematch);
   const [confirmHome, setConfirmHome] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+
+  // Online matches negotiate a server-authoritative rematch; local matches rebuild
+  // from the stored setup. The two paths never mix.
+  const onlineRematch = onlineMatchId
+    ? {
+        status: rematchStatus,
+        busy: onlineConnection !== "connected",
+        offer: () => void offerRematch(),
+        accept: () => void respondToRematch(true),
+        decline: () => void respondToRematch(false),
+      }
+    : undefined;
+  const handleRematch = onlineMatchId ? () => void offerRematch() : () => setConfirmRestart(true);
 
   usePresentationSound();
 
@@ -215,7 +234,7 @@ export function GamePage({ navigate }: GamePageProps) {
             <VictoryPanel
               message={activeMessage}
               saveGame={saveGame}
-              rematch={() => setConfirmRestart(true)}
+              rematch={handleRematch}
               newMatch={() => navigate("/setup")}
               home={() => setConfirmHome(true)}
             />
@@ -237,10 +256,11 @@ export function GamePage({ navigate }: GamePageProps) {
         <VictoryOverlay
           message={message}
           humanIsWinner={humanIsWinner}
-          rematch={() => setConfirmRestart(true)}
+          rematch={handleRematch}
           newMatch={() => navigate("/setup")}
           home={() => setConfirmHome(true)}
           saveGame={saveGame}
+          online={onlineRematch}
         />
       )}
 

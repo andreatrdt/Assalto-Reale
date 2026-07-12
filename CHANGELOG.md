@@ -6,6 +6,21 @@ metadata derive from it.
 
 ## Unreleased
 
+Implemented server-authoritative online rematch. Previously the online "Rematch"
+button routed to the local restart action (blocked during online play) and the
+server rejected rematch commands, so a rematch never started. A rematch is now a
+brand-new authoritative match between the same two players: one player requests
+(`OfferRematch`), the opponent accepts (`RespondToRematch`), and the server
+creates a fresh aggregate — new match ID, reset version/stream, empty
+manual-placement board, swapped sides, `predecessorMatchId`/`successorMatchId`
+lineage, and no inherited board/history/result. Exactly one successor is created
+even under duplicate or concurrent acceptance; a reconnecting client that synced
+the completed match is steered into the successor. Both clients switch into the
+new match automatically with no new invite code or rejoin. The victory screen
+shows Rematch / waiting / accept-decline / declined states; offline rematch is
+unchanged and the two paths never mix. Adds a backward-compatible PostgreSQL
+migration (`rematch_offered_by`, `successor_match_id`, `predecessor_match_id`).
+
 Fixed online reconnect after a browser refresh. Two bugs kept the match on the
 "Reconnect to your match" screen with "Synchronize Match" doing nothing: (1) the
 client dropped the reconnect `MatchSnapshot` because its stream sequence equalled

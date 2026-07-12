@@ -30,6 +30,9 @@ const SUBSCRIPTION_EVENTS = new Set([
   "TurnChanged",
   "MatchEnded",
   "MatchSnapshot",
+  // A rematch announcement carries the new match id, so the accepting connection
+  // subscribes to the successor and receives its live events.
+  "RematchCreated",
 ]);
 
 export interface ReadinessProbe {

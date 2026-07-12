@@ -264,6 +264,17 @@ function validateCommandRouting(
           "RequestSync requires a matchId and no expected version.",
         );
   }
+  if (command.type === "OfferRematch" || command.type === "RespondToRematch") {
+    // Rematch negotiation targets a terminal match and is not an optimistic
+    // gameplay mutation, so it carries a matchId but no expected version.
+    return matchId !== null && expectedMatchVersion === null
+      ? { ok: true, value: true }
+      : error(
+          "invalid_envelope",
+          "expectedMatchVersion",
+          "Rematch commands require a matchId and no expected version.",
+        );
+  }
   return matchId !== null && expectedMatchVersion !== null
     ? { ok: true, value: true }
     : error(
@@ -433,10 +444,20 @@ function validateServerEvent(value: unknown): ValidationResult<ServerEvent> {
             "event.offeredByPlayerId",
             "Rematch offer player is invalid.",
           );
+    case "RematchDeclined":
+      return isId(value.declinedByPlayerId)
+        ? { ok: true, value: value as ServerEvent }
+        : error(
+            "invalid_event",
+            "event.declinedByPlayerId",
+            "Rematch decline player is invalid.",
+          );
     case "RematchCreated":
       return isId(value.newMatchId) &&
         typeof value.inviteCode === "string" &&
-        INVITE_PATTERN.test(value.inviteCode)
+        INVITE_PATTERN.test(value.inviteCode) &&
+        isPlayerSide(value.assignedSide) &&
+        isSnapshot(value.snapshot)
         ? { ok: true, value: value as ServerEvent }
         : error("invalid_event", "event", "RematchCreated payload is invalid.");
     case "MatchSnapshot":

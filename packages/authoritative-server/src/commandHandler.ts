@@ -12,11 +12,17 @@ import {
 import {
   applyGameCommand,
   createMatchAggregate,
+  createRematchAggregate,
   isProtocolGameCommand,
+  isTerminalMatch,
   joinMatchAggregate,
   memberSide,
+  otherMember,
+  rematchCreatedEmission,
   resignAggregate,
   syncEmission,
+  withRematchDecline,
+  withRematchOffer,
   type Emission,
   type MatchAggregate,
   type OperationOutcome,
@@ -303,6 +309,18 @@ export class CommandHandler {
     }
 
     if (command.type === "RequestSync") {
+      // Reconnect discovery: if this match already has a successor rematch and
+      // the requester belongs to it, steer them into the new match instead of
+      // the completed one.
+      if (aggregate.successorMatchId) {
+        const successor = await tx.loadMatch(aggregate.successorMatchId);
+        const emission = successor
+          ? rematchCreatedEmission(successor, playerId)
+          : null;
+        if (emission) {
+          return [this.envelopeFor(emission, matchId, envelope.commandId)];
+        }
+      }
       return [
         this.envelopeFor(
           syncEmission(aggregate, playerId),
@@ -310,6 +328,19 @@ export class CommandHandler {
           envelope.commandId,
         ),
       ];
+    }
+
+    if (command.type === "OfferRematch") {
+      return this.handleOfferRematch(tx, aggregate, playerId, envelope);
+    }
+    if (command.type === "RespondToRematch") {
+      return this.handleRespondToRematch(
+        tx,
+        aggregate,
+        playerId,
+        command.accept,
+        envelope,
+      );
     }
 
     if (envelope.expectedMatchVersion !== aggregate.version) {
@@ -350,12 +381,174 @@ export class CommandHandler {
         envelope.commandId,
         matchId,
         "illegal_command",
-        "Rematch is not supported until the invite-multiplayer phase.",
+        "This command is not supported for the current match state.",
         aggregate.version,
         null,
         recipient,
       ),
     ];
+  }
+
+  private async handleOfferRematch(
+    tx: Transaction,
+    aggregate: MatchAggregate,
+    playerId: string,
+    envelope: ClientCommandEnvelope,
+  ): Promise<ServerEventEnvelope[]> {
+    const recipient = { playerId } as const;
+    if (!isTerminalMatch(aggregate)) {
+      return [
+        this.rejection(
+          envelope.commandId,
+          aggregate.matchId,
+          "illegal_command",
+          "A rematch can only be requested after the match has ended.",
+          aggregate.version,
+          null,
+          recipient,
+        ),
+      ];
+    }
+    // Idempotent: a successor already exists — steer the requester into it.
+    if (aggregate.successorMatchId) {
+      return this.announceExistingRematch(tx, aggregate, playerId, envelope);
+    }
+    // The opponent already offered: a second offer from this player accepts it,
+    // which also resolves near-simultaneous mutual requests into one rematch.
+    const opponentId = otherMember(aggregate, playerId);
+    if (
+      aggregate.rematchOfferedBy &&
+      aggregate.rematchOfferedBy === opponentId
+    ) {
+      return this.createRematch(tx, aggregate, envelope);
+    }
+    // Offering again is a no-op that simply re-notifies the opponent.
+    const offered = withRematchOffer(aggregate, playerId);
+    tx.saveMatch(offered.aggregate, {
+      kind: "expectedVersion",
+      version: aggregate.version,
+    });
+    return this.envelopesFor(
+      offered.emissions,
+      aggregate.matchId,
+      envelope.commandId,
+    );
+  }
+
+  private async handleRespondToRematch(
+    tx: Transaction,
+    aggregate: MatchAggregate,
+    playerId: string,
+    accept: boolean,
+    envelope: ClientCommandEnvelope,
+  ): Promise<ServerEventEnvelope[]> {
+    const recipient = { playerId } as const;
+    if (!isTerminalMatch(aggregate)) {
+      return [
+        this.rejection(
+          envelope.commandId,
+          aggregate.matchId,
+          "illegal_command",
+          "A rematch can only be answered after the match has ended.",
+          aggregate.version,
+          null,
+          recipient,
+        ),
+      ];
+    }
+    if (aggregate.successorMatchId) {
+      return this.announceExistingRematch(tx, aggregate, playerId, envelope);
+    }
+    if (!aggregate.rematchOfferedBy) {
+      return [
+        this.rejection(
+          envelope.commandId,
+          aggregate.matchId,
+          "illegal_command",
+          "There is no rematch to respond to.",
+          aggregate.version,
+          null,
+          recipient,
+        ),
+      ];
+    }
+    if (aggregate.rematchOfferedBy === playerId) {
+      return [
+        this.rejection(
+          envelope.commandId,
+          aggregate.matchId,
+          "unauthorized",
+          "Only your opponent can respond to the rematch offer.",
+          aggregate.version,
+          null,
+          recipient,
+        ),
+      ];
+    }
+    if (!accept) {
+      const declined = withRematchDecline(aggregate, playerId);
+      tx.saveMatch(declined.aggregate, {
+        kind: "expectedVersion",
+        version: aggregate.version,
+      });
+      return this.envelopesFor(
+        declined.emissions,
+        aggregate.matchId,
+        envelope.commandId,
+      );
+    }
+    return this.createRematch(tx, aggregate, envelope);
+  }
+
+  /** Create exactly one successor rematch and persist both aggregates atomically. */
+  private createRematch(
+    tx: Transaction,
+    previous: MatchAggregate,
+    envelope: ClientCommandEnvelope,
+  ): ServerEventEnvelope[] {
+    const creation = createRematchAggregate(previous, {
+      matchId: this.deps.ids.matchId(),
+      inviteCode: this.deps.ids.inviteCode(),
+      seed: this.deps.seeds.next(),
+    });
+    tx.saveMatch(creation.rematch, { kind: "create" });
+    tx.saveMatch(creation.previous, {
+      kind: "expectedVersion",
+      version: previous.version,
+    });
+    return this.envelopesFor(
+      creation.emissions,
+      creation.rematch.matchId,
+      envelope.commandId,
+    );
+  }
+
+  private async announceExistingRematch(
+    tx: Transaction,
+    aggregate: MatchAggregate,
+    playerId: string,
+    envelope: ClientCommandEnvelope,
+  ): Promise<ServerEventEnvelope[]> {
+    const successor = aggregate.successorMatchId
+      ? await tx.loadMatch(aggregate.successorMatchId)
+      : null;
+    const emission = successor
+      ? rematchCreatedEmission(successor, playerId)
+      : null;
+    if (!emission) {
+      return [
+        this.rejection(
+          envelope.commandId,
+          aggregate.matchId,
+          "internal_error",
+          "The rematch could not be located.",
+          aggregate.version,
+          null,
+          { playerId },
+        ),
+      ];
+    }
+    return [this.envelopeFor(emission, aggregate.matchId, envelope.commandId)];
   }
 
   private commit(
@@ -410,7 +603,7 @@ export class CommandHandler {
       messageType: "event",
       eventId: this.deps.ids.eventId(),
       emittedAt: this.deps.clock.now().toISOString(),
-      matchId,
+      matchId: emission.matchId ?? matchId,
       matchVersion: emission.matchVersion,
       streamSequence: emission.streamSequence,
       causationCommandId: commandId,

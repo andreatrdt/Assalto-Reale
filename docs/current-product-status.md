@@ -123,7 +123,9 @@ container-buildable but not publicly deployed**.
   deployment supplies the WebSocket/session endpoint and the web build sets
   `VITE_MULTIPLAYER_WS_URL`. See [`multiplayer-deployment.md`](multiplayer-deployment.md).
 - **Online matches are invite-only and untimed.** There is no public matchmaking,
-  rating, spectator mode, rematch implementation or server-authoritative clock.
+  rating, spectator mode or server-authoritative clock. (Server-authoritative
+  online rematch — a fresh same-players match with swapped sides — is now
+  implemented.)
 - **Anonymous identity is browser-session scoped.** Clearing session storage or
   changing device loses the guest credential; account continuity is Phase C.10.
 - **AI is a greedy heuristic** with no deep search and no meaningful difficulty

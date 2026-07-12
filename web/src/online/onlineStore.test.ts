@@ -351,16 +351,30 @@ describe("online match store", () => {
         offeredByPlayerId: "player_bob0001",
       }),
     );
-    expect(gameStore.getState().message).toContain("offered a rematch");
+    expect(onlineStore.getState().rematchStatus).toBe("received");
+    expect(gameStore.getState().message).toContain("wants a rematch");
 
     client().emit(
-      eventEnvelope({
-        type: "RematchCreated",
-        newMatchId: "match_online02",
-        inviteCode: "INV00002",
-      }),
+      eventEnvelope(
+        {
+          type: "RematchCreated",
+          newMatchId: "match_online02",
+          inviteCode: "INV00002",
+          assignedSide: "White",
+          snapshot: SNAPSHOT,
+        },
+        { matchId: "match_online02", matchVersion: 1, streamSequence: 1 },
+      ),
     );
-    expect(gameStore.getState().message).toBe("A rematch was created.");
+    // The whole context switches to the brand-new match.
+    expect(onlineStore.getState()).toMatchObject({
+      matchId: "match_online02",
+      side: "White",
+      rematchStatus: "none",
+      completed: false,
+      winner: null,
+    });
+    expect(client().send).toHaveBeenCalledWith({ type: "RequestSync", lastSeenMatchVersion: 1 }, { expectedMatchVersion: null });
   });
 
   it("applies rejections, terminal state and every gameplay command", async () => {
@@ -575,5 +589,81 @@ describe("online reconnect synchronization", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("online rematch", () => {
+  async function connectedTerminalMatch() {
+    await onlineStore.getState().connect();
+    onlineStore.setState({
+      matchId: "match_online01",
+      side: "Black",
+      connectionStatus: "connected",
+      completed: true,
+      winner: "White",
+      pendingCommandId: null,
+      rematchStatus: "none",
+    });
+  }
+
+  it("requests a rematch from the server and never resets a local match", async () => {
+    await connectedTerminalMatch();
+    expect(onlineStore.getState().offerRematch()).toBe(true);
+    expect(client().send).toHaveBeenLastCalledWith({ type: "OfferRematch" }, { expectedMatchVersion: null });
+    expect(onlineStore.getState().rematchStatus).toBe("sent");
+  });
+
+  it("ignores duplicate rematch requests while one is in flight", async () => {
+    await connectedTerminalMatch();
+    onlineStore.getState().offerRematch();
+    const calls = client().send.mock.calls.length;
+    expect(onlineStore.getState().offerRematch()).toBe(false);
+    expect(client().send.mock.calls.length).toBe(calls);
+  });
+
+  it("accepts a received rematch and declines only when one was received", async () => {
+    await connectedTerminalMatch();
+    expect(onlineStore.getState().respondToRematch(true)).toBe(false);
+
+    onlineStore.setState({ rematchStatus: "received" });
+    expect(onlineStore.getState().respondToRematch(true)).toBe(true);
+    expect(client().send).toHaveBeenLastCalledWith({ type: "RespondToRematch", accept: true }, { expectedMatchVersion: null });
+  });
+
+  it("marks the rematch declined when the opponent refuses", async () => {
+    await connectedTerminalMatch();
+    onlineStore.setState({ rematchStatus: "sent" });
+    client().emit(eventEnvelope({ type: "RematchDeclined", declinedByPlayerId: "player_bob0001" }));
+    expect(onlineStore.getState().rematchStatus).toBe("declined");
+  });
+
+  it("replaces the whole context with the successor and drops the old result", async () => {
+    await connectedTerminalMatch();
+    onlineStore.setState({ matchId: "match_old00001", streamSequence: 9, completed: true, winner: "White" });
+
+    client().emit(
+      eventEnvelope(
+        {
+          type: "RematchCreated",
+          newMatchId: "match_new00001",
+          inviteCode: "NEW00001",
+          assignedSide: "Black",
+          snapshot: SNAPSHOT,
+        },
+        { matchId: "match_new00001", matchVersion: 1, streamSequence: 1 },
+      ),
+    );
+
+    expect(onlineStore.getState()).toMatchObject({
+      matchId: "match_new00001",
+      side: "Black",
+      completed: false,
+      winner: null,
+      rematchStatus: "none",
+      streamSequence: 1,
+    });
+    expect(applyOnlineSnapshot).toHaveBeenLastCalledWith(SNAPSHOT, expect.objectContaining({ side: "Black" }));
+    // The successor's live stream is requested so future events arrive.
+    expect(client().send).toHaveBeenCalledWith({ type: "RequestSync", lastSeenMatchVersion: 1 }, { expectedMatchVersion: null });
   });
 });

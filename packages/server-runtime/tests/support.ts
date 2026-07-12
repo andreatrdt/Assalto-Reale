@@ -1,12 +1,49 @@
 import { expect } from "vitest";
 import { WebSocket } from "ws";
 import type {
+  CanonicalMatchSnapshot,
+  ServerEvent,
   ClientCommand,
   ServerEventEnvelope,
 } from "@assalto-reale/multiplayer-protocol";
 
 export const TEST_ORIGIN = "http://localhost:5173";
 export const TEST_SECRET = "operational-runtime-test-secret-0123456789";
+
+/**
+ * Extract the canonical snapshot from any event that carries one, narrowing by
+ * `event.type` so no unsafe cast from the wire union is needed.
+ */
+export function snapshotFromEvent(event: ServerEvent): CanonicalMatchSnapshot {
+  switch (event.type) {
+    case "MatchCreated":
+    case "PlayerJoined":
+    case "MatchUpdated":
+    case "MatchEnded":
+    case "MatchSnapshot":
+    case "RematchCreated":
+      return event.snapshot;
+    default:
+      throw new Error(`Event ${event.type} carries no canonical snapshot.`);
+  }
+}
+
+/**
+ * Read placement-phase fields from a canonical snapshot. A CanonicalMatchSnapshot
+ * is an opaque JSON object on the wire (game-core owns the gameplay shape), so
+ * this test-only helper validates the field types before use rather than casting.
+ */
+export function placementView(snapshot: CanonicalMatchSnapshot): {
+  phase: string;
+  placementCursor: number;
+} {
+  const phase = snapshot.phase;
+  const placementCursor = snapshot.placementCursor;
+  if (typeof phase !== "string" || typeof placementCursor !== "number") {
+    throw new Error("Canonical snapshot is missing placement fields.");
+  }
+  return { phase, placementCursor };
+}
 
 export interface GuestSession {
   token: string;

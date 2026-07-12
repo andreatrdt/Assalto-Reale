@@ -11,6 +11,7 @@ import {
   type StoredCommandReceipt,
 } from "../src/index.js";
 import { createMatchAggregate } from "../src/domain/matchAggregate.js";
+import { POSTGRES_MIGRATIONS } from "../src/persistence/postgres/migrations.js";
 import {
   ALICE,
   BOB,
@@ -85,7 +86,9 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
     }>(
       "SELECT version, name, checksum FROM authoritative_schema_migrations ORDER BY version",
     );
-    expect(applied.rows).toHaveLength(1);
+    expect(applied.rows.map((row) => row.name)).toEqual(
+      POSTGRES_MIGRATIONS.map((migration) => migration.name),
+    );
     expect(applied.rows[0]?.name).toBe("create_authoritative_match_tables");
 
     const originalChecksum = applied.rows[0]!.checksum;

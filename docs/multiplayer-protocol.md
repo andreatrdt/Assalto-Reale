@@ -83,6 +83,12 @@ PassTurn
 
 These six wire commands are compile-time compatible with the corresponding `game-core` commands. The future server validates player ownership and aggregate version before converting them to `game-core.applyCommand()`.
 
+### Rematch commands
+
+`OfferRematch` and `RespondToRematch { accept }` target a **terminal** match. Like `RequestSync`, they carry a `matchId` but **no** `expectedMatchVersion` (rematch negotiation is not an optimistic gameplay mutation). The server accepts them only for an ended match, only from a member, and only lets the opponent answer an open offer; it creates at most one successor match. See [`authoritative-server.md`](authoritative-server.md) for the full lifecycle.
+
+`RematchDeclined { declinedByPlayerId }` notifies the offerer of a refusal. `RematchCreated` carries `newMatchId`, `inviteCode`, the recipient's `assignedSide` (sides swap between rematches) and a canonical `snapshot`, so both clients switch straight into the new manual-placement match — no new invite code or rejoin is required.
+
 ### Version requirements
 
 Every state-changing command after creation/join requires:

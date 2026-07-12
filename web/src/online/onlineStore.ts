@@ -12,6 +12,13 @@ const MATCH_STORAGE_KEY = "assalto:online-match";
 // a match is only usable once its canonical snapshot has been applied.
 export type OnlineSyncStatus = "idle" | "connecting" | "synchronizing" | "synchronized" | "failed";
 
+// Rematch negotiation from this client's point of view.
+//   none     – no rematch in play
+//   sent     – we asked; waiting for the opponent
+//   received – the opponent asked; we can accept or decline
+//   declined – the opponent declined our request
+export type OnlineRematchStatus = "none" | "sent" | "received" | "declined";
+
 // If the server never answers a RequestSync, restore the button so the user can
 // retry instead of being stuck on a silent "synchronizing" state.
 const SYNC_TIMEOUT_MS = 12_000;
@@ -30,6 +37,7 @@ export interface OnlineMatchState {
   connectionStatus: OnlineConnectionStatus;
   connectionDetail: string | null;
   syncStatus: OnlineSyncStatus;
+  rematchStatus: OnlineRematchStatus;
   playerId: string | null;
   sessionId: string | null;
   matchId: string | null;
@@ -50,6 +58,8 @@ export interface OnlineMatchActions {
   hostMatch: () => Promise<boolean>;
   joinMatch: (inviteCode: string) => Promise<boolean>;
   resumeMatch: () => Promise<boolean>;
+  offerRematch: () => boolean;
+  respondToRematch: (accept: boolean) => boolean;
   sendPlacement: (position: Vec2) => boolean;
   sendAction: (start: Vec2, end: Vec2) => boolean;
   chooseDefender: (position: Vec2) => boolean;
@@ -149,9 +159,11 @@ function eventMessage(envelope: ServerEventEnvelope): string {
     case "CommandRejected":
       return envelope.event.message;
     case "RematchOffered":
-      return "Your opponent offered a rematch.";
+      return "Your opponent wants a rematch.";
+    case "RematchDeclined":
+      return "Your opponent declined the rematch.";
     case "RematchCreated":
-      return "A rematch was created.";
+      return "Starting the rematch…";
   }
 }
 
@@ -212,6 +224,10 @@ function handleEnvelope(
   // de-duplicated by stream sequence.
   if (
     envelope.event.type !== "MatchSnapshot" &&
+    // Only de-duplicate within the current match's own stream. A RematchCreated
+    // carries a different (new) matchId with its own baseline sequence and must
+    // never be dropped against the old match's position.
+    envelope.matchId === state.matchId &&
     envelope.streamSequence !== null &&
     state.streamSequence !== null &&
     envelope.streamSequence <= state.streamSequence
@@ -309,10 +325,48 @@ function handleEnvelope(
         });
       }
       break;
+    case "RematchOffered":
+      set({ ...base, rematchStatus: "received", lastError: null, lastRejectionCode: null });
+      useGameStore.setState({ message });
+      break;
+    case "RematchDeclined":
+      set({ ...base, rematchStatus: "declined", lastError: null, lastRejectionCode: null });
+      useGameStore.setState({ message });
+      break;
+    case "RematchCreated": {
+      // Replace the whole online context with the brand-new successor match. No
+      // old board, history, result, version or stream is carried over.
+      const newMatchId = envelope.event.newMatchId;
+      set({
+        matchId: newMatchId,
+        inviteCode: envelope.event.inviteCode,
+        side: envelope.event.assignedSide,
+        matchVersion: envelope.matchVersion,
+        streamSequence: envelope.streamSequence,
+        waitingForOpponent: false,
+        completed: false,
+        winner: null,
+        pendingCommandId: null,
+        rematchStatus: "none",
+        lastError: null,
+        lastRejectionCode: null,
+        connectionDetail: null,
+      });
+      applyOnlineSnapshot(envelope.event.snapshot, {
+        message,
+        side: envelope.event.assignedSide,
+      });
+      // Point the socket at the successor and subscribe to its live stream.
+      client?.setMatchContext(newMatchId, envelope.matchVersion);
+      try {
+        client?.requestSync();
+      } catch {
+        // The next action (or a reconnect) will subscribe and resync.
+      }
+      break;
+    }
     case "DecisionRequired":
     case "TurnChanged":
-    case "RematchOffered":
-    case "RematchCreated":
       set(base);
       useGameStore.setState({ message });
       break;
@@ -353,6 +407,27 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     }
   }
 
+  // Rematch negotiation targets the (terminal) match without an expected version
+  // and is independent of the gameplay pending-command gate.
+  function sendRematch(command: ClientCommand): boolean {
+    const state = get();
+    if (!state.matchId || state.connectionStatus !== "connected") {
+      set({ lastError: "The online match is not connected." });
+      return false;
+    }
+    try {
+      const id = client?.send(command, { expectedMatchVersion: null });
+      if (!id) throw new Error("The multiplayer connection is not ready.");
+      set({ lastError: null, lastRejectionCode: null });
+      return true;
+    } catch (error) {
+      set({
+        lastError: error instanceof Error ? error.message : "Could not send the command.",
+      });
+      return false;
+    }
+  }
+
   async function connect(): Promise<boolean> {
     const currentClient = createClient(set, get);
     if (!currentClient) return false;
@@ -379,6 +454,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     connectionStatus: "idle",
     connectionDetail: null,
     syncStatus: "idle",
+    rematchStatus: "none",
     playerId: null,
     sessionId: null,
     matchId: persisted?.matchId ?? null,
@@ -513,6 +589,27 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       return true;
     },
 
+    offerRematch: () => {
+      // Idempotent from the UI's side: while an offer is in flight or received,
+      // do not fire another request.
+      if (get().rematchStatus === "sent") return false;
+      const sent = sendRematch({ type: "OfferRematch" });
+      if (sent) {
+        set({ rematchStatus: "sent" });
+        useGameStore.setState({ message: "Rematch requested. Waiting for your opponent…" });
+      }
+      return sent;
+    },
+
+    respondToRematch: (accept) => {
+      if (get().rematchStatus !== "received") return false;
+      const sent = sendRematch({ type: "RespondToRematch", accept });
+      if (sent && !accept) {
+        set({ rematchStatus: "none" });
+      }
+      return sent;
+    },
+
     sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),
     sendAction: (start, end) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]] }),
     chooseDefender: (position) => send({ type: "ChooseDefender", position: [position[0], position[1]] }),
@@ -542,6 +639,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
               waitingForOpponent: false,
               winner: null,
               completed: false,
+              rematchStatus: "none",
             }),
       });
       if (!preserveMatch) {
