@@ -40,6 +40,13 @@ export interface OnlineMatchConfig {
   timeControl: TimeControl;
 }
 
+/**
+ * Authoritative match lifecycle, conveyed on a canonical snapshot so a
+ * reconnecting client restores membership/completion state without inferring it
+ * from the match version.
+ */
+export type MatchLifecycleStatus = "awaitingOpponent" | "active" | "ended";
+
 export type ClientCommand =
   | { type: "CreateMatch"; config: OnlineMatchConfig }
   | { type: "JoinMatch"; inviteCode: string }
@@ -164,6 +171,7 @@ export type ServerEvent =
   | {
       type: "MatchSnapshot";
       snapshot: CanonicalMatchSnapshot;
+      status: MatchLifecycleStatus;
     };
 
 export interface ServerEventEnvelope<E extends ServerEvent = ServerEvent> {

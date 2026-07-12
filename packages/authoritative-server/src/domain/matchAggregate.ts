@@ -507,7 +507,11 @@ export function syncEmission(
   requesterPlayerId: string,
 ): Emission {
   return {
-    event: { type: "MatchSnapshot", snapshot: snapshotOf(aggregate.state) },
+    event: {
+      type: "MatchSnapshot",
+      snapshot: snapshotOf(aggregate.state),
+      status: aggregate.status,
+    },
     recipient: { playerId: requesterPlayerId },
     matchVersion: aggregate.version,
     streamSequence: aggregate.streamSequence,

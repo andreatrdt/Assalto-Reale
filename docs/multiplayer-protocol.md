@@ -161,7 +161,9 @@ MatchSnapshot
 
 `MatchUpdated` contains the canonical snapshot plus serializable domain events reported by game-core. Specific events such as `DecisionRequired`, `TurnChanged` and `MatchEnded` make common client reactions explicit without requiring UI code to infer them from a state diff.
 
-A server may publish multiple envelopes for one accepted command. They share the same `matchVersion` and `causationCommandId`, while `streamSequence` determines their order.
+`MatchSnapshot` carries the canonical snapshot **and** the authoritative match lifecycle `status` (`awaitingOpponent` | `active` | `ended`). Because game-core state alone cannot distinguish "created, awaiting an opponent" from "rematch just created with both players present" (both are version 1, empty placement board), a reconnecting client must read waiting/completion from `status` rather than inferring it from `matchVersion`.
+
+A server may publish multiple envelopes for one accepted command. They share the same `matchVersion` and `causationCommandId`, while `streamSequence` determines their order. Clients must scope ordering and de-duplication by `(matchId, streamSequence)`: an event addressed to a different match than the active one is ignored, except `RematchCreated`, which is the only event permitted to switch the client to a successor match.
 
 ## Pending decisions
 
