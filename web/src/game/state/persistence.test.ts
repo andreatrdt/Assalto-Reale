@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildAction, createBoard, getPiece, setPiece, updateControl, type BoardState, type Vec2 } from "../engine";
-import { DEFAULT_MATCH_CONFIG } from "../setup/matchConfig";
+import {
+  buildAction,
+  chooseQuickPlacementSquare,
+  createBoard,
+  getPiece,
+  setPiece,
+  updateControl,
+  type BoardState,
+  type Vec2,
+} from "../engine";
+import { DEFAULT_MATCH_CONFIG, type MatchConfig } from "../setup/matchConfig";
 import { useGameStore } from "./gameStore";
 
 // --- test doubles for localStorage -----------------------------------------
@@ -43,11 +52,35 @@ function removeLocalStorage() {
 
 const s = () => useGameStore.getState();
 
+// Drive the real manual-placement flow to completion so the store reaches the
+// playing phase exactly as production does — there is no quick deployment.
+function completePlacement(): void {
+  for (let guard = 0; guard < 64; guard += 1) {
+    const state = s();
+    if (state.phase.phase !== "placement" || !state.currentPlacement) break;
+    const { player, pieceType } = state.currentPlacement;
+    if (state.aiEnabled && player === state.aiPlayer) {
+      s().runAiTurn();
+    } else {
+      s().activateSquare(chooseQuickPlacementSquare(state.board, player, pieceType));
+    }
+  }
+}
+
+// Start a match through the public configured flow and finish placement, leaving
+// the store in the playing phase with a full board. Placement is recorded in
+// history; clear it so gameplay/persistence tests start from a clean playing slate.
+function startPlayingMatch(config: Partial<MatchConfig> = {}): void {
+  s().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, ...config });
+  completePlacement();
+  useGameStore.setState({ history: [] });
+}
+
 /** Round-trip through the real export → (disturb) → import path and return the restored state. */
 function exportDisturbImport(): boolean {
   const exported = s().exportSaveJson();
   // Disturb the store so a naive comparison cannot pass without a real restore.
-  s().startQuickMatch({ seed: 999 });
+  startPlayingMatch({ setupSeed: 999 });
   return s().importSaveJson(exported ?? "");
 }
 
@@ -130,7 +163,7 @@ function territoryScenario() {
 
 beforeEach(() => {
   installLocalStorage();
-  s().startQuickMatch({ seed: 7 });
+  startPlayingMatch({ setupSeed: 7 });
 });
 
 afterEach(() => {
@@ -227,7 +260,7 @@ describe("persistence round-trip across match phases", () => {
   });
 
   it("restores a timed match preserving remaining time without deducting unloaded wall time", () => {
-    s().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, placementMode: "QuickBalanced", timerSeconds: 300, setupSeed: 5 });
+    startPlayingMatch({ timerSeconds: 300, setupSeed: 5 });
     s().startClock(1000);
     s().tickClock(6000); // 5s elapsed
     expect(s().timeLeft.Black).toBe(295);
@@ -248,7 +281,7 @@ describe("persistence round-trip across match phases", () => {
   });
 
   it("restores a completed (timeout) match and accepts no further gameplay action", () => {
-    s().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, placementMode: "QuickBalanced", timerSeconds: 300, setupSeed: 8 });
+    startPlayingMatch({ timerSeconds: 300, setupSeed: 8 });
     s().startClock(1000);
     s().tickClock(302000); // Black flag falls
     expect(s().phase.phase).toBe("gameOver");
@@ -318,7 +351,7 @@ describe("undo restores full authoritative state", () => {
 describe("timer lifecycle is deterministic", () => {
   it("saving syncs elapsed time into the persisted state", () => {
     const store = installLocalStorage();
-    s().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, placementMode: "QuickBalanced", timerSeconds: 300, setupSeed: 5 });
+    startPlayingMatch({ timerSeconds: 300, setupSeed: 5 });
     s().startClock(0);
     // saveGame calls syncClock(monotonicNow()); we assert timeLeft is persisted (>=0, valid).
     s().saveGame();
@@ -328,7 +361,7 @@ describe("timer lifecycle is deterministic", () => {
   });
 
   it("untimed matches never produce a timeout after round-trip", () => {
-    s().startConfiguredMatch({ ...DEFAULT_MATCH_CONFIG, placementMode: "QuickBalanced", timerSeconds: 0, setupSeed: 9 });
+    startPlayingMatch({ timerSeconds: 0, setupSeed: 9 });
     expect(exportDisturbImport()).toBe(true);
     s().startClock(0);
     s().tickClock(10_000_000);
@@ -368,7 +401,7 @@ describe("save validation rejects malformed data atomically", () => {
       const bad = structuredClone(good);
       mutate(bad);
       // Fresh active match to protect.
-      s().startQuickMatch({ seed: 3 });
+      startPlayingMatch({ setupSeed: 3 });
       expect(s().importSaveJson(JSON.stringify(bad))).toBe(false);
       expect(s().phase.phase).toBe("playing");
       expect(s().hasActiveMatch).toBe(true);
@@ -376,7 +409,7 @@ describe("save validation rejects malformed data atomically", () => {
   }
 
   it("rejects non-JSON without touching the active match", () => {
-    s().startQuickMatch({ seed: 4 });
+    startPlayingMatch({ setupSeed: 4 });
     expect(s().importSaveJson("{not json")).toBe(false);
     expect(s().phase.phase).toBe("playing");
   });
@@ -384,7 +417,7 @@ describe("save validation rejects malformed data atomically", () => {
   it("accepts a legacy schema-1 save and restores it with pending/history cleared", () => {
     const good = JSON.parse(s().exportSaveJson() ?? "{}");
     const legacy = { ...good, schema: 1, pendingTransform: undefined, pendingDefendedKing: undefined, history: undefined };
-    s().startQuickMatch({ seed: 6 });
+    startPlayingMatch({ setupSeed: 6 });
     expect(s().importSaveJson(JSON.stringify(legacy))).toBe(true);
     expect(s().pendingTransform).toBeNull();
     expect(s().pendingDefendedKing).toBeNull();
@@ -440,7 +473,7 @@ describe("AI restoration does not double-act or stall", () => {
   });
 
   it("restores an AI turn and produces exactly one action per runAiTurn", () => {
-    s().startAiMatch();
+    startPlayingMatch({ opponent: "Computer" });
     useGameStore.setState({ currentPlayer: "White" });
     expect(exportDisturbImport()).toBe(true);
     // Imported save keeps AI ownership; a single runAiTurn advances history by one.
@@ -458,7 +491,7 @@ describe("AI restoration does not double-act or stall", () => {
     s().activateSquare([0, 0]);
     const saveA = s().exportSaveJson() ?? "";
     // Save B: a fresh quick playing match, persisted.
-    s().startQuickMatch({ seed: 21 });
+    startPlayingMatch({ setupSeed: 21 });
     s().saveGame();
     // Import A over B.
     expect(s().importSaveJson(saveA)).toBe(true);

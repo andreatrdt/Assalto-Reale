@@ -77,7 +77,7 @@ describe("multiplayer protocol", () => {
       type: "CreateMatch",
       config: {
         visibility: "invite",
-        placementMode: "QuickBalanced",
+        placementMode: "Manual",
         transformEnabled: true,
         preferredSide: "Random",
         timeControl: { kind: "untimed" },
