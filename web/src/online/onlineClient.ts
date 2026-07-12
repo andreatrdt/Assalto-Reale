@@ -79,6 +79,18 @@ export class OnlineClient {
     this.context = { matchId, matchVersion };
   }
 
+  /**
+   * Ask the server for the canonical snapshot of the current match. Requires an
+   * open socket and a known match context; throws otherwise so callers can
+   * surface a failure instead of silently doing nothing.
+   */
+  requestSync(): string {
+    if (!this.context.matchId) {
+      throw new Error("There is no online match to synchronize.");
+    }
+    return this.send({ type: "RequestSync", lastSeenMatchVersion: this.context.matchVersion }, { expectedMatchVersion: null });
+  }
+
   async connect(): Promise<GuestSessionCredentials> {
     if (this.connected && this.credentials) return this.credentials;
     if (this.connecting) return this.connecting;
@@ -144,13 +156,9 @@ export class OnlineClient {
         resolve(credentials);
         if (this.context.matchId) {
           try {
-            this.send(
-              {
-                type: "RequestSync",
-                lastSeenMatchVersion: this.context.matchVersion,
-              },
-              { expectedMatchVersion: null },
-            );
+            // Fresh connections (including automatic reconnects) request the
+            // canonical snapshot immediately so the board rehydrates.
+            this.requestSync();
           } catch {
             // A close racing the open event will be handled by reconnect.
           }
