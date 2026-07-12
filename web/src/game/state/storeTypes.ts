@@ -87,9 +87,6 @@ export interface GameState {
 
 export interface GameActions {
   startConfiguredMatch: (config: MatchConfig) => void;
-  startQuickMatch: (options?: { aiEnabled?: boolean; aiPlayer?: Player; transformEnabled?: boolean; seed?: number }) => void;
-  startAiMatch: () => void;
-  startTransformMatch: () => void;
   startManualPlacement: (options?: { aiEnabled?: boolean; aiPlayer?: Player; transformEnabled?: boolean; seed?: number }) => void;
   openRules: () => void;
   returnHome: () => void;

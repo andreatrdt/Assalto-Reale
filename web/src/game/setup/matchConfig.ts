@@ -4,6 +4,9 @@ export type OpponentMode = "Human" | "Computer";
 export type HumanSideChoice = Player | "Random";
 export type AiDifficulty = "Easy" | "Medium" | "Hard";
 export type TimerSeconds = 0 | 300 | 600 | 720 | 900 | 1200;
+// Every product match uses "Manual". "QuickBalanced" is legacy/internal only —
+// retained so already-persisted saves and canonical snapshots still type-check on
+// load; nothing in the app creates it. See docs/current-product-status.md.
 export type PlacementMode = "Manual" | "QuickBalanced";
 
 export interface MatchConfig {
@@ -41,10 +44,9 @@ export const DEFAULT_MATCH_CONFIG: MatchConfig = {
 /**
  * Builds the configuration for a match created from the public Setup page.
  *
- * Public matches always use manual placement and always enable Transform; these
+ * Every match always uses manual placement and always enables Transform; these
  * are not user-facing toggles. The AI difficulty is kept (from the default) so
  * the AI stays internally configured even though it is not shown publicly.
- * QuickBalanced remains available internally via the store's own helpers.
  */
 export function createPublicMatchConfig(input: {
   opponent: OpponentMode;

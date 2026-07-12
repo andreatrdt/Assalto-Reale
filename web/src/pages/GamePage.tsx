@@ -702,6 +702,6 @@ function formatPath(path: Vec2[]): string {
 
 function describeMatchMode(config: NonNullable<ReturnType<typeof useGameStore.getState>["matchConfig"]>): string {
   const opponent = config.opponent === "Computer" ? `vs ${config.aiDifficulty} AI` : "Human vs Human";
-  const placement = config.placementMode === "Manual" ? "Manual" : "Quick";
-  return `${opponent}, ${placement}${config.transformEnabled ? ", Transform" : ""}`;
+  // Every match always uses manual placement — there is no quick deployment.
+  return `${opponent}, Manual${config.transformEnabled ? ", Transform" : ""}`;
 }

@@ -30,7 +30,9 @@ export function applyOnlineSnapshot(snapshot: CanonicalMatchSnapshot, options: O
       resolvedHumanSide: null,
       aiSide: null,
       timerSeconds: 0,
-      placementMode: match.phase === "placement" ? "Manual" : "QuickBalanced",
+      // Online matches always use manual placement; the label is Manual whether
+      // the projected snapshot is still in placement or already in play.
+      placementMode: "Manual",
       transformEnabled: match.board.transformSquares.length > 0,
       setupSeed: 0,
     },

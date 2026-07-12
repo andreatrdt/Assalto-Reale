@@ -235,8 +235,7 @@ function readSaveSummary(): SaveSummary | null {
     const schema = typeof parsed.schema === "number" ? parsed.schema : null;
     const config = parsed.matchConfig;
     const opponent = config?.opponent === "Computer" ? "Human vs Computer" : "Human vs Human";
-    const placement =
-      config?.placementMode === "QuickBalanced" ? "Quick setup" : config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
+    const placement = config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
     const transform = config?.transformEnabled === false ? "Transform off" : "Transform on";
     const valid = (schema === 1 || schema === 2) && Boolean(parsed.board);
     const issue =
