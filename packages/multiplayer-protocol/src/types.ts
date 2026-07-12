@@ -151,9 +151,15 @@ export type ServerEvent =
       offeredByPlayerId: string;
     }
   | {
+      type: "RematchDeclined";
+      declinedByPlayerId: string;
+    }
+  | {
       type: "RematchCreated";
       newMatchId: string;
       inviteCode: string;
+      assignedSide: PlayerSide;
+      snapshot: CanonicalMatchSnapshot;
     }
   | {
       type: "MatchSnapshot";
