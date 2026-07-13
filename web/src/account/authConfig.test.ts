@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { browserAuthConfig } from "./authConfig";
+import { browserAuthConfig, safeAuthReturnRoute } from "./authConfig";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -24,5 +24,11 @@ describe("browser account configuration", () => {
       audience: "https://api.example",
       apiBaseUrl: "https://backend.example/auth",
     });
+  });
+
+  it("allows only known local callback routes", () => {
+    expect(safeAuthReturnRoute("/account")).toBe("/account");
+    expect(safeAuthReturnRoute("https://attacker.example/redirect")).toBe("/");
+    expect(safeAuthReturnRoute(undefined)).toBe("/");
   });
 });

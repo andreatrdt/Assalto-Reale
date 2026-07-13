@@ -1,11 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { AccountContext, type AccountContextValue } from "../account/AccountProvider";
 import { HomePage } from "./HomePage";
 
 const navigate = () => undefined;
 
-function renderHome() {
-  return renderToStaticMarkup(<HomePage route="/" navigate={navigate} />);
+function renderHome(account?: AccountContextValue) {
+  const home = <HomePage route="/" navigate={navigate} />;
+  return renderToStaticMarkup(account ? <AccountContext.Provider value={account}>{home}</AccountContext.Provider> : home);
 }
 
 // Note: zustand v5 renders its React SSR snapshot from getInitialState(), so
@@ -37,6 +39,23 @@ describe("Home page", () => {
     const html = renderHome();
 
     expect(html).not.toContain("Continue Last Match");
+  });
+
+  it("does not settle into a false Sign in action while checking the provider session", () => {
+    const html = renderHome({
+      state: "checking-session",
+      enabled: true,
+      account: null,
+      matches: [],
+      error: null,
+      signIn: async () => undefined,
+      signOut: async () => undefined,
+      refreshMatches: async () => undefined,
+    });
+
+    expect(html).toContain("Checking account");
+    expect(html).toContain("disabled");
+    expect(html).not.toContain(">Sign in<");
   });
 
   it("keeps the homepage minimal and free of rejected decorative elements", () => {

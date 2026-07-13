@@ -26,6 +26,7 @@ describe("minimal account page", () => {
   });
 
   it.each([
+    ["checking-session", "Restoring your account"],
     ["signing-in", "Completing secure sign-in"],
     ["auth-failed", "Authentication failed"],
     ["session-expired", "Session expired"],
