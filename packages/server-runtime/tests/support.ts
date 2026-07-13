@@ -142,6 +142,20 @@ export class TestClient {
     });
   }
 
+  static connectTicket(
+    wsBase: string,
+    ticket: string,
+    origin = TEST_ORIGIN,
+  ): Promise<TestClient> {
+    const socket = new WebSocket(`${wsBase}?ticket=${ticket}`, {
+      headers: { origin },
+    });
+    return new Promise((resolve, reject) => {
+      socket.once("open", () => resolve(new TestClient(socket)));
+      socket.once("error", reject);
+    });
+  }
+
   send(message: string): void {
     this.socket.send(message);
   }

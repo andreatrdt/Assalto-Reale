@@ -15,6 +15,11 @@ export interface RuntimeConfig {
   readonly sessionPath: "/session";
   guestSessionSecret: string;
   guestSessionTtlMs: number;
+  authEnabled: boolean;
+  authIssuerUrl: string | null;
+  authAudience: string | null;
+  authSessionIdClaim: string | null;
+  authWebsocketTicketTtlMs: number;
   heartbeatIntervalMs: number;
   maxPayloadBytes: number;
   maxBufferedBytes: number;
@@ -76,6 +81,70 @@ function parseInteger(
       `${key} must be between ${min} and ${max} (got ${value}).`,
     );
   return value;
+}
+
+function parseBoolean(env: Env, key: string, fallback: boolean): boolean {
+  const raw = read(env, key);
+  if (raw === undefined) return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new ConfigError(`${key} must be "true" or "false" (got "${raw}").`);
+}
+
+function parseAuthConfig(
+  env: Env,
+  mode: RuntimeMode,
+): Pick<
+  RuntimeConfig,
+  | "authEnabled"
+  | "authIssuerUrl"
+  | "authAudience"
+  | "authSessionIdClaim"
+  | "authWebsocketTicketTtlMs"
+> {
+  const authEnabled = parseBoolean(env, "AUTH_ENABLED", false);
+  const ticketTtlMs =
+    parseInteger(env, "AUTH_WEBSOCKET_TICKET_TTL_SECONDS", 60, 15, 300) * 1_000;
+  if (!authEnabled) {
+    return {
+      authEnabled,
+      authIssuerUrl: null,
+      authAudience: null,
+      authSessionIdClaim: null,
+      authWebsocketTicketTtlMs: ticketTtlMs,
+    };
+  }
+  const rawIssuer = requireValue(env, "AUTH_ISSUER_URL");
+  let issuer: URL;
+  try {
+    issuer = new URL(rawIssuer);
+  } catch {
+    throw new ConfigError("AUTH_ISSUER_URL must be a valid URL.");
+  }
+  if (
+    issuer.search ||
+    issuer.hash ||
+    (issuer.protocol !== "https:" &&
+      !(mode === "development" && issuer.protocol === "http:"))
+  ) {
+    throw new ConfigError(
+      "AUTH_ISSUER_URL must be an HTTPS origin/path without query or fragment.",
+    );
+  }
+  const audience = requireValue(env, "AUTH_AUDIENCE");
+  const sessionIdClaim = requireValue(env, "AUTH_SESSION_ID_CLAIM");
+  if (audience.length > 512 || sessionIdClaim.length > 256) {
+    throw new ConfigError(
+      "AUTH_AUDIENCE or AUTH_SESSION_ID_CLAIM is too long.",
+    );
+  }
+  return {
+    authEnabled,
+    authIssuerUrl: issuer.toString(),
+    authAudience: audience,
+    authSessionIdClaim: sessionIdClaim,
+    authWebsocketTicketTtlMs: ticketTtlMs,
+  };
 }
 
 function parseDatabaseUrl(env: Env): string {
@@ -187,6 +256,7 @@ function parseGuestSecret(
 export function loadConfig(env: Env = process.env): RuntimeConfig {
   const mode = parseMode(env);
   const { secret, usingDevelopmentSecret } = parseGuestSecret(env, mode);
+  const auth = parseAuthConfig(env, mode);
   return {
     mode,
     host:
@@ -205,6 +275,7 @@ export function loadConfig(env: Env = process.env): RuntimeConfig {
         60,
         7 * 24 * 60 * 60,
       ) * 1000,
+    ...auth,
     heartbeatIntervalMs: parseInteger(
       env,
       "HEARTBEAT_INTERVAL_MS",

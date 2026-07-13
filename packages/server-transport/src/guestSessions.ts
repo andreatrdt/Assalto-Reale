@@ -28,6 +28,8 @@ export interface HmacGuestSessionOptions {
   ttlMs?: number;
   now?: () => number;
   randomId?: () => string;
+  registerIdentity?: (playerId: string) => Promise<void>;
+  validateIdentity?: (playerId: string) => Promise<boolean>;
 }
 
 const DEFAULT_TTL_MS = 12 * 60 * 60 * 1_000;
@@ -60,6 +62,8 @@ export class HmacGuestSessionService
   private readonly ttlMs: number;
   private readonly now: () => number;
   private readonly randomId: () => string;
+  private readonly registerIdentity?: (playerId: string) => Promise<void>;
+  private readonly validateIdentity?: (playerId: string) => Promise<boolean>;
 
   constructor(secret: string | Buffer, options: HmacGuestSessionOptions = {}) {
     this.secret = Buffer.isBuffer(secret)
@@ -73,6 +77,8 @@ export class HmacGuestSessionService
     this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
     this.now = options.now ?? Date.now;
     this.randomId = options.randomId ?? defaultRandomId;
+    this.registerIdentity = options.registerIdentity;
+    this.validateIdentity = options.validateIdentity;
   }
 
   async issue(): Promise<IssuedGuestSession> {
@@ -90,6 +96,7 @@ export class HmacGuestSessionService
     }
 
     const expiresAtMs = this.now() + this.ttlMs;
+    await this.registerIdentity?.(playerId);
     const payload: GuestTokenPayload = {
       version: 1,
       playerId,
@@ -119,6 +126,9 @@ export class HmacGuestSessionService
     } catch {
       return null;
     }
+    // Reject alternate/non-canonical base64url spellings that decode to the
+    // same bytes. This keeps the signed token representation non-malleable.
+    if (supplied.toString("base64url") !== encodedSignature) return null;
     const expected = signature(this.secret, encodedPayload);
     if (
       supplied.length !== expected.length ||
@@ -140,6 +150,12 @@ export class HmacGuestSessionService
         typeof payload.expiresAtMs !== "number" ||
         !Number.isFinite(payload.expiresAtMs) ||
         payload.expiresAtMs <= this.now()
+      ) {
+        return null;
+      }
+      if (
+        this.validateIdentity &&
+        !(await this.validateIdentity(payload.playerId))
       ) {
         return null;
       }

@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
-import { createInMemoryPersistence } from "@assalto-reale/authoritative-server";
+import {
+  AccountSessionRevokedError,
+  createInMemoryPersistence,
+  type AccountRepository,
+  type RegisteredSession,
+} from "@assalto-reale/authoritative-server";
 import { HmacGuestSessionService } from "@assalto-reale/server-transport";
 import {
   composeServer,
@@ -50,6 +55,221 @@ afterAll(async () => {
 });
 
 describe("composed multiplayer stack (in-memory)", () => {
+  it("runs guest and registered sockets together and reconnects the registered membership", async () => {
+    const now = new Date("2028-01-01T00:00:00.000Z");
+    const registered: RegisteredSession = {
+      user: {
+        userId: "user_stack001",
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      },
+      identity: {
+        authIdentityId: "identity_stack001",
+        userId: "user_stack001",
+        issuer: "http://issuer.test/",
+        providerSubject: "auth0|stack001",
+        verifiedEmail: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      session: {
+        sessionId: "session_stack001",
+        userId: "user_stack001",
+        authIdentityId: "identity_stack001",
+        playerId: "player_stack001",
+        expiresAt: new Date("2028-01-02T00:00:00.000Z"),
+        revokedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      playerIdentity: {
+        playerId: "player_stack001",
+        userId: "user_stack001",
+        kind: "registered",
+        createdAt: now,
+        claimedAt: now,
+        revokedAt: null,
+      },
+    };
+    let revoked = false;
+    const tickets = new Map<
+      string,
+      { playerId: string; sessionId: string; expiresAt: Date }
+    >();
+    const accounts: AccountRepository = {
+      ensureGuestIdentity: async (playerId) => ({
+        playerId,
+        userId: null,
+        kind: "guest",
+        createdAt: now,
+        claimedAt: null,
+        revokedAt: null,
+      }),
+      isGuestAuthenticationAllowed: async () => true,
+      provisionRegisteredSession: async () => {
+        if (revoked) throw new AccountSessionRevokedError();
+        return registered;
+      },
+      loadSession: async () => (revoked ? null : registered),
+      revokeSession: async () => {
+        revoked = true;
+        return true;
+      },
+      claimGuestIdentity: async () => registered,
+      listActiveMatches: async () => [],
+      resolveMatchPlayer: async () => registered.playerIdentity.playerId,
+      saveWebsocketTicket: async (input) => {
+        tickets.set(input.ticketHash, {
+          playerId: input.playerId,
+          sessionId: input.sessionId,
+          expiresAt: input.expiresAt,
+        });
+      },
+      consumeWebsocketTicket: async (hash, consumedAt = new Date()) => {
+        const ticket = tickets.get(hash);
+        if (!ticket || ticket.expiresAt <= consumedAt) return null;
+        tickets.delete(hash);
+        return { playerId: ticket.playerId, sessionId: ticket.sessionId };
+      },
+    };
+    const config = loadConfig({
+      NODE_ENV: "development",
+      DATABASE_URL: "postgresql://unused:unused@127.0.0.1:5432/unused",
+      MULTIPLAYER_ALLOWED_ORIGINS: TEST_ORIGIN,
+      GUEST_SESSION_SECRET: TEST_SECRET,
+      HEARTBEAT_INTERVAL_MS: "1000",
+      AUTH_ENABLED: "true",
+      AUTH_ISSUER_URL: "http://issuer.test/",
+      AUTH_AUDIENCE: "assalto-test",
+      AUTH_SESSION_ID_CLAIM: "https://assalto.test/session_id",
+    });
+    const stack = composeServer({
+      config,
+      persistence: { ...createInMemoryPersistence(), accounts },
+      registeredAccessTokenVerifier: {
+        verify: async (token) =>
+          token === "registered-access"
+            ? {
+                issuer: "http://issuer.test/",
+                providerSubject: "auth0|stack001",
+                providerSessionId: "provider-session-stack001",
+                expiresAt: registered.session.expiresAt,
+                verifiedEmail: null,
+              }
+            : null,
+      },
+      registeredTicketNow: () => now,
+    });
+    const address = await stack.server.listen({ host: "127.0.0.1", port: 0 });
+    const localBase = `http://127.0.0.1:${address.port}`;
+    const localWs = `ws://127.0.0.1:${address.port}${address.websocketPath}`;
+    const authHeaders = {
+      origin: TEST_ORIGIN,
+      authorization: "Bearer registered-access",
+      "content-type": "application/json",
+    };
+    try {
+      const guest = await acquireGuestSession(localBase);
+      const guestClient = await TestClient.connect(localWs, guest);
+      guestClient.send(
+        commandMessage(guest, QUICK_CONFIG, { commandId: "cmd_mixed_create" }),
+      );
+      const created = await guestClient.waitFor("MatchCreated");
+      const matchId = created.matchId!;
+      const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+
+      expect(
+        (
+          await fetch(`${localBase}/auth/session`, {
+            method: "POST",
+            headers: authHeaders,
+          })
+        ).status,
+      ).toBe(200);
+      const ticketResponse = await fetch(`${localBase}/auth/websocket-ticket`, {
+        method: "POST",
+        headers: authHeaders,
+        body: "{}",
+      });
+      const ticket = (await ticketResponse.json()) as { ticket: string };
+      const registeredClient = await TestClient.connectTicket(
+        localWs,
+        ticket.ticket,
+      );
+      registeredClient.send(
+        commandMessage(
+          {
+            token: "unused",
+            playerId: registered.playerIdentity.playerId,
+            sessionId: registered.session.sessionId,
+            expiresAt: registered.session.expiresAt.toISOString(),
+          },
+          { type: "JoinMatch", inviteCode },
+          { commandId: "cmd_mixed_join" },
+        ),
+      );
+      await registeredClient.waitFor("PlayerJoined");
+      await registeredClient.close();
+
+      const reconnectResponse = await fetch(
+        `${localBase}/auth/websocket-ticket`,
+        {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({ matchId }),
+        },
+      );
+      const reconnectTicket = (await reconnectResponse.json()) as {
+        ticket: string;
+      };
+      const reconnected = await TestClient.connectTicket(
+        localWs,
+        reconnectTicket.ticket,
+      );
+      reconnected.send(
+        commandMessage(
+          {
+            token: "unused",
+            playerId: registered.playerIdentity.playerId,
+            sessionId: registered.session.sessionId,
+            expiresAt: registered.session.expiresAt.toISOString(),
+          },
+          { type: "RequestSync", lastSeenMatchVersion: null },
+          {
+            commandId: "cmd_mixed_sync",
+            matchId,
+          },
+        ),
+      );
+      await expect(reconnected.waitFor("MatchSnapshot")).resolves.toMatchObject(
+        { matchId },
+      );
+      await reconnected.close();
+      await guestClient.close();
+
+      expect(
+        (
+          await fetch(`${localBase}/auth/logout`, {
+            method: "POST",
+            headers: authHeaders,
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await fetch(`${localBase}/auth/session`, {
+            method: "POST",
+            headers: authHeaders,
+          })
+        ).status,
+      ).toBe(401);
+    } finally {
+      await stack.server.close();
+    }
+  }, 20_000);
+
   it("runs the full invite → join → play → reconnect journey for two guests", async () => {
     // 1 + 3: two independent guest sessions over HTTP.
     const sessionA = await acquireGuestSession(baseUrl);

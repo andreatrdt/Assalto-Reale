@@ -26,6 +26,7 @@ describe("runtime configuration", () => {
     expect(config.sessionPath).toBe("/session");
     expect(config.usingDevelopmentSecret).toBe(false);
     expect(config.guestSessionTtlMs).toBe(12 * 60 * 60 * 1000);
+    expect(config.authEnabled).toBe(false);
   });
 
   it("provides safe, clearly-labelled development defaults", () => {
@@ -112,6 +113,37 @@ describe("runtime configuration", () => {
   it("rejects an unknown NODE_ENV", () => {
     expect(() => loadConfig(prodEnv({ NODE_ENV: "staging" }))).toThrow(
       /NODE_ENV/,
+    );
+  });
+
+  it("validates the feature-gated OIDC account configuration", () => {
+    const enabled = loadConfig(
+      prodEnv({
+        AUTH_ENABLED: "true",
+        AUTH_ISSUER_URL: "https://tenant.example/",
+        AUTH_AUDIENCE: "https://api.example/assalto",
+        AUTH_SESSION_ID_CLAIM: "https://assalto.example/session_id",
+        AUTH_WEBSOCKET_TICKET_TTL_SECONDS: "45",
+      }),
+    );
+    expect(enabled.authEnabled).toBe(true);
+    expect(enabled.authIssuerUrl).toBe("https://tenant.example/");
+    expect(enabled.authWebsocketTicketTtlMs).toBe(45_000);
+    expect(() => loadConfig(prodEnv({ AUTH_ENABLED: "true" }))).toThrow(
+      /AUTH_ISSUER_URL/,
+    );
+    expect(() =>
+      loadConfig(
+        prodEnv({
+          AUTH_ENABLED: "true",
+          AUTH_ISSUER_URL: "http://tenant.example/",
+          AUTH_AUDIENCE: "audience",
+          AUTH_SESSION_ID_CLAIM: "sid",
+        }),
+      ),
+    ).toThrow(/HTTPS/);
+    expect(() => loadConfig(prodEnv({ AUTH_ENABLED: "sometimes" }))).toThrow(
+      /must be "true" or "false"/,
     );
   });
 });
