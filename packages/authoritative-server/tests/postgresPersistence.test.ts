@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { Pool } from "pg";
 import type { ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
 import {
   CommandHandler,
+  AccountIdentityConflictError,
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
   ReceiptConflictError,
@@ -69,7 +71,7 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
 
   beforeEach(async () => {
     await pool.query(
-      "TRUNCATE authoritative_command_receipts, authoritative_matches",
+      "TRUNCATE account_users, player_identities, authoritative_matches, authoritative_command_receipts CASCADE",
     );
   });
 
@@ -104,6 +106,60 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
     );
   });
 
+  it("migrates and backfills a current-production v2 schema", async () => {
+    const schema = "account_foundation_migration_test";
+    await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await pool.query(`CREATE SCHEMA ${schema}`);
+    const legacy = new Pool({
+      connectionString: databaseUrl,
+      options: `-c search_path=${schema}`,
+    });
+    try {
+      await legacy.query(POSTGRES_MIGRATIONS[0]!.sql);
+      await legacy.query(POSTGRES_MIGRATIONS[1]!.sql);
+      await legacy.query(`
+        CREATE TABLE authoritative_schema_migrations (
+          version INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          checksum TEXT NOT NULL,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+      for (const migration of POSTGRES_MIGRATIONS.slice(0, 2)) {
+        await legacy.query(
+          "INSERT INTO authoritative_schema_migrations (version, name, checksum) VALUES ($1, $2, $3)",
+          [
+            migration.version,
+            migration.name,
+            createHash("sha256").update(migration.sql).digest("hex"),
+          ],
+        );
+      }
+      await legacy.query(`
+        INSERT INTO authoritative_matches (
+          match_id, invite_code, version, stream_sequence, seed, config,
+          black_player_id, white_player_id, status, state
+        ) VALUES (
+          'match_legacy01', 'LEGACY01', 2, 2, 42, '{}'::jsonb,
+          'player_legacy_black', 'player_legacy_white', 'active', '{}'::jsonb
+        )
+      `);
+      await runPostgresMigrations(legacy);
+      const backfill = await legacy.query<{
+        players: number;
+        memberships: number;
+      }>(`
+        SELECT
+          (SELECT COUNT(*)::int FROM player_identities) AS players,
+          (SELECT COUNT(*)::int FROM match_memberships) AS memberships
+      `);
+      expect(backfill.rows[0]).toEqual({ players: 2, memberships: 2 });
+    } finally {
+      await legacy.end();
+      await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    }
+  });
+
   it("round-trips a canonical match and invitation lookup", async () => {
     const handler = makeHandler(pool);
     const created = await handler.handle(
@@ -128,6 +184,168 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
     expect(loaded?.state.phase).toBe("playing");
     expect(await persistence.matches.load("match_missing01")).toBeNull();
     expect(await persistence.matches.findByInviteCode("MISSING1")).toBeNull();
+  });
+
+  it("provisions one durable user under concurrent provider registration", async () => {
+    const accounts = createPostgresPersistence(pool).accounts;
+    const claims = {
+      issuer: "https://tenant.example/",
+      providerSubject: "auth0|account-one",
+      providerSessionId: "provider-session-one",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      verifiedEmail: "player@example.test",
+    };
+    const [first, second] = await Promise.all([
+      accounts.provisionRegisteredSession(claims),
+      accounts.provisionRegisteredSession(claims),
+    ]);
+    expect(second.user.userId).toBe(first.user.userId);
+    expect(second.playerIdentity.playerId).toBe(first.playerIdentity.playerId);
+    expect(second.session.sessionId).toBe(first.session.sessionId);
+    const counts = await pool.query<{
+      users: number;
+      identities: number;
+      players: number;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::int FROM account_users) AS users,
+        (SELECT COUNT(*)::int FROM account_auth_identities) AS identities,
+        (SELECT COUNT(*)::int FROM player_identities) AS players
+    `);
+    expect(counts.rows[0]).toEqual({ users: 1, identities: 1, players: 1 });
+  });
+
+  it("rolls back every account row when session creation fails", async () => {
+    const accounts = createPostgresPersistence(pool).accounts;
+    await expect(
+      accounts.provisionRegisteredSession({
+        issuer: "https://tenant.example/",
+        providerSubject: "auth0|rollback",
+        providerSessionId: "provider-session-rollback",
+        expiresAt: new Date(Number.NaN),
+        verifiedEmail: null,
+      }),
+    ).rejects.toThrow();
+    const counts = await pool.query<{
+      users: number;
+      identities: number;
+      players: number;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::int FROM account_users) AS users,
+        (SELECT COUNT(*)::int FROM account_auth_identities) AS identities,
+        (SELECT COUNT(*)::int FROM player_identities) AS players
+    `);
+    expect(counts.rows[0]).toEqual({ users: 0, identities: 0, players: 0 });
+  });
+
+  it("enforces session expiry, revocation, guest linkage and one-time tickets", async () => {
+    const accounts = createPostgresPersistence(pool).accounts;
+    const first = await accounts.provisionRegisteredSession({
+      issuer: "https://tenant.example/",
+      providerSubject: "auth0|first",
+      providerSessionId: "provider-session-first",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      verifiedEmail: null,
+    });
+    const second = await accounts.provisionRegisteredSession({
+      issuer: "https://tenant.example/",
+      providerSubject: "auth0|second",
+      providerSessionId: "provider-session-second",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      verifiedEmail: null,
+    });
+    await accounts.ensureGuestIdentity(ALICE);
+    const linked = await accounts.claimGuestIdentity(
+      first.session.sessionId,
+      ALICE,
+    );
+    expect(linked.playerIdentity).toMatchObject({
+      playerId: ALICE,
+      userId: first.user.userId,
+      kind: "guest",
+    });
+    await expect(
+      accounts.claimGuestIdentity(first.session.sessionId, ALICE),
+    ).resolves.toMatchObject({
+      playerIdentity: { playerId: ALICE },
+    });
+    await expect(
+      accounts.claimGuestIdentity(second.session.sessionId, ALICE),
+    ).rejects.toBeInstanceOf(AccountIdentityConflictError);
+    await expect(accounts.isGuestAuthenticationAllowed(ALICE)).resolves.toBe(
+      false,
+    );
+
+    await accounts.saveWebsocketTicket({
+      ticketHash: "ticket-hash-one",
+      sessionId: first.session.sessionId,
+      playerId: ALICE,
+      expiresAt: new Date("2029-01-01T00:00:00.000Z"),
+    });
+    const consumed = await Promise.all([
+      accounts.consumeWebsocketTicket(
+        "ticket-hash-one",
+        new Date("2028-01-01T00:00:00.000Z"),
+      ),
+      accounts.consumeWebsocketTicket(
+        "ticket-hash-one",
+        new Date("2028-01-01T00:00:00.000Z"),
+      ),
+    ]);
+    expect(consumed.filter(Boolean)).toHaveLength(1);
+    expect(consumed.find(Boolean)).toEqual({
+      playerId: ALICE,
+      sessionId: first.session.sessionId,
+    });
+
+    expect(
+      await accounts.loadSession(
+        first.session.sessionId,
+        new Date("2031-01-01T00:00:00.000Z"),
+      ),
+    ).toBeNull();
+    expect(
+      await accounts.revokeSession(
+        second.session.sessionId,
+        new Date("2028-01-01T00:00:00.000Z"),
+      ),
+    ).toBe(true);
+    expect(
+      await accounts.loadSession(
+        second.session.sessionId,
+        new Date("2028-01-02T00:00:00.000Z"),
+      ),
+    ).toBeNull();
+  });
+
+  it("dual-writes normalized memberships and exposes linked active matches", async () => {
+    const handler = makeHandler(pool);
+    const created = await handler.handle(
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_account_match", playerId: ALICE },
+      ),
+    );
+    const matchId = created[0]?.matchId;
+    if (!matchId) throw new Error("Expected a created match.");
+    const accounts = createPostgresPersistence(pool).accounts;
+    const session = await accounts.provisionRegisteredSession({
+      issuer: "https://tenant.example/",
+      providerSubject: "auth0|membership",
+      providerSessionId: "provider-session-membership",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      verifiedEmail: null,
+    });
+    await accounts.claimGuestIdentity(session.session.sessionId, ALICE);
+    await expect(
+      accounts.resolveMatchPlayer(session.user.userId, matchId),
+    ).resolves.toBe(ALICE);
+    await expect(
+      accounts.listActiveMatches(session.user.userId),
+    ).resolves.toMatchObject([
+      { matchId, playerId: ALICE, side: "Black", status: "awaitingOpponent" },
+    ]);
   });
 
   it("persists JoinMatch and its command receipt atomically", async () => {

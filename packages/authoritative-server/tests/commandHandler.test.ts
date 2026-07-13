@@ -225,6 +225,35 @@ describe("authoritative command handler (C.8.1)", () => {
     expect(only(out, "CommandRejected").code).toBe("unauthorized");
   });
 
+  it("a registered user id cannot bypass player-identity membership", async () => {
+    const outsider = "player_registered_outsider";
+    const { handler, store } = harness({
+      authenticator: new FixedPrincipalAuthenticator({
+        playerId: outsider,
+        sessionId: "session_registered_outsider",
+        authKind: "registered",
+        userId: "user_that_owns_alice",
+      }),
+    });
+    seedMatch(
+      store,
+      playingState(boardWith([["Black", "AttackPawn", [5, 5]]])),
+    );
+    const out = await handler.handle(
+      message(
+        { type: "SubmitAction", start: [5, 5], end: [5, 6] },
+        {
+          commandId: "cmd_user_bypass",
+          playerId: outsider,
+          sessionId: "session_registered_outsider",
+          matchId: "match_seed01",
+          expectedMatchVersion: 1,
+        },
+      ),
+    );
+    expect(only(out, "CommandRejected").code).toBe("unauthorized");
+  });
+
   it("a stale expectedMatchVersion is rejected", async () => {
     const { handler, store } = harness();
     seedMatch(

@@ -71,6 +71,111 @@ CREATE UNIQUE INDEX authoritative_matches_successor_match_id_key
   WHERE successor_match_id IS NOT NULL;
 `,
   },
+  {
+    version: 3,
+    name: "add_account_identity_foundation",
+    sql: `
+CREATE TABLE account_users (
+  user_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'deleted')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE account_auth_identities (
+  auth_identity_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES account_users(user_id) ON DELETE RESTRICT,
+  issuer TEXT NOT NULL,
+  provider_subject TEXT NOT NULL,
+  verified_email TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (issuer, provider_subject)
+);
+
+CREATE INDEX account_auth_identities_user_id_idx
+  ON account_auth_identities (user_id);
+
+CREATE TABLE player_identities (
+  player_id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES account_users(user_id) ON DELETE SET NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('guest', 'registered')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  claimed_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+  CHECK (kind = 'guest' OR user_id IS NOT NULL)
+);
+
+CREATE INDEX player_identities_user_id_idx
+  ON player_identities (user_id)
+  WHERE user_id IS NOT NULL;
+
+CREATE TABLE account_auth_sessions (
+  session_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES account_users(user_id) ON DELETE CASCADE,
+  auth_identity_id TEXT NOT NULL REFERENCES account_auth_identities(auth_identity_id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  provider_session_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX account_auth_sessions_user_id_idx
+  ON account_auth_sessions (user_id);
+
+CREATE INDEX account_auth_sessions_active_expiry_idx
+  ON account_auth_sessions (expires_at)
+  WHERE revoked_at IS NULL;
+
+CREATE TABLE registered_websocket_tickets (
+  ticket_hash TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES account_auth_sessions(session_id) ON DELETE CASCADE,
+  player_id TEXT NOT NULL REFERENCES player_identities(player_id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX registered_websocket_tickets_expiry_idx
+  ON registered_websocket_tickets (expires_at)
+  WHERE consumed_at IS NULL;
+
+CREATE TABLE match_memberships (
+  match_id TEXT NOT NULL REFERENCES authoritative_matches(match_id) ON DELETE CASCADE,
+  side TEXT NOT NULL CHECK (side IN ('Black', 'White')),
+  player_id TEXT NOT NULL REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  role TEXT NOT NULL DEFAULT 'player' CHECK (role = 'player'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (match_id, side),
+  UNIQUE (match_id, player_id)
+);
+
+CREATE INDEX match_memberships_player_id_idx
+  ON match_memberships (player_id);
+
+INSERT INTO player_identities (player_id, kind)
+SELECT DISTINCT player_id, 'guest'
+FROM (
+  SELECT black_player_id AS player_id FROM authoritative_matches
+  UNION ALL
+  SELECT white_player_id AS player_id FROM authoritative_matches
+) legacy_players
+WHERE player_id IS NOT NULL
+ON CONFLICT (player_id) DO NOTHING;
+
+INSERT INTO match_memberships (match_id, side, player_id)
+SELECT match_id, 'Black', black_player_id
+FROM authoritative_matches
+WHERE black_player_id IS NOT NULL
+UNION ALL
+SELECT match_id, 'White', white_player_id
+FROM authoritative_matches
+WHERE white_player_id IS NOT NULL;
+`,
+  },
 ] as const;
 
 function checksum(sql: string): string {
