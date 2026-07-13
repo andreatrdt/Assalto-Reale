@@ -75,7 +75,14 @@ export function createRuntime(
     }
     // Fail fast if the database is unreachable, then apply migrations.
     await pool.query("SELECT 1");
-    await runPostgresMigrations(pool);
+    logger.info("Applying database migrations.");
+    try {
+      await runPostgresMigrations(pool);
+    } catch (error) {
+      logger.error("Database migration failed.", { error: messageOf(error) });
+      throw error;
+    }
+    logger.info("Database migrations applied.");
     composed = composeServer({ config, persistence, readiness, logger });
     const address = await composed.server.listen({
       host: config.host,

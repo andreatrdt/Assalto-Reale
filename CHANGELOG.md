@@ -6,6 +6,23 @@ metadata derive from it.
 
 ## Unreleased
 
+Online product-readiness polish (UI copy, control visibility, operability; no
+gameplay, protocol, or persistence change). In an online match the status now
+reads **Your turn / Opponent's turn** (and **Place a … / Opponent is placing**)
+instead of a bare colour the player must map to themselves; the Victory/Defeat
+framing is derived from the viewer's own side and the server's winner, so the
+loser no longer sees "Victory". Local-only controls (Undo, Save, Load, Restart,
+New Match, local Save) are now hidden during online play rather than shown and
+no-opped, leaving only real online actions (Pass, Resign, Rematch, Return home).
+Removed technical leaks from the main UI (aggregate match version in the HUD, raw
+match id in the lobby). Added a top-level React error boundary so a render crash
+shows a reload / return-home fallback instead of a white screen. Operational:
+structured logs for WebSocket connect/disconnect, authentication rejection (never
+the token), and database-migration start/success/failure; new
+[`docs/operational-readiness.md`](docs/operational-readiness.md) documenting
+health/readiness semantics, backups & restore (Railway owner-verify steps), and a
+deferred Sentry option.
+
 Online lifecycle-command recovery & session-expiry hardening. Two lost-response
 defects and one reconnect defect fixed, client-side only (the server's
 command-receipt idempotency already reconstructs the original result — no

@@ -391,6 +391,11 @@ export class AuthoritativeTransportServer {
       return;
     }
     if (!isPrincipal(principal)) {
+      // A rejected (invalid or expired) guest token. Logged without the token so
+      // operators can see auth failures without any secret material.
+      this.logger.warn("WebSocket authentication rejected.", {
+        reason: "invalid_or_expired_token",
+      });
       this.rejectUpgrade(socket, 401, "Unauthorized");
       return;
     }
@@ -428,6 +433,7 @@ export class AuthoritativeTransportServer {
     };
     this.connections.set(socket, state);
     this.addToIndex(this.socketsByPlayer, principal.playerId, socket);
+    this.logger.info("WebSocket connected.", { playerId: principal.playerId });
 
     socket.on("pong", () => {
       state.alive = true;
@@ -558,6 +564,9 @@ export class AuthoritativeTransportServer {
     for (const matchId of state.matches) {
       this.removeFromIndex(this.socketsByMatch, matchId, state.socket);
     }
+    this.logger.info("WebSocket disconnected.", {
+      playerId: state.principal.playerId,
+    });
   }
 
   private addToIndex(
