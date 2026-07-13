@@ -186,8 +186,8 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
                 <dd>Untimed · Manual placement</dd>
               </div>
               <div>
-                <dt>Match</dt>
-                <dd>{matchId}</dd>
+                <dt>Status</dt>
+                <dd>{waitingForOpponent ? "Waiting for opponent" : "Ready to resume"}</dd>
               </div>
             </dl>
 
