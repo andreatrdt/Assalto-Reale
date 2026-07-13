@@ -32,3 +32,7 @@ export function fixedLoginReturnUri(): string {
   if (typeof window === "undefined") return "http://localhost/";
   return new URL(import.meta.env.BASE_URL || "/", window.location.origin).toString();
 }
+
+export function safeAuthReturnRoute(returnTo: unknown): "/" | "/account" {
+  return returnTo === "/account" ? "/account" : "/";
+}
