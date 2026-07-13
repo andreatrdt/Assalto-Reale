@@ -3,6 +3,7 @@ import type { PawnType, Player, Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { OnlineClient, type OnlineConnectionStatus } from "./onlineClient";
 import { configuredWebSocketUrl } from "./onlineIdentity";
+import { clearPendingIntent, loadPendingIntent, newCommandId, savePendingIntent, type PendingLifecycleIntent } from "./onlineIntent";
 import { applyOnlineSnapshot, clearOnlineProjection } from "./onlineProjection";
 import type { ClientCommand, CommandRejectionCode, JsonObject, ServerEventEnvelope } from "./protocol";
 
@@ -47,6 +48,9 @@ export interface OnlineMatchState {
   streamSequence: number | null;
   waitingForOpponent: boolean;
   pendingCommandId: string | null;
+  // Whether a create/join is awaiting its authoritative result (drives
+  // "Creating…/Joining…/Recovering your match…" copy). "none" once established.
+  pendingLifecycle: "none" | "create" | "join";
   lastError: string | null;
   lastRejectionCode: CommandRejectionCode | null;
   winner: Player | null;
@@ -58,6 +62,8 @@ export interface OnlineMatchActions {
   hostMatch: () => Promise<boolean>;
   joinMatch: (inviteCode: string) => Promise<boolean>;
   resumeMatch: () => Promise<boolean>;
+  recoverPendingLifecycle: () => Promise<boolean>;
+  startNewMatch: () => void;
   offerRematch: () => boolean;
   respondToRematch: (accept: boolean) => boolean;
   sendPlacement: (position: Vec2) => boolean;
@@ -128,8 +134,26 @@ function persistMatch(state: OnlineMatchState): void {
 }
 
 const persisted = loadPersistedMatch();
+// A create/join whose authoritative result we have not yet safely applied. It is
+// mutually exclusive with an established match: once `matchId` is known the intent
+// is fulfilled and cleared. Persisted so a lost response survives a reconnect.
+let pendingIntent: PendingLifecycleIntent | null = loadPendingIntent();
 let client: OnlineClient | null = null;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Set or clear the pending lifecycle intent across every place it lives: the
+ * module cache, sessionStorage, the client's replay slot, and the store's
+ * UI-facing `pendingLifecycle` field. Always call this — never mutate the pieces
+ * individually — so they cannot drift apart.
+ */
+function applyIntent(intent: PendingLifecycleIntent | null, set: (patch: Partial<OnlineMatchStore>) => void): void {
+  pendingIntent = intent;
+  if (intent) savePendingIntent(intent);
+  else clearPendingIntent();
+  client?.setLifecycleReplay(intent ? { commandId: intent.commandId, command: intent.command } : null);
+  set({ pendingLifecycle: intent ? intent.kind : "none" });
+}
 
 function clearSyncTimeout(): void {
   if (syncTimeout !== null) {
@@ -203,12 +227,23 @@ function createClient(
   client = new OnlineClient({
     websocketUrl,
     onStatus: (connectionStatus, detail) => {
+      if (connectionStatus === "expired") {
+        // A confirmed anonymous-identity expiry: the old match/intent cannot be
+        // owned by a new guest identity. Stop recovering and drop the intent so
+        // nothing is replayed under a different playerId. The match row remains in
+        // storage only so the UI can name it; it is not resumable from here.
+        clearSyncTimeout();
+        applyIntent(null, set);
+        set({ connectionStatus, connectionDetail: detail ?? null, syncStatus: "failed" });
+        return;
+      }
       set({ connectionStatus, connectionDetail: detail ?? null });
     },
     onEnvelope: (envelope) => handleEnvelope(envelope, set, get),
   });
   const state = get();
   client.setMatchContext(state.matchId, state.matchVersion);
+  client.setLifecycleReplay(pendingIntent ? { commandId: pendingIntent.commandId, command: pendingIntent.command } : null);
   return client;
 }
 
@@ -268,6 +303,9 @@ function handleEnvelope(
         completed: false,
       } satisfies Partial<OnlineMatchStore>;
       set(next);
+      // The create is now authoritatively resolved (first receipt or replay):
+      // the intent has done its job and must not be replayed again.
+      applyIntent(null, set);
       applyOnlineSnapshot(envelope.event.snapshot, {
         message,
         side: envelope.event.assignedSide,
@@ -275,7 +313,8 @@ function handleEnvelope(
       break;
     }
     case "PlayerJoined": {
-      const side = envelope.event.playerId === state.playerId ? envelope.event.assignedSide : state.side;
+      const joinedSelf = envelope.event.playerId === state.playerId;
+      const side = joinedSelf ? envelope.event.assignedSide : state.side;
       set({
         ...base,
         side,
@@ -283,6 +322,10 @@ function handleEnvelope(
         lastError: null,
         lastRejectionCode: null,
       });
+      // Only the joining device carries a join intent; clear it once our own
+      // membership is confirmed. The host sees the opponent's PlayerJoined too and
+      // must not treat it as its own recovery.
+      if (joinedSelf) applyIntent(null, set);
       applyOnlineSnapshot(envelope.event.snapshot, { message, side });
       break;
     }
@@ -339,6 +382,12 @@ function handleEnvelope(
         lastRejectionCode: envelope.event.code,
         matchVersion: envelope.event.currentMatchVersion ?? state.matchVersion,
       });
+      // A rejection that answers our pending create/join means the intent can
+      // never succeed as-is (duplicate_command, invite_invalid, match_full…).
+      // Drop it so it is not replayed forever on each reconnect.
+      if (pendingIntent && envelope.event.commandId === pendingIntent.commandId) {
+        applyIntent(null, set);
+      }
       useGameStore.setState({ message });
       if (envelope.event.snapshot) {
         applyOnlineSnapshot(envelope.event.snapshot, {
@@ -450,6 +499,18 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     }
   }
 
+  // Send the pending create/join immediately when the socket is *already* open,
+  // because the client's open handler (which normally sends it) will not re-fire.
+  // Uses the intent's fixed commandId so the server can replay, never duplicate.
+  function sendPendingIntentNow(): void {
+    if (!pendingIntent || !client?.connected) return;
+    client.send(pendingIntent.command, {
+      commandId: pendingIntent.commandId,
+      matchId: null,
+      expectedMatchVersion: null,
+    });
+  }
+
   async function connect(): Promise<boolean> {
     const currentClient = createClient(set, get);
     if (!currentClient) return false;
@@ -486,6 +547,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     streamSequence: persisted?.streamSequence ?? null,
     waitingForOpponent: persisted?.waitingForOpponent ?? false,
     pendingCommandId: null,
+    pendingLifecycle: pendingIntent?.kind ?? "none",
     lastError: null,
     lastRejectionCode: null,
     winner: null,
@@ -494,37 +556,37 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     connect,
 
     hostMatch: async () => {
-      if (!(await connect())) return false;
-      try {
-        const id = client?.send(
-          {
-            type: "CreateMatch",
-            config: {
-              visibility: "invite",
-              placementMode: "Manual",
-              transformEnabled: true,
-              preferredSide: "Random",
-              timeControl: { kind: "untimed" },
-            },
-          },
-          { matchId: null, expectedMatchVersion: null },
-        );
-        if (!id) throw new Error("The multiplayer connection is not ready.");
-        set({
-          pendingCommandId: id,
-          waitingForOpponent: true,
-          lastError: null,
-          lastRejectionCode: null,
-          completed: false,
-          winner: null,
-        });
-        return true;
-      } catch (error) {
-        set({
-          lastError: error instanceof Error ? error.message : "Could not create the online match.",
-        });
+      // Refuse to start a second lifecycle command while one is still pending.
+      if (pendingIntent || get().matchId) {
+        set({ lastError: "A match request is already in progress." });
         return false;
       }
+      const command: ClientCommand = {
+        type: "CreateMatch",
+        config: {
+          visibility: "invite",
+          placementMode: "Manual",
+          transformEnabled: true,
+          preferredSide: "Random",
+          timeControl: { kind: "untimed" },
+        },
+      };
+      // Persist the intent (id + exact payload) BEFORE any network I/O, so a lost
+      // response is recoverable. The client replays it on open with this commandId.
+      const commandId = newCommandId();
+      applyIntent({ kind: "create", commandId, command, createdAt: Date.now() }, set);
+      set({
+        pendingCommandId: commandId,
+        waitingForOpponent: true,
+        lastError: null,
+        lastRejectionCode: null,
+        completed: false,
+        winner: null,
+      });
+      const alreadyOpen = client?.connected ?? false;
+      if (!(await connect())) return false;
+      if (alreadyOpen) sendPendingIntentNow();
+      return true;
     },
 
     joinMatch: async (rawInviteCode) => {
@@ -533,26 +595,26 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         set({ lastError: "Enter a valid invite code." });
         return false;
       }
-      if (!(await connect())) return false;
-      try {
-        const id = client?.send({ type: "JoinMatch", inviteCode }, { matchId: null, expectedMatchVersion: null });
-        if (!id) throw new Error("The multiplayer connection is not ready.");
-        set({
-          pendingCommandId: id,
-          inviteCode,
-          waitingForOpponent: false,
-          lastError: null,
-          lastRejectionCode: null,
-          completed: false,
-          winner: null,
-        });
-        return true;
-      } catch (error) {
-        set({
-          lastError: error instanceof Error ? error.message : "Could not join the online match.",
-        });
+      if (pendingIntent || get().matchId) {
+        set({ lastError: "A match request is already in progress." });
         return false;
       }
+      const command: ClientCommand = { type: "JoinMatch", inviteCode };
+      const commandId = newCommandId();
+      applyIntent({ kind: "join", commandId, command, createdAt: Date.now() }, set);
+      set({
+        pendingCommandId: commandId,
+        inviteCode,
+        waitingForOpponent: false,
+        lastError: null,
+        lastRejectionCode: null,
+        completed: false,
+        winner: null,
+      });
+      const alreadyOpen = client?.connected ?? false;
+      if (!(await connect())) return false;
+      if (alreadyOpen) sendPendingIntentNow();
+      return true;
     },
 
     resumeMatch: async () => {
@@ -611,6 +673,50 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       return true;
     },
 
+    // Called on mount when a create/join intent is persisted but no match is yet
+    // established (its response was lost before a refresh/disconnect). Reconnects
+    // and lets the client replay the same commandId; the server returns the
+    // original authoritative result. Idempotent against duplicate mounts/clicks.
+    recoverPendingLifecycle: async () => {
+      if (!pendingIntent || get().matchId) return false;
+      const status = get().connectionStatus;
+      if (status === "connecting" || status === "reconnecting" || status === "connected" || status === "expired") {
+        return false;
+      }
+      const alreadyOpen = client?.connected ?? false;
+      if (!(await connect())) return false;
+      if (alreadyOpen) sendPendingIntentNow();
+      return true;
+    },
+
+    // Discard the expired/unrecoverable session entirely so the next create/join
+    // acquires a fresh guest identity. Used by the session-expired UI actions.
+    startNewMatch: () => {
+      clearSyncTimeout();
+      client?.disconnect();
+      client = null;
+      applyIntent(null, set);
+      clearOnlineProjection();
+      set({
+        connectionStatus: "idle",
+        connectionDetail: null,
+        syncStatus: "idle",
+        rematchStatus: "none",
+        matchId: null,
+        inviteCode: null,
+        side: null,
+        matchVersion: null,
+        streamSequence: null,
+        waitingForOpponent: false,
+        pendingCommandId: null,
+        winner: null,
+        completed: false,
+        lastError: null,
+        lastRejectionCode: null,
+      });
+      persistMatch({ ...get(), matchId: null });
+    },
+
     offerRematch: () => {
       // Idempotent from the UI's side: while an offer is in flight or received,
       // do not fire another request.
@@ -665,6 +771,8 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
             }),
       });
       if (!preserveMatch) {
+        // Forgetting the match also abandons any in-flight create/join intent.
+        applyIntent(null, set);
         persistMatch({ ...get(), matchId: null });
         clearOnlineProjection();
       }

@@ -9,7 +9,7 @@ import {
 } from "./protocol";
 import { acquireGuestSession, authenticatedWebSocketUrl, type GuestSessionCredentials } from "./onlineIdentity";
 
-export type OnlineConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline" | "error";
+export type OnlineConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline" | "error" | "expired";
 
 export interface OnlineClientCallbacks {
   onStatus(status: OnlineConnectionStatus, detail?: string): void;
@@ -22,11 +22,25 @@ export interface OnlineClientOptions extends OnlineClientCallbacks {
   createWebSocket?: (url: string) => WebSocket;
   setTimeout?: typeof window.setTimeout;
   clearTimeout?: typeof window.clearTimeout;
+  now?: () => number;
 }
 
 export interface CommandContext {
   matchId?: string | null;
   expectedMatchVersion?: number | null;
+  /**
+   * When provided, the exact commandId is reused instead of generating a new one.
+   * Lifecycle recovery relies on this: a create/join command is replayed with the
+   * *same* commandId so the server's receipt idempotency returns the original
+   * authoritative result rather than creating a second match/membership.
+   */
+  commandId?: string;
+}
+
+/** A create/join command to (re)send with a fixed commandId once a socket opens. */
+export interface LifecycleReplay {
+  commandId: string;
+  command: ClientCommand;
 }
 
 interface MatchContext {
@@ -54,12 +68,41 @@ export class OnlineClient {
   private explicitlyClosed = false;
   private connecting: Promise<GuestSessionCredentials> | null = null;
   private context: MatchContext = { matchId: null, matchVersion: null };
+  private replay: LifecycleReplay | null = null;
+  private readonly now: () => number;
 
   constructor(private readonly options: OnlineClientOptions) {
     this.acquireSession = options.acquireSession ?? acquireGuestSession;
     this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url));
     this.schedule = options.setTimeout ?? window.setTimeout.bind(window);
     this.cancelSchedule = options.clearTimeout ?? window.clearTimeout.bind(window);
+    this.now = options.now ?? Date.now;
+  }
+
+  /**
+   * Register (or clear) the create/join command to replay once a socket opens
+   * while no match is yet established. The same commandId is reused so the server
+   * replays the original authoritative result instead of acting twice.
+   */
+  setLifecycleReplay(replay: LifecycleReplay | null): void {
+    this.replay = replay;
+  }
+
+  /**
+   * True when the cached credentials have a known expiry that has already passed.
+   * The WebSocket upgrade rejects an expired token with an HTTP 401 the browser
+   * only surfaces as close code 1006, so `expiresAt` is the deterministic signal
+   * that separates a confirmed auth failure from a transient outage.
+   */
+  private credentialsExpired(): boolean {
+    if (!this.credentials) return false;
+    const expiry = Date.parse(this.credentials.expiresAt);
+    return Number.isFinite(expiry) && expiry <= this.now();
+  }
+
+  /** A match or a pending create/join whose ownership is bound to this identity. */
+  private hasIdentityBoundWork(): boolean {
+    return this.context.matchId !== null || this.replay !== null;
   }
 
   get principal(): Pick<GuestSessionCredentials, "playerId" | "sessionId"> | null {
@@ -122,7 +165,7 @@ export class OnlineClient {
       throw new Error("The multiplayer connection is not ready.");
     }
 
-    const id = commandId();
+    const id = context.commandId ?? commandId();
     const envelope: ClientCommandEnvelope = {
       protocol: PROTOCOL_NAME,
       protocolVersion: PROTOCOL_VERSION,
@@ -139,6 +182,20 @@ export class OnlineClient {
   }
 
   private async open(reconnecting: boolean): Promise<GuestSessionCredentials> {
+    // A cached token that has already expired will be rejected by every future
+    // upgrade. When it guards identity-bound work (an active match or a pending
+    // create/join) we must not silently acquire a *new* guest identity — that
+    // identity cannot own the old match. Stop and surface the expiry instead of
+    // looping on 1006. With no such work, drop the stale token and start fresh.
+    if (this.credentialsExpired()) {
+      if (this.hasIdentityBoundWork()) {
+        this.explicitlyClosed = true;
+        this.options.onStatus("expired", "Your session has expired.");
+        throw new Error("The online session has expired.");
+      }
+      this.credentials = null;
+    }
+
     this.options.onStatus(reconnecting ? "reconnecting" : "connecting");
     const credentials = this.credentials ?? (await this.acquireSession(this.options.websocketUrl));
     this.credentials = credentials;
@@ -154,14 +211,23 @@ export class OnlineClient {
         this.reconnectAttempt = 0;
         this.options.onStatus("connected");
         resolve(credentials);
-        if (this.context.matchId) {
-          try {
+        try {
+          if (this.context.matchId) {
             // Fresh connections (including automatic reconnects) request the
             // canonical snapshot immediately so the board rehydrates.
             this.requestSync();
-          } catch {
-            // A close racing the open event will be handled by reconnect.
+          } else if (this.replay) {
+            // No match yet: (re)send the create/join with its original commandId.
+            // The server either processes it for the first time or replays the
+            // stored authoritative result — never creating a second match.
+            this.send(this.replay.command, {
+              commandId: this.replay.commandId,
+              matchId: null,
+              expectedMatchVersion: null,
+            });
           }
+        } catch {
+          // A close racing the open event will be handled by reconnect.
         }
       });
 
@@ -206,6 +272,9 @@ export class OnlineClient {
     this.reconnectTimer = this.schedule(() => {
       this.reconnectTimer = null;
       void this.open(true).catch((error: unknown) => {
+        // A confirmed expiry (or explicit close) already reported terminal status
+        // and must not be masked by a transient "offline. Reconnecting…".
+        if (this.explicitlyClosed) return;
         this.options.onStatus("offline", error instanceof Error ? error.message : "Reconnect failed.");
         this.scheduleReconnect();
       });

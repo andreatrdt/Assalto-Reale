@@ -33,14 +33,22 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const side = useOnlineMatchStore((state) => state.side);
   const waitingForOpponent = useOnlineMatchStore((state) => state.waitingForOpponent);
   const pendingCommandId = useOnlineMatchStore((state) => state.pendingCommandId);
+  const pendingLifecycle = useOnlineMatchStore((state) => state.pendingLifecycle);
   const lastError = useOnlineMatchStore((state) => state.lastError);
   const hostMatch = useOnlineMatchStore((state) => state.hostMatch);
   const joinMatch = useOnlineMatchStore((state) => state.joinMatch);
   const resumeMatch = useOnlineMatchStore((state) => state.resumeMatch);
+  const recoverPendingLifecycle = useOnlineMatchStore((state) => state.recoverPendingLifecycle);
+  const startNewMatch = useOnlineMatchStore((state) => state.startNewMatch);
   const disconnect = useOnlineMatchStore((state) => state.disconnect);
   const clearError = useOnlineMatchStore((state) => state.clearError);
   const configured = Boolean(configuredWebSocketUrl());
   const autoResumeStarted = useRef(false);
+  const autoRecoverStarted = useRef(false);
+  const sessionExpired = connectionStatus === "expired";
+  // A persisted intent present on first render means this page load is *recovering*
+  // a lost create/join, not starting a fresh one — used only for user-facing copy.
+  const recoveringExisting = useRef(useOnlineMatchStore.getState().pendingLifecycle !== "none").current;
 
   // Navigate to the board only once canonical state is actually hydrated, not
   // merely because the socket is connected.
@@ -61,6 +69,18 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
     void resumeMatch();
   }, [configured, matchId, syncStatus, connectionStatus, resumeMatch]);
 
+  // On refresh with a create/join whose response was lost (persisted intent but
+  // no matchId yet), reconnect once and replay the same command so the server
+  // returns the original authoritative result. The button remains as a fallback.
+  useEffect(() => {
+    if (autoRecoverStarted.current) return;
+    if (!configured || matchId || pendingLifecycle === "none") return;
+    if (connectionStatus === "connected" || connectionStatus === "connecting" || connectionStatus === "reconnecting") return;
+    if (sessionExpired) return;
+    autoRecoverStarted.current = true;
+    void recoverPendingLifecycle();
+  }, [configured, matchId, pendingLifecycle, connectionStatus, sessionExpired, recoverPendingLifecycle]);
+
   async function copyInvite() {
     if (!inviteCode) return;
     try {
@@ -79,7 +99,16 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   }
 
   const synchronizing = syncStatus === "connecting" || syncStatus === "synchronizing";
-  const busy = connectionStatus === "connecting" || connectionStatus === "reconnecting" || synchronizing || Boolean(pendingCommandId);
+  // A create/join whose authoritative result has not yet arrived. While it is in
+  // flight the host/join buttons stay disabled so a second match can't be started.
+  const recovering = pendingLifecycle !== "none";
+  const busy =
+    connectionStatus === "connecting" || connectionStatus === "reconnecting" || synchronizing || recovering || Boolean(pendingCommandId);
+
+  function goHome() {
+    startNewMatch();
+    navigate("/");
+  }
 
   return (
     <PageShell activeRoute={route} navigate={navigate} className="onlineShell">
@@ -111,7 +140,23 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
           </div>
         )}
 
-        {matchId ? (
+        {sessionExpired ? (
+          <div className="onlineNotice panel" role="alert">
+            <StatusBadge tone="danger" icon="warning">
+              Session expired
+            </StatusBadge>
+            <h2>Your session has expired</h2>
+            <p>This match can no longer be resumed from this browser session. Start a new match to keep playing.</p>
+            <div className="onlineActions">
+              <GameButton variant="primary" onClick={startNewMatch}>
+                Start a new match
+              </GameButton>
+              <GameButton variant="ghost" onClick={goHome}>
+                Return home
+              </GameButton>
+            </div>
+          </div>
+        ) : matchId ? (
           <div className="onlineLobby panel">
             <div className="onlineLobbyTop">
               <div>
@@ -163,6 +208,20 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
           </div>
         ) : (
           <div className="onlineChoices">
+            {recovering && (
+              <div className="onlineNotice" role="status" aria-live="polite">
+                <StatusBadge tone="info">
+                  {recoveringExisting ? "Recovering" : pendingLifecycle === "create" ? "Creating" : "Joining"}
+                </StatusBadge>
+                <p>
+                  {recoveringExisting
+                    ? "Recovering your match…"
+                    : pendingLifecycle === "create"
+                      ? "Creating your match…"
+                      : "Joining the match…"}
+                </p>
+              </div>
+            )}
             <article className="onlineChoice panel">
               <div>
                 <p className="eyebrow">Host</p>
@@ -231,11 +290,12 @@ export function ConnectionBadge({
     reconnecting: "Reconnecting",
     offline: "Offline",
     error: "Connection error",
+    expired: "Session expired",
   } as const;
   const tone =
     status === "connected"
       ? "success"
-      : status === "error" || status === "offline"
+      : status === "error" || status === "offline" || status === "expired"
         ? "danger"
         : status === "connecting" || status === "reconnecting"
           ? "info"

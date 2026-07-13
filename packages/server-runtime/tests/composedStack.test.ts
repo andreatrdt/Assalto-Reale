@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WebSocket } from "ws";
 import { createInMemoryPersistence } from "@assalto-reale/authoritative-server";
+import { HmacGuestSessionService } from "@assalto-reale/server-transport";
 import {
   composeServer,
   loadConfig,
@@ -362,6 +363,138 @@ describe("composed multiplayer stack (in-memory)", () => {
 
     await clientB.close();
     await clientA2.close();
+  }, 20000);
+
+  it("replays the original CreateMatch result when its response is lost and the same commandId reconnects", async () => {
+    const sessionA = await acquireGuestSession(baseUrl);
+    const clientA = await TestClient.connect(wsBase, sessionA);
+
+    // Player A creates a match. Assume the MatchCreated response is lost: A drops
+    // the socket before acting on it and never learns the matchId locally.
+    const createCommandId = "cmd_cr_create1";
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }),
+    );
+    const created = await clientA.waitFor("MatchCreated");
+    const matchId = created.matchId!;
+    const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+    await clientA.close();
+
+    // A reconnects on the SAME guest session and replays the SAME CreateMatch
+    // command with the SAME commandId. Idempotency returns the original result.
+    const clientA2 = await TestClient.connect(wsBase, sessionA);
+    clientA2.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }),
+    );
+    const replayed = await clientA2.waitFor("MatchCreated");
+
+    // The original identity is recovered, not a second match.
+    expect(replayed.matchId).toBe(matchId);
+    expect((replayed.event as { inviteCode: string }).inviteCode).toBe(
+      inviteCode,
+    );
+    expect((replayed.event as { assignedSide: string }).assignedSide).toBe(
+      (created.event as { assignedSide: string }).assignedSide,
+    );
+
+    // A second guest joining with the invite proves exactly one match exists and
+    // is joinable (a duplicate create would have produced a different code).
+    const sessionB = await acquireGuestSession(baseUrl);
+    const clientB = await TestClient.connect(wsBase, sessionB);
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_cr_join001" },
+      ),
+    );
+    const joined = await clientB.waitFor("PlayerJoined");
+    expect(joined.matchId).toBe(matchId);
+
+    await clientA2.close();
+    await clientB.close();
+  }, 20000);
+
+  it("replays the original JoinMatch result when its response is lost and the same commandId reconnects", async () => {
+    const sessionA = await acquireGuestSession(baseUrl);
+    const sessionB = await acquireGuestSession(baseUrl);
+    const clientA = await TestClient.connect(wsBase, sessionA);
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_jr_create1" }),
+    );
+    const created = await clientA.waitFor("MatchCreated");
+    const matchId = created.matchId!;
+    const inviteCode = (created.event as { inviteCode: string }).inviteCode;
+
+    // B joins; assume B's PlayerJoined response is lost (B drops before reading it).
+    const joinCommandId = "cmd_jr_join001";
+    const clientB = await TestClient.connect(wsBase, sessionB);
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: joinCommandId },
+      ),
+    );
+    const joinedFirst = await clientB.waitFor("PlayerJoined");
+    const assignedSide = (joinedFirst.event as { assignedSide: string })
+      .assignedSide;
+    await clientA.waitFor("PlayerJoined");
+    await clientB.close();
+
+    // B reconnects and replays the SAME JoinMatch commandId: the original result
+    // is returned and no second membership is created.
+    const clientB2 = await TestClient.connect(wsBase, sessionB);
+    clientB2.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: joinCommandId },
+      ),
+    );
+    const joinedReplay = await clientB2.waitFor("PlayerJoined");
+
+    expect(joinedReplay.matchId).toBe(matchId);
+    expect((joinedReplay.event as { playerId: string }).playerId).toBe(
+      sessionB.playerId,
+    );
+    expect((joinedReplay.event as { assignedSide: string }).assignedSide).toBe(
+      assignedSide,
+    );
+    // The match is still at version 2 (one join), not advanced by the replay.
+    expect(joinedReplay.matchVersion).toBe(2);
+
+    await clientA.close();
+    await clientB2.close();
+  }, 20000);
+
+  it("rejects a reconnect that presents a deterministically expired guest token", async () => {
+    // Mint a correctly-signed token whose expiry is already in the past relative
+    // to the running server, exactly as a stale cached credential would be.
+    const expiredIssuer = new HmacGuestSessionService(TEST_SECRET, {
+      ttlMs: 1_000,
+      now: () => Date.parse("2000-01-01T00:00:00.000Z"),
+    });
+    const expired = await expiredIssuer.issue();
+
+    // The upgrade is rejected (auth failure), indistinguishable to the browser
+    // from close 1006 — which is why the client stops on `expiresAt`, not on the
+    // close code. Here we assert the server side: the expired token cannot connect.
+    await expect(
+      new Promise((resolve, reject) => {
+        const socket = new WebSocket(
+          `${wsBase}?access_token=${expired.token}`,
+          {
+            headers: { origin: TEST_ORIGIN },
+          },
+        );
+        socket.once("open", () => {
+          socket.close();
+          resolve("opened");
+        });
+        socket.once("error", reject);
+      }),
+    ).rejects.toThrow();
   }, 20000);
 
   it("rejects a WebSocket upgrade without a valid guest token", async () => {

@@ -303,6 +303,136 @@ describe("OnlineClient", () => {
     expect(client.connected).toBe(true);
   });
 
+  it("replays a pending create/join with its fixed commandId when no match exists yet", async () => {
+    const socket = new FakeWebSocket();
+    const client = new OnlineClient({
+      websocketUrl: "wss://games.example/ws",
+      acquireSession: async () => CREDENTIALS,
+      createWebSocket: () => socket as unknown as WebSocket,
+      onStatus: vi.fn(),
+      onEnvelope: vi.fn(),
+      setTimeout: vi.fn() as unknown as typeof window.setTimeout,
+      clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
+    });
+    client.setLifecycleReplay({
+      commandId: "command_fixedcreate1",
+      command: {
+        type: "CreateMatch",
+        config: {
+          visibility: "invite",
+          placementMode: "Manual",
+          transformEnabled: true,
+          preferredSide: "Random",
+          timeControl: { kind: "untimed" },
+        },
+      },
+    });
+
+    const connected = client.connect();
+    await allowConnectionSetup();
+    socket.open();
+    await connected;
+
+    // The recovery replay uses the *original* commandId so the server can replay
+    // the authoritative result instead of creating a second match.
+    expect(JSON.parse(socket.sent[0] ?? "{}")).toMatchObject({
+      commandId: "command_fixedcreate1",
+      matchId: null,
+      expectedMatchVersion: null,
+      command: { type: "CreateMatch" },
+    });
+  });
+
+  it("stops reconnecting and reports 'expired' when a cached token has expired mid-match", async () => {
+    let now = Date.parse("2026-01-01T00:00:00.000Z");
+    const expiring = { ...CREDENTIALS, expiresAt: "2026-01-01T00:10:00.000Z" };
+    const sockets: FakeWebSocket[] = [];
+    const scheduled: Array<() => void> = [];
+    const statuses: Array<[string, string | undefined]> = [];
+    const acquireSession = vi.fn(async () => expiring);
+    const client = new OnlineClient({
+      websocketUrl: "wss://games.example/ws",
+      acquireSession,
+      createWebSocket: () => {
+        const socket = new FakeWebSocket();
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      onStatus: (status, detail) => statuses.push([status, detail]),
+      onEnvelope: vi.fn(),
+      now: () => now,
+      setTimeout: ((callback: TimerHandler) => {
+        scheduled.push(callback as () => void);
+        return scheduled.length as unknown as number;
+      }) as typeof window.setTimeout,
+      clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
+    });
+    // Identity-bound work: an active match the anonymous identity owns.
+    client.setMatchContext("match_online01", 3);
+
+    const connected = client.connect();
+    await allowConnectionSetup();
+    sockets[0]?.open();
+    await connected;
+
+    // The token expires while connected; the live socket then drops.
+    now = Date.parse("2026-01-01T01:00:00.000Z");
+    sockets[0]?.lose(1006);
+    expect(scheduled).toHaveLength(1);
+
+    // The scheduled reconnect must detect the expiry, report it, and NOT loop.
+    scheduled.shift()?.();
+    await allowConnectionSetup();
+
+    expect(statuses.at(-1)).toEqual(["expired", "Your session has expired."]);
+    expect(sockets).toHaveLength(1); // no new socket opened with the dead token
+    expect(scheduled).toHaveLength(0); // no further reconnect scheduled
+    expect(acquireSession).toHaveBeenCalledTimes(1); // no silent new identity
+  });
+
+  it("acquires a fresh session when an expired token guards no match or intent", async () => {
+    let now = Date.parse("2026-01-01T00:00:00.000Z");
+    const sockets: FakeWebSocket[] = [];
+    const scheduled: Array<() => void> = [];
+    const tokens = [
+      { ...CREDENTIALS, expiresAt: "2026-01-01T00:10:00.000Z" },
+      { ...CREDENTIALS, playerId: "player_fresh0001", expiresAt: "2026-01-01T02:00:00.000Z" },
+    ];
+    const acquireSession = vi.fn(async () => tokens.shift() ?? CREDENTIALS);
+    const client = new OnlineClient({
+      websocketUrl: "wss://games.example/ws",
+      acquireSession,
+      createWebSocket: () => {
+        const socket = new FakeWebSocket();
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      onStatus: vi.fn(),
+      onEnvelope: vi.fn(),
+      now: () => now,
+      setTimeout: ((callback: TimerHandler) => {
+        scheduled.push(callback as () => void);
+        return scheduled.length as unknown as number;
+      }) as typeof window.setTimeout,
+      clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
+    });
+    // No match context and no replay: expiry here is safe to resolve with a new
+    // guest identity (nothing depends on the old one).
+
+    const connected = client.connect();
+    await allowConnectionSetup();
+    sockets[0]?.open();
+    await connected;
+
+    now = Date.parse("2026-01-01T01:00:00.000Z");
+    sockets[0]?.lose(1006);
+    scheduled.shift()?.();
+    await allowConnectionSetup();
+
+    expect(acquireSession).toHaveBeenCalledTimes(2); // dropped the stale token, fetched fresh
+    expect(sockets).toHaveLength(2);
+  });
+
   it("cancels reconnect work and closes cleanly", async () => {
     const socket = new FakeWebSocket();
     const onStatus = vi.fn();

@@ -46,6 +46,80 @@ describe("authoritative idempotency and optimistic concurrency", () => {
     expect([...store.matches.values()][0]?.status).toBe("active");
   });
 
+  it("replays the original CreateMatch result for a repeated commandId (lost-response recovery)", async () => {
+    const { handler, store } = harness();
+    const command = message(
+      { type: "CreateMatch", config: ONLINE_CONFIG },
+      { commandId: "cmd_create001", playerId: ALICE },
+    );
+
+    // First receipt commits the match; the response is assumed lost in transit.
+    const first = await handler.handle(command);
+    // After reconnect the client replays the exact same command + commandId.
+    const second = await handler.handle(command);
+
+    expect(second).toEqual(first);
+    const created = only(first, "MatchCreated");
+    expect(only(second, "MatchCreated")).toEqual(created);
+    // Exactly one match and one receipt exist despite the replay.
+    expect(store.matches.size).toBe(1);
+    expect(store.receipts.size).toBe(1);
+  });
+
+  it("replays the original JoinMatch result and keeps exactly one membership", async () => {
+    const { handler, store } = harness();
+    const created = await handler.handle(
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_host0001", playerId: ALICE },
+      ),
+    );
+    const inviteCode = only(created, "MatchCreated").inviteCode;
+    const matchId = created[0]!.matchId!;
+    const join = message(
+      { type: "JoinMatch", inviteCode },
+      { commandId: "cmd_join0001", playerId: BOB, matchId },
+    );
+
+    const first = await handler.handle(join);
+    const second = await handler.handle(join);
+
+    expect(second).toEqual(first);
+    expect(only(first, "PlayerJoined").playerId).toBe(BOB);
+    // The replay did not add a second membership or advance the match again.
+    const aggregate = store.matches.get(matchId);
+    expect(aggregate?.members).toEqual({ Black: ALICE, White: BOB });
+    expect(store.matches.size).toBe(1);
+  });
+
+  it("rejects a reused JoinMatch commandId whose invite code changed", async () => {
+    const { handler } = harness();
+    const created = await handler.handle(
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_host0002", playerId: ALICE },
+      ),
+    );
+    const inviteCode = only(created, "MatchCreated").inviteCode;
+    const matchId = created[0]!.matchId!;
+
+    await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_join0002", playerId: BOB, matchId },
+      ),
+    );
+    // Same commandId, different payload → not an idempotent retry.
+    const changed = await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode: "OTHER001" },
+        { commandId: "cmd_join0002", playerId: BOB, matchId },
+      ),
+    );
+
+    expect(only(changed, "CommandRejected").code).toBe("duplicate_command");
+  });
+
   it("replays one canonical result when identical commands race", async () => {
     const { handler, store } = harness();
     const command = message(
