@@ -1,0 +1,63 @@
+.appErrorFallback {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.appErrorCard {
+  max-width: 30rem;
+  width: 100%;
+  padding: 2rem;
+  border: 1px solid var(--border-medium, var(--border));
+  border-radius: 1rem;
+  background: var(--surface-panel, var(--surface));
+  text-align: center;
+}
+
+.appErrorCard h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.4rem;
+  color: var(--text-strong, var(--text));
+}
+
+.appErrorCard p {
+  margin: 0 0 1.5rem;
+  color: var(--text-muted, var(--text-dim));
+  line-height: 1.5;
+}
+
+.appErrorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.appErrorActions button {
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.appErrorPrimary {
+  border: 1px solid var(--accent, #b8860b);
+  background: var(--accent, #b8860b);
+  color: var(--color-void, #14110c);
+}
+
+.appErrorGhost {
+  border: 1px solid var(--border-medium, var(--border));
+  background: transparent;
+  color: var(--text);
+}
+
+.appErrorActions button:focus-visible {
+  outline: 2px solid var(--accent, #b8860b);
+  outline-offset: 2px;
+}

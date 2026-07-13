@@ -1,5 +1,11 @@
 import { AppRouter } from "./AppRouter";
+import { ErrorBoundary } from "./ErrorBoundary";
+import "../styles/errorFallback.css";
 
 export function App() {
-  return <AppRouter />;
+  return (
+    <ErrorBoundary>
+      <AppRouter />
+    </ErrorBoundary>
+  );
 }
