@@ -7,7 +7,7 @@ import {
   type ClientCommandEnvelope,
   type ServerEventEnvelope,
 } from "./protocol";
-import { acquireGuestSession, authenticatedWebSocketUrl, type GuestSessionCredentials } from "./onlineIdentity";
+import { acquireOnlineSession, authenticatedWebSocketUrl, type OnlineSessionCredentials } from "./onlineIdentity";
 
 export type OnlineConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "offline" | "error" | "expired";
 
@@ -18,7 +18,7 @@ export interface OnlineClientCallbacks {
 
 export interface OnlineClientOptions extends OnlineClientCallbacks {
   websocketUrl: string;
-  acquireSession?: (websocketUrl: string) => Promise<GuestSessionCredentials>;
+  acquireSession?: (websocketUrl: string, matchId: string | null) => Promise<OnlineSessionCredentials>;
   createWebSocket?: (url: string) => WebSocket;
   setTimeout?: typeof window.setTimeout;
   clearTimeout?: typeof window.clearTimeout;
@@ -57,22 +57,22 @@ function commandId(): string {
 }
 
 export class OnlineClient {
-  private readonly acquireSession: (websocketUrl: string) => Promise<GuestSessionCredentials>;
+  private readonly acquireSession: (websocketUrl: string, matchId: string | null) => Promise<OnlineSessionCredentials>;
   private readonly createWebSocket: (url: string) => WebSocket;
   private readonly schedule: typeof window.setTimeout;
   private readonly cancelSchedule: typeof window.clearTimeout;
   private socket: WebSocket | null = null;
-  private credentials: GuestSessionCredentials | null = null;
+  private credentials: OnlineSessionCredentials | null = null;
   private reconnectTimer: number | null = null;
   private reconnectAttempt = 0;
   private explicitlyClosed = false;
-  private connecting: Promise<GuestSessionCredentials> | null = null;
+  private connecting: Promise<OnlineSessionCredentials> | null = null;
   private context: MatchContext = { matchId: null, matchVersion: null };
   private replay: LifecycleReplay | null = null;
   private readonly now: () => number;
 
   constructor(private readonly options: OnlineClientOptions) {
-    this.acquireSession = options.acquireSession ?? acquireGuestSession;
+    this.acquireSession = options.acquireSession ?? acquireOnlineSession;
     this.createWebSocket = options.createWebSocket ?? ((url) => new WebSocket(url));
     this.schedule = options.setTimeout ?? window.setTimeout.bind(window);
     this.cancelSchedule = options.clearTimeout ?? window.clearTimeout.bind(window);
@@ -105,7 +105,7 @@ export class OnlineClient {
     return this.context.matchId !== null || this.replay !== null;
   }
 
-  get principal(): Pick<GuestSessionCredentials, "playerId" | "sessionId"> | null {
+  get principal(): Pick<OnlineSessionCredentials, "playerId" | "sessionId"> | null {
     return this.credentials
       ? {
           playerId: this.credentials.playerId,
@@ -134,7 +134,7 @@ export class OnlineClient {
     return this.send({ type: "RequestSync", lastSeenMatchVersion: this.context.matchVersion }, { expectedMatchVersion: null });
   }
 
-  async connect(): Promise<GuestSessionCredentials> {
+  async connect(): Promise<OnlineSessionCredentials> {
     if (this.connected && this.credentials) return this.credentials;
     if (this.connecting) return this.connecting;
     this.explicitlyClosed = false;
@@ -181,27 +181,35 @@ export class OnlineClient {
     return id;
   }
 
-  private async open(reconnecting: boolean): Promise<GuestSessionCredentials> {
+  private async open(reconnecting: boolean): Promise<OnlineSessionCredentials> {
     // A cached token that has already expired will be rejected by every future
     // upgrade. When it guards identity-bound work (an active match or a pending
     // create/join) we must not silently acquire a *new* guest identity — that
     // identity cannot own the old match. Stop and surface the expiry instead of
     // looping on 1006. With no such work, drop the stale token and start fresh.
     if (this.credentialsExpired()) {
-      if (this.hasIdentityBoundWork()) {
+      if (this.credentials?.authKind === "registered") {
+        // A registered credential is a short-lived, single-use ticket. Its
+        // expiry is not account-session expiry; reconnect obtains a new ticket.
+        this.credentials = null;
+      } else if (this.hasIdentityBoundWork()) {
         this.explicitlyClosed = true;
         this.options.onStatus("expired", "Your session has expired.");
         throw new Error("The online session has expired.");
+      } else {
+        this.credentials = null;
       }
-      this.credentials = null;
     }
 
     this.options.onStatus(reconnecting ? "reconnecting" : "connecting");
-    const credentials = this.credentials ?? (await this.acquireSession(this.options.websocketUrl));
+    const credentials =
+      this.credentials?.authKind === "registered"
+        ? await this.acquireSession(this.options.websocketUrl, this.context.matchId)
+        : (this.credentials ?? (await this.acquireSession(this.options.websocketUrl, this.context.matchId)));
     this.credentials = credentials;
 
-    return new Promise<GuestSessionCredentials>((resolve, reject) => {
-      const socket = this.createWebSocket(authenticatedWebSocketUrl(this.options.websocketUrl, credentials.token));
+    return new Promise<OnlineSessionCredentials>((resolve, reject) => {
+      const socket = this.createWebSocket(authenticatedWebSocketUrl(this.options.websocketUrl, credentials.token, credentials.authKind));
       this.socket = socket;
       let opened = false;
 

@@ -3,6 +3,16 @@ export interface GuestSessionCredentials {
   playerId: string;
   sessionId: string;
   expiresAt: string;
+  authKind?: "guest" | "registered";
+}
+
+export type OnlineSessionCredentials = GuestSessionCredentials;
+export type RegisteredSessionProvider = (websocketUrl: string, matchId: string | null) => Promise<OnlineSessionCredentials>;
+
+let registeredSessionProvider: RegisteredSessionProvider | null = null;
+
+export function setRegisteredSessionProvider(provider: RegisteredSessionProvider | null): void {
+  registeredSessionProvider = provider;
 }
 
 const SESSION_STORAGE_KEY = "assalto:online-guest-session";
@@ -105,8 +115,12 @@ export async function acquireGuestSession(websocketUrl: string, fetcher: typeof 
   return payload;
 }
 
-export function authenticatedWebSocketUrl(websocketUrl: string, token: string): string {
+export function acquireOnlineSession(websocketUrl: string, matchId: string | null): Promise<OnlineSessionCredentials> {
+  return registeredSessionProvider ? registeredSessionProvider(websocketUrl, matchId) : acquireGuestSession(websocketUrl);
+}
+
+export function authenticatedWebSocketUrl(websocketUrl: string, token: string, authKind: "guest" | "registered" = "guest"): string {
   const url = new URL(websocketUrl);
-  url.searchParams.set("access_token", token);
+  url.searchParams.set(authKind === "registered" ? "ticket" : "access_token", token);
   return url.toString();
 }

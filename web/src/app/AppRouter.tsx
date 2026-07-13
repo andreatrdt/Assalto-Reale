@@ -11,6 +11,7 @@ import { OnlinePage } from "../pages/OnlinePage";
 import { RulesPage } from "../pages/RulesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SetupPage } from "../pages/SetupPage";
+import { AccountPage } from "../pages/AccountPage";
 import { useAppRoute } from "./routes";
 
 export function AppRouter() {
@@ -65,6 +66,9 @@ export function AppRouter() {
   }
   if (route === "/settings") {
     return <SettingsPage route={route} navigate={navigate} />;
+  }
+  if (route === "/account") {
+    return <AccountPage route={route} navigate={navigate} />;
   }
   return <HomePage route={route} navigate={navigate} />;
 }

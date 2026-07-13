@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acquireGuestSession,
+  acquireOnlineSession,
   authenticatedWebSocketUrl,
   clearGuestSession,
   loadGuestSession,
   saveGuestSession,
+  setRegisteredSessionProvider,
   sessionEndpointFor,
   type GuestSessionCredentials,
 } from "./onlineIdentity";
@@ -40,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setRegisteredSessionProvider(null);
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -93,5 +96,16 @@ describe("online guest identity", () => {
         }),
     );
     await expect(acquireGuestSession("ws://127.0.0.1:8080/ws", fetcher)).rejects.toThrow("invalid guest session");
+  });
+
+  it("uses an in-memory registered ticket provider without replacing guest storage", async () => {
+    saveGuestSession(SESSION);
+    const registered = { ...SESSION, token: "one-time-ticket", authKind: "registered" as const };
+    const provider = vi.fn(async () => registered);
+    setRegisteredSessionProvider(provider);
+    await expect(acquireOnlineSession("wss://games.example/ws", "match_account01")).resolves.toEqual(registered);
+    expect(provider).toHaveBeenCalledWith("wss://games.example/ws", "match_account01");
+    expect(loadGuestSession(Date.parse("2029-01-01T00:00:00.000Z"))).toEqual(SESSION);
+    expect(authenticatedWebSocketUrl("wss://games.example/ws", "ticket", "registered")).toBe("wss://games.example/ws?ticket=ticket");
   });
 });

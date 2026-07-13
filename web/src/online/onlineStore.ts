@@ -62,6 +62,7 @@ export interface OnlineMatchActions {
   hostMatch: () => Promise<boolean>;
   joinMatch: (inviteCode: string) => Promise<boolean>;
   resumeMatch: () => Promise<boolean>;
+  resumeAccountMatch: (matchId: string, side: Player) => Promise<boolean>;
   recoverPendingLifecycle: () => Promise<boolean>;
   startNewMatch: () => void;
   offerRematch: () => boolean;
@@ -671,6 +672,36 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
       }, SYNC_TIMEOUT_MS);
 
       return true;
+    },
+
+    resumeAccountMatch: async (matchId, side) => {
+      clearSyncTimeout();
+      client?.disconnect();
+      client = null;
+      applyIntent(null, set);
+      clearOnlineProjection();
+      set({
+        connectionStatus: "idle",
+        connectionDetail: null,
+        syncStatus: "idle",
+        rematchStatus: "none",
+        playerId: null,
+        sessionId: null,
+        matchId,
+        inviteCode: null,
+        side,
+        matchVersion: null,
+        streamSequence: null,
+        waitingForOpponent: false,
+        pendingCommandId: null,
+        pendingLifecycle: "none",
+        lastError: null,
+        lastRejectionCode: null,
+        winner: null,
+        completed: false,
+      });
+      persistMatch(get());
+      return get().resumeMatch();
     },
 
     // Called on mount when a create/join intent is persisted but no match is yet

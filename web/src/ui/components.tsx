@@ -158,12 +158,14 @@ const APP_NAV: { route: AppRoute; label: string; icon: IconName }[] = [
   { route: "/load", label: "Load", icon: "load" },
   { route: "/rules", label: "Rules", icon: "book" },
   { route: "/settings", label: "Settings", icon: "gear" },
+  { route: "/account", label: "Account", icon: "shield" },
 ];
 
 const HOME_NAV: { route: AppRoute; label: string; icon: IconName }[] = [
   { route: "/load", label: "Load", icon: "load" },
   { route: "/rules", label: "Rules", icon: "book" },
   { route: "/settings", label: "Settings", icon: "gear" },
+  { route: "/account", label: "Account", icon: "shield" },
 ];
 
 export function PageShell({ activeRoute, navigate, children, className = "", variant = "app" }: PageShellProps) {

@@ -433,6 +433,52 @@ describe("OnlineClient", () => {
     expect(sockets).toHaveLength(2);
   });
 
+  it("acquires a new one-time registered ticket for reconnect with the same player identity", async () => {
+    const sockets: FakeWebSocket[] = [];
+    const urls: string[] = [];
+    const scheduled: Array<() => void> = [];
+    let ticket = 0;
+    const acquireSession = vi.fn(async () => ({
+      ...CREDENTIALS,
+      token: `ticket-${++ticket}`,
+      authKind: "registered" as const,
+    }));
+    const client = new OnlineClient({
+      websocketUrl: "wss://games.example/ws",
+      acquireSession,
+      createWebSocket: (url) => {
+        urls.push(url);
+        const socket = new FakeWebSocket();
+        sockets.push(socket);
+        return socket as unknown as WebSocket;
+      },
+      onStatus: vi.fn(),
+      onEnvelope: vi.fn(),
+      setTimeout: ((callback: TimerHandler) => {
+        scheduled.push(callback as () => void);
+        return scheduled.length as unknown as number;
+      }) as typeof window.setTimeout,
+      clearTimeout: vi.fn() as unknown as typeof window.clearTimeout,
+    });
+    client.setMatchContext("match_online01", 4);
+    const connected = client.connect();
+    await allowConnectionSetup();
+    sockets[0]?.open();
+    await connected;
+    sockets[0]?.lose();
+    scheduled.shift()?.();
+    await allowConnectionSetup();
+    sockets[1]?.open();
+
+    expect(acquireSession).toHaveBeenCalledTimes(2);
+    expect(acquireSession).toHaveBeenNthCalledWith(2, "wss://games.example/ws", "match_online01");
+    expect(urls).toEqual(["wss://games.example/ws?ticket=ticket-1", "wss://games.example/ws?ticket=ticket-2"]);
+    expect(client.principal).toEqual({
+      playerId: CREDENTIALS.playerId,
+      sessionId: CREDENTIALS.sessionId,
+    });
+  });
+
   it("cancels reconnect work and closes cleanly", async () => {
     const socket = new FakeWebSocket();
     const onStatus = vi.fn();
