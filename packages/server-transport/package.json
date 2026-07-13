@@ -30,6 +30,7 @@
   "dependencies": {
     "@assalto-reale/authoritative-server": "file:../authoritative-server",
     "@assalto-reale/multiplayer-protocol": "file:../multiplayer-protocol",
+    "jose": "^6.2.3",
     "ws": "^8.21.0"
   },
   "devDependencies": {

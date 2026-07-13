@@ -31,6 +31,7 @@
     "protocol:smoke": "node scripts/check-multiplayer-protocol.mjs"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.21.0",
     "@vitejs/plugin-react": "^4.3.4",
     "motion": "^12.0.0",
     "react": "^19.0.0",

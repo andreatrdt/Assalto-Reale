@@ -10,6 +10,20 @@ export type {
   SeedGenerator,
 } from "./ports.js";
 export {
+  AccountIdentityConflictError,
+  AccountSessionRevokedError,
+  type AccountRepository,
+  type AccountUser,
+  type AccountUserStatus,
+  type ActiveMatchMembership,
+  type AuthIdentity,
+  type AuthSession,
+  type PlayerIdentity,
+  type PlayerIdentityKind,
+  type RegisteredIdentityClaims,
+  type RegisteredSession,
+} from "./accounts.js";
+export {
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
   ReceiptConflictError,
@@ -26,6 +40,7 @@ export {
   createInMemoryPersistence,
   type InMemoryPersistence,
 } from "./persistence/inMemory.js";
+export { PostgresAccountRepository } from "./persistence/postgres/postgresAccountRepository.js";
 export {
   PostgresMatchRepository,
   PostgresUnitOfWork,

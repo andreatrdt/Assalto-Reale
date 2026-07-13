@@ -15,12 +15,17 @@ import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { ConnectionAuthenticator } from "./connectionAuth.js";
 import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";
 import type { GuestSessionIssuer } from "./guestSessions.js";
+import {
+  RegisteredAuthError,
+  type RegisteredAuthService,
+} from "./registeredAuth.js";
 
 const DEFAULT_WEBSOCKET_PATH = "/ws";
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024;
 const DEFAULT_MAX_BUFFERED_BYTES = 1024 * 1024;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const DEFAULT_SHUTDOWN_GRACE_MS = 1_000;
+const MAX_AUTH_BODY_BYTES = 16 * 1024;
 
 const SUBSCRIPTION_EVENTS = new Set([
   "MatchCreated",
@@ -55,6 +60,7 @@ export interface TransportServerOptions {
   executor: AuthenticatedCommandExecutor;
   authenticateConnection: ConnectionAuthenticator;
   guestSessions?: GuestSessionIssuer;
+  registeredAuth?: RegisteredAuthService;
   readiness?: ReadinessProbe;
   logger?: TransportLogger;
   websocketPath?: string;
@@ -96,6 +102,37 @@ function rawDataToText(data: RawData): string {
   if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
   if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
   return data.toString("utf8");
+}
+
+function bearerToken(request: IncomingMessage): string | null {
+  const header = request.headers.authorization;
+  if (typeof header !== "string") return null;
+  return /^Bearer\s+([^\s]+)$/i.exec(header.trim())?.[1] ?? null;
+}
+
+async function readJsonBody(request: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > MAX_AUTH_BODY_BYTES) {
+      throw new TypeError("request_too_large");
+    }
+    chunks.push(buffer);
+  }
+  if (bytes === 0) return {};
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  } catch {
+    throw new TypeError("invalid_json");
+  }
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
 function isPrincipal(
@@ -248,6 +285,11 @@ export class AuthoritativeTransportServer {
         ? request.headers.origin
         : null;
 
+    if (path.startsWith("/auth/")) {
+      await this.handleRegisteredAuth(request, response, path, origin);
+      return;
+    }
+
     if (path === "/session") {
       if (!this.options.guestSessions) {
         this.sendJson(response, 404, { status: "not_found" }, false, origin);
@@ -329,6 +371,169 @@ export class AuthoritativeTransportServer {
     );
   }
 
+  private async handleRegisteredAuth(
+    request: IncomingMessage,
+    response: ServerResponse,
+    path: string,
+    origin: string | null,
+  ): Promise<void> {
+    const auth = this.options.registeredAuth;
+    if (!auth) {
+      this.sendJson(response, 404, { status: "not_found" }, false, origin);
+      return;
+    }
+    if (!this.isOriginAllowed(origin)) {
+      this.sendJson(response, 403, { status: "forbidden" }, false);
+      return;
+    }
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, this.corsHeaders(origin));
+      response.end();
+      return;
+    }
+
+    const allowed =
+      (path === "/auth/session" &&
+        (request.method === "GET" || request.method === "POST")) ||
+      (path === "/auth/matches" && request.method === "GET") ||
+      ((path === "/auth/logout" ||
+        path === "/auth/upgrade-guest" ||
+        path === "/auth/websocket-ticket") &&
+        request.method === "POST");
+    if (!allowed) {
+      const known = new Set([
+        "/auth/session",
+        "/auth/matches",
+        "/auth/logout",
+        "/auth/upgrade-guest",
+        "/auth/websocket-ticket",
+      ]).has(path);
+      this.sendJson(
+        response,
+        known ? 405 : 404,
+        { status: known ? "method_not_allowed" : "not_found" },
+        request.method === "HEAD",
+        origin,
+      );
+      return;
+    }
+
+    const token = bearerToken(request);
+    if (!token) {
+      this.sendJson(
+        response,
+        401,
+        { status: "unauthorized", code: "invalid_token" },
+        false,
+        origin,
+      );
+      return;
+    }
+
+    try {
+      if (path === "/auth/session") {
+        this.sendJson(
+          response,
+          200,
+          await auth.establishSession(token),
+          false,
+          origin,
+        );
+        return;
+      }
+      if (path === "/auth/logout") {
+        await auth.logout(token);
+        this.sendJson(response, 200, { status: "signed_out" }, false, origin);
+        return;
+      }
+      if (path === "/auth/matches") {
+        this.sendJson(
+          response,
+          200,
+          await auth.listActiveMatches(token),
+          false,
+          origin,
+        );
+        return;
+      }
+
+      const body = record(await readJsonBody(request));
+      if (!body) throw new TypeError("invalid_body");
+      if (path === "/auth/upgrade-guest") {
+        if (
+          typeof body.guestToken !== "string" ||
+          body.guestToken.length === 0 ||
+          body.guestToken.length > 4096
+        ) {
+          throw new TypeError("invalid_guest_token");
+        }
+        this.sendJson(
+          response,
+          200,
+          await auth.upgradeGuest(token, body.guestToken),
+          false,
+          origin,
+        );
+        return;
+      }
+      const matchId = body.matchId;
+      if (
+        matchId !== undefined &&
+        matchId !== null &&
+        (typeof matchId !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(matchId))
+      ) {
+        throw new TypeError("invalid_match_id");
+      }
+      this.sendJson(
+        response,
+        201,
+        await auth.issueWebsocketTicket(
+          token,
+          typeof matchId === "string" ? matchId : null,
+        ),
+        false,
+        origin,
+      );
+    } catch (error) {
+      if (error instanceof RegisteredAuthError) {
+        this.logger.warn("Registered authentication rejected.", {
+          category: "registered",
+          code: error.code,
+        });
+        this.sendJson(
+          response,
+          error.status,
+          { status: "unauthorized", code: error.code, message: error.message },
+          false,
+          origin,
+        );
+        return;
+      }
+      if (error instanceof TypeError) {
+        this.sendJson(
+          response,
+          error.message === "request_too_large" ? 413 : 400,
+          { status: "invalid_request" },
+          false,
+          origin,
+        );
+        return;
+      }
+      this.logger.error("Registered authentication failed unexpectedly.", {
+        category: "registered",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      this.sendJson(
+        response,
+        503,
+        { status: "service_unavailable" },
+        false,
+        origin,
+      );
+    }
+  }
+
   private isOriginAllowed(origin: string | null): boolean {
     return !this.allowedOrigins || !origin || this.allowedOrigins.has(origin);
   }
@@ -337,8 +542,8 @@ export class AuthoritativeTransportServer {
     if (!origin) return {};
     return {
       "access-control-allow-origin": origin,
-      "access-control-allow-methods": "POST, OPTIONS",
-      "access-control-allow-headers": "content-type, accept",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, accept",
       vary: "Origin",
     };
   }
@@ -395,6 +600,7 @@ export class AuthoritativeTransportServer {
       // operators can see auth failures without any secret material.
       this.logger.warn("WebSocket authentication rejected.", {
         reason: "invalid_or_expired_token",
+        category: request.url?.includes("ticket=") ? "registered" : "guest",
       });
       this.rejectUpgrade(socket, 401, "Unauthorized");
       return;
@@ -433,7 +639,10 @@ export class AuthoritativeTransportServer {
     };
     this.connections.set(socket, state);
     this.addToIndex(this.socketsByPlayer, principal.playerId, socket);
-    this.logger.info("WebSocket connected.", { playerId: principal.playerId });
+    this.logger.info("WebSocket connected.", {
+      playerId: principal.playerId,
+      category: principal.authKind ?? "guest",
+    });
 
     socket.on("pong", () => {
       state.alive = true;

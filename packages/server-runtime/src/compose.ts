@@ -1,5 +1,6 @@
 import {
   CommandHandler,
+  type AccountRepository,
   type Clock,
   type IdGenerator,
   type MatchRepository,
@@ -8,13 +9,19 @@ import {
 } from "@assalto-reale/authoritative-server";
 import {
   ContextualAuthenticator,
+  GuestOrRegisteredConnectionAuthenticator,
   GuestSessionConnectionAuthenticator,
   HmacGuestSessionService,
+  OidcAccessTokenVerifier,
+  RegisteredAuthService,
+  RegisteredTicketConnectionAuthenticator,
   bindCommandHandler,
   createAuthoritativeTransportServer,
   type AuthoritativeTransportServer,
+  type ConnectionAuthenticator,
   type ReadinessProbe,
   type TransportLogger,
+  type RegisteredAccessTokenVerifier,
 } from "@assalto-reale/server-transport";
 import type { RuntimeConfig } from "./config.js";
 import {
@@ -26,6 +33,7 @@ import {
 export interface RuntimePersistence {
   matches: MatchRepository;
   unitOfWork: UnitOfWork;
+  accounts?: AccountRepository;
 }
 
 export interface ComposeOptions {
@@ -39,11 +47,15 @@ export interface ComposeOptions {
   // Deterministic hooks for tests only.
   guestSessionNow?: () => number;
   guestSessionRandomId?: () => string;
+  registeredAccessTokenVerifier?: RegisteredAccessTokenVerifier;
+  registeredTicketNow?: () => Date;
+  registeredTicketRandom?: () => string;
 }
 
 export interface ComposedServer {
   server: AuthoritativeTransportServer;
   guestSessions: HmacGuestSessionService;
+  registeredAuth: RegisteredAuthService | null;
 }
 
 /**
@@ -71,15 +83,56 @@ export function composeServer(options: ComposeOptions): ComposedServer {
     ...(options.guestSessionRandomId
       ? { randomId: options.guestSessionRandomId }
       : {}),
+    ...(persistence.accounts
+      ? {
+          registerIdentity: async (playerId: string) => {
+            await persistence.accounts!.ensureGuestIdentity(playerId);
+          },
+          validateIdentity: (playerId: string) =>
+            persistence.accounts!.isGuestAuthenticationAllowed(playerId),
+        }
+      : {}),
   });
-  const authenticateConnection = new GuestSessionConnectionAuthenticator(
+  const guestAuthenticator = new GuestSessionConnectionAuthenticator(
     guestSessions,
   );
+  let registeredAuth: RegisteredAuthService | null = null;
+  let authenticateConnection: ConnectionAuthenticator = guestAuthenticator;
+  if (config.authEnabled) {
+    if (
+      !persistence.accounts ||
+      !config.authIssuerUrl ||
+      !config.authAudience ||
+      !config.authSessionIdClaim
+    ) {
+      throw new Error("Registered authentication dependencies are incomplete.");
+    }
+    const verifier =
+      options.registeredAccessTokenVerifier ??
+      new OidcAccessTokenVerifier({
+        issuer: config.authIssuerUrl,
+        audience: config.authAudience,
+        sessionIdClaim: config.authSessionIdClaim,
+      });
+    registeredAuth = new RegisteredAuthService(
+      verifier,
+      persistence.accounts,
+      guestSessions,
+      config.authWebsocketTicketTtlMs,
+      options.registeredTicketNow,
+      options.registeredTicketRandom,
+    );
+    authenticateConnection = new GuestOrRegisteredConnectionAuthenticator(
+      guestAuthenticator,
+      new RegisteredTicketConnectionAuthenticator(registeredAuth),
+    );
+  }
 
   const server = createAuthoritativeTransportServer({
     executor,
     authenticateConnection,
     guestSessions,
+    ...(registeredAuth ? { registeredAuth } : {}),
     ...(options.readiness ? { readiness: options.readiness } : {}),
     ...(options.logger ? { logger: options.logger } : {}),
     websocketPath: config.websocketPath,
@@ -90,5 +143,5 @@ export function composeServer(options: ComposeOptions): ComposedServer {
     shutdownGraceMs: config.shutdownGraceMs,
   });
 
-  return { server, guestSessions };
+  return { server, guestSessions, registeredAuth };
 }

@@ -93,6 +93,7 @@ export function createRuntime(
       port: address.port,
       websocketPath: address.websocketPath,
       sessionPath: config.sessionPath,
+      authEnabled: config.authEnabled,
       allowedOrigins: config.allowedOrigins,
     });
     return address;

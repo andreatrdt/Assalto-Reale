@@ -1,0 +1,44 @@
+.accountShell .pageShellContent {
+  max-width: 62rem;
+}
+.accountGrid,
+.accountMatches {
+  display: grid;
+  gap: 1rem;
+}
+.accountPanel {
+  display: grid;
+  gap: 0.9rem;
+}
+.accountPanel h2,
+.accountPanel p,
+.accountMatch p {
+  margin: 0;
+}
+.accountPanel p,
+.accountMatch p,
+.accountIdentity {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.accountActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.accountMatches > h2 {
+  font-size: 1.1rem;
+  margin: 0.5rem 0 0;
+}
+.accountMatch {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+@media (max-width: 38rem) {
+  .accountMatch {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

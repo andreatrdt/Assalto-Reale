@@ -18,6 +18,8 @@ import {
   type PostgresMatchRow,
   type PostgresReceiptRow,
 } from "./codec.js";
+import { PostgresAccountRepository } from "./postgresAccountRepository.js";
+import type { AccountRepository } from "../../accounts.js";
 
 const MATCH_COLUMNS = `
   match_id,
@@ -225,6 +227,7 @@ class PostgresTransaction implements Transaction {
         }
         throw error;
       }
+      await this.syncMemberships(encoded);
       return;
     }
 
@@ -252,6 +255,44 @@ class PostgresTransaction implements Transaction {
     );
     if (updated.rowCount !== 1) {
       throw new ConcurrencyConflictError();
+    }
+    await this.syncMemberships(encoded);
+  }
+
+  private async syncMemberships(
+    encoded: ReturnType<typeof encodeMatchAggregate>,
+  ): Promise<void> {
+    const members = [
+      ["Black", encoded.blackPlayerId],
+      ["White", encoded.whitePlayerId],
+    ] as const;
+    for (const [side, playerId] of members) {
+      if (!playerId) {
+        await this.client.query(
+          "DELETE FROM match_memberships WHERE match_id = $1 AND side = $2",
+          [encoded.matchId, side],
+        );
+        continue;
+      }
+      // Legacy HMAC credentials may have been issued before migration 3. The
+      // first authoritative write safely materializes their guest identity.
+      await this.client.query(
+        `
+          INSERT INTO player_identities (player_id, kind)
+          VALUES ($1, 'guest')
+          ON CONFLICT (player_id) DO NOTHING
+        `,
+        [playerId],
+      );
+      await this.client.query(
+        `
+          INSERT INTO match_memberships (match_id, side, player_id)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (match_id, side)
+          DO UPDATE SET player_id = EXCLUDED.player_id
+        `,
+        [encoded.matchId, side, playerId],
+      );
     }
   }
 }
@@ -281,6 +322,7 @@ export interface PostgresPersistence {
   pool: Pool;
   matches: MatchRepository;
   unitOfWork: UnitOfWork;
+  accounts: AccountRepository;
 }
 
 export function createPostgresPersistence(pool: Pool): PostgresPersistence {
@@ -288,5 +330,6 @@ export function createPostgresPersistence(pool: Pool): PostgresPersistence {
     pool,
     matches: new PostgresMatchRepository(pool),
     unitOfWork: new PostgresUnitOfWork(pool),
+    accounts: new PostgresAccountRepository(pool),
   };
 }

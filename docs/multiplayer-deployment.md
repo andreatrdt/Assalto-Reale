@@ -47,6 +47,12 @@ Served by the transport (`server-transport`):
 
 ## Environment variables
 
+Durable registered accounts are an optional, fail-closed extension. See
+[`account-auth-foundation.md`](account-auth-foundation.md) for the Auth0 owner
+steps, endpoint flow, rollback, and browser variables. Railway must set
+`AUTH_ENABLED=true`, `AUTH_ISSUER_URL`, `AUTH_AUDIENCE`, and
+`AUTH_SESSION_ID_CLAIM` together; `AUTH_WEBSOCKET_TICKET_TTL_SECONDS` defaults to 60. With auth disabled, the deployed guest behavior is unchanged.
+
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
 | `NODE_ENV` | no | `development` | `production` fails fast on weak/missing values |
