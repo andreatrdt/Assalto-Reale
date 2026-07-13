@@ -372,7 +372,9 @@ describe("composed multiplayer stack (in-memory)", () => {
     // Player A creates a match. Assume the MatchCreated response is lost: A drops
     // the socket before acting on it and never learns the matchId locally.
     const createCommandId = "cmd_cr_create1";
-    clientA.send(commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }));
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }),
+    );
     const created = await clientA.waitFor("MatchCreated");
     const matchId = created.matchId!;
     const inviteCode = (created.event as { inviteCode: string }).inviteCode;
@@ -381,12 +383,16 @@ describe("composed multiplayer stack (in-memory)", () => {
     // A reconnects on the SAME guest session and replays the SAME CreateMatch
     // command with the SAME commandId. Idempotency returns the original result.
     const clientA2 = await TestClient.connect(wsBase, sessionA);
-    clientA2.send(commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }));
+    clientA2.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: createCommandId }),
+    );
     const replayed = await clientA2.waitFor("MatchCreated");
 
     // The original identity is recovered, not a second match.
     expect(replayed.matchId).toBe(matchId);
-    expect((replayed.event as { inviteCode: string }).inviteCode).toBe(inviteCode);
+    expect((replayed.event as { inviteCode: string }).inviteCode).toBe(
+      inviteCode,
+    );
     expect((replayed.event as { assignedSide: string }).assignedSide).toBe(
       (created.event as { assignedSide: string }).assignedSide,
     );
@@ -395,7 +401,13 @@ describe("composed multiplayer stack (in-memory)", () => {
     // is joinable (a duplicate create would have produced a different code).
     const sessionB = await acquireGuestSession(baseUrl);
     const clientB = await TestClient.connect(wsBase, sessionB);
-    clientB.send(commandMessage(sessionB, { type: "JoinMatch", inviteCode }, { commandId: "cmd_cr_join001" }));
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_cr_join001" },
+      ),
+    );
     const joined = await clientB.waitFor("PlayerJoined");
     expect(joined.matchId).toBe(matchId);
 
@@ -407,7 +419,9 @@ describe("composed multiplayer stack (in-memory)", () => {
     const sessionA = await acquireGuestSession(baseUrl);
     const sessionB = await acquireGuestSession(baseUrl);
     const clientA = await TestClient.connect(wsBase, sessionA);
-    clientA.send(commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_jr_create1" }));
+    clientA.send(
+      commandMessage(sessionA, MANUAL_CONFIG, { commandId: "cmd_jr_create1" }),
+    );
     const created = await clientA.waitFor("MatchCreated");
     const matchId = created.matchId!;
     const inviteCode = (created.event as { inviteCode: string }).inviteCode;
@@ -415,21 +429,38 @@ describe("composed multiplayer stack (in-memory)", () => {
     // B joins; assume B's PlayerJoined response is lost (B drops before reading it).
     const joinCommandId = "cmd_jr_join001";
     const clientB = await TestClient.connect(wsBase, sessionB);
-    clientB.send(commandMessage(sessionB, { type: "JoinMatch", inviteCode }, { commandId: joinCommandId }));
+    clientB.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: joinCommandId },
+      ),
+    );
     const joinedFirst = await clientB.waitFor("PlayerJoined");
-    const assignedSide = (joinedFirst.event as { assignedSide: string }).assignedSide;
+    const assignedSide = (joinedFirst.event as { assignedSide: string })
+      .assignedSide;
     await clientA.waitFor("PlayerJoined");
     await clientB.close();
 
     // B reconnects and replays the SAME JoinMatch commandId: the original result
     // is returned and no second membership is created.
     const clientB2 = await TestClient.connect(wsBase, sessionB);
-    clientB2.send(commandMessage(sessionB, { type: "JoinMatch", inviteCode }, { commandId: joinCommandId }));
+    clientB2.send(
+      commandMessage(
+        sessionB,
+        { type: "JoinMatch", inviteCode },
+        { commandId: joinCommandId },
+      ),
+    );
     const joinedReplay = await clientB2.waitFor("PlayerJoined");
 
     expect(joinedReplay.matchId).toBe(matchId);
-    expect((joinedReplay.event as { playerId: string }).playerId).toBe(sessionB.playerId);
-    expect((joinedReplay.event as { assignedSide: string }).assignedSide).toBe(assignedSide);
+    expect((joinedReplay.event as { playerId: string }).playerId).toBe(
+      sessionB.playerId,
+    );
+    expect((joinedReplay.event as { assignedSide: string }).assignedSide).toBe(
+      assignedSide,
+    );
     // The match is still at version 2 (one join), not advanced by the replay.
     expect(joinedReplay.matchVersion).toBe(2);
 
@@ -451,9 +482,12 @@ describe("composed multiplayer stack (in-memory)", () => {
     // close code. Here we assert the server side: the expired token cannot connect.
     await expect(
       new Promise((resolve, reject) => {
-        const socket = new WebSocket(`${wsBase}?access_token=${expired.token}`, {
-          headers: { origin: TEST_ORIGIN },
-        });
+        const socket = new WebSocket(
+          `${wsBase}?access_token=${expired.token}`,
+          {
+            headers: { origin: TEST_ORIGIN },
+          },
+        );
         socket.once("open", () => {
           socket.close();
           resolve("opened");

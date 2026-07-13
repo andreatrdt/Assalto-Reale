@@ -69,11 +69,17 @@ describe("authoritative idempotency and optimistic concurrency", () => {
   it("replays the original JoinMatch result and keeps exactly one membership", async () => {
     const { handler, store } = harness();
     const created = await handler.handle(
-      message({ type: "CreateMatch", config: ONLINE_CONFIG }, { commandId: "cmd_host0001", playerId: ALICE }),
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_host0001", playerId: ALICE },
+      ),
     );
     const inviteCode = only(created, "MatchCreated").inviteCode;
     const matchId = created[0]!.matchId!;
-    const join = message({ type: "JoinMatch", inviteCode }, { commandId: "cmd_join0001", playerId: BOB, matchId });
+    const join = message(
+      { type: "JoinMatch", inviteCode },
+      { commandId: "cmd_join0001", playerId: BOB, matchId },
+    );
 
     const first = await handler.handle(join);
     const second = await handler.handle(join);
@@ -89,15 +95,26 @@ describe("authoritative idempotency and optimistic concurrency", () => {
   it("rejects a reused JoinMatch commandId whose invite code changed", async () => {
     const { handler } = harness();
     const created = await handler.handle(
-      message({ type: "CreateMatch", config: ONLINE_CONFIG }, { commandId: "cmd_host0002", playerId: ALICE }),
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_host0002", playerId: ALICE },
+      ),
     );
     const inviteCode = only(created, "MatchCreated").inviteCode;
     const matchId = created[0]!.matchId!;
 
-    await handler.handle(message({ type: "JoinMatch", inviteCode }, { commandId: "cmd_join0002", playerId: BOB, matchId }));
+    await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode },
+        { commandId: "cmd_join0002", playerId: BOB, matchId },
+      ),
+    );
     // Same commandId, different payload → not an idempotent retry.
     const changed = await handler.handle(
-      message({ type: "JoinMatch", inviteCode: "OTHER001" }, { commandId: "cmd_join0002", playerId: BOB, matchId }),
+      message(
+        { type: "JoinMatch", inviteCode: "OTHER001" },
+        { commandId: "cmd_join0002", playerId: BOB, matchId },
+      ),
     );
 
     expect(only(changed, "CommandRejected").code).toBe("duplicate_command");
