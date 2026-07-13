@@ -69,6 +69,10 @@ jobs:
         working-directory: web
         env:
           VITE_MULTIPLAYER_WS_URL: wss://assalto-reale-production.up.railway.app/ws
+          VITE_AUTH0_DOMAIN: ${{ vars.VITE_AUTH0_DOMAIN }}
+          VITE_AUTH0_CLIENT_ID: ${{ vars.VITE_AUTH0_CLIENT_ID }}
+          VITE_AUTH0_AUDIENCE: ${{ vars.VITE_AUTH0_AUDIENCE }}
+          VITE_ACCOUNT_API_URL: ${{ vars.VITE_ACCOUNT_API_URL }}
         run: npm run build -- --base "$BASE_PATH"
       - name: Write release metadata (records tested commit)
         working-directory: web
