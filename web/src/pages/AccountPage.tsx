@@ -38,6 +38,14 @@ export function AccountPage({ route, navigate }: AccountPageProps) {
             Play online as guest
           </GameButton>
         </Panel>
+      ) : account.state === "checking-session" ? (
+        <Panel className="accountPanel" aria-live="polite">
+          <StatusBadge tone="info" icon="clock">
+            Checking session
+          </StatusBadge>
+          <h2>Restoring your account…</h2>
+          <p>Guest play will remain available if there is no active account session.</p>
+        </Panel>
       ) : account.state === "signing-in" ? (
         <Panel className="accountPanel" aria-live="polite">
           <StatusBadge tone="info" icon="clock">

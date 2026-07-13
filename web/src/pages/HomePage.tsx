@@ -6,6 +6,13 @@ import { GameButton, PageShell } from "../ui/components";
 import { useAccount } from "../account/AccountProvider";
 import "../styles/home.css";
 
+export function accountActionLabel(state: ReturnType<typeof useAccount>["state"]): string {
+  if (state === "signed-in") return "View Account";
+  if (state === "checking-session") return "Checking account…";
+  if (state === "signing-in") return "Signing in…";
+  return "Sign in";
+}
+
 interface HomePageProps {
   route: AppRoute;
   navigate: (route: AppRoute, replace?: boolean) => void;
@@ -50,9 +57,10 @@ export function HomePage({ route, navigate }: HomePageProps) {
             <GameButton
               variant="ghost"
               size="lg"
+              disabled={account.state === "checking-session" || account.state === "signing-in"}
               onClick={() => (account.state === "signed-in" ? navigate("/account") : void account.signIn())}
             >
-              {account.state === "signed-in" ? "View Account" : account.state === "signing-in" ? "Signing in…" : "Sign in"}
+              {accountActionLabel(account.state)}
             </GameButton>
           )}
         </div>
