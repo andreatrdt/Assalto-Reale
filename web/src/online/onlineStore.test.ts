@@ -41,14 +41,18 @@ class MockOnlineClient {
   private open = false;
   private ctxMatchId: string | null = null;
   private ctxVersion: number | null = null;
+  private replay: { commandId: string; command: ClientCommand } | null = null;
   readonly send = vi.fn((_command: ClientCommand, _context?: CommandContext): string => {
     if (sendError) throw sendError;
     sentId += 1;
-    return `command_mock${sentId}`;
+    return _context?.commandId ?? `command_mock${sentId}`;
   });
   readonly setMatchContext = vi.fn((matchId: string | null, matchVersion: number | null) => {
     this.ctxMatchId = matchId;
     this.ctxVersion = matchVersion;
+  });
+  readonly setLifecycleReplay = vi.fn((replay: { commandId: string; command: ClientCommand } | null) => {
+    this.replay = replay;
   });
   readonly disconnect = vi.fn(() => {
     this.open = false;
@@ -75,14 +79,20 @@ class MockOnlineClient {
     if (connectError) throw connectError;
     this.open = true;
     this.options.onStatus("connected");
-    // A fresh open requests the canonical snapshot when a match context already
-    // exists (reconnect/refresh).
-    if (this.ctxMatchId) {
-      try {
+    // Mirror the real client's open handler: request a snapshot when a match
+    // context exists, otherwise replay a pending create/join with its fixed id.
+    try {
+      if (this.ctxMatchId) {
         this.requestSync();
-      } catch {
-        // ignored in tests
+      } else if (this.replay) {
+        this.send(this.replay.command, {
+          commandId: this.replay.commandId,
+          matchId: null,
+          expectedMatchVersion: null,
+        });
       }
+    } catch {
+      // ignored in tests
     }
     return PRINCIPAL;
   }
@@ -195,6 +205,7 @@ describe("online match store", () => {
 
   it("creates and persists an authoritative waiting room", async () => {
     await expect(onlineStore.getState().hostMatch()).resolves.toBe(true);
+    const commandId = onlineStore.getState().pendingCommandId;
     expect(client().send).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "CreateMatch",
@@ -205,9 +216,8 @@ describe("online match store", () => {
           timeControl: { kind: "untimed" },
         }),
       }),
-      { matchId: null, expectedMatchVersion: null },
+      { commandId, matchId: null, expectedMatchVersion: null },
     );
-    const commandId = onlineStore.getState().pendingCommandId;
 
     client().emit(
       eventEnvelope(
@@ -255,7 +265,7 @@ describe("online match store", () => {
     await expect(onlineStore.getState().joinMatch(" inv-0001 ")).resolves.toBe(true);
     expect(client().send).toHaveBeenLastCalledWith(
       { type: "JoinMatch", inviteCode: "INV-0001" },
-      { matchId: null, expectedMatchVersion: null },
+      { commandId: onlineStore.getState().pendingCommandId, matchId: null, expectedMatchVersion: null },
     );
 
     client().emit(
@@ -732,5 +742,157 @@ describe("online lifecycle recovery (audit)", () => {
     // An ended match restores completion.
     client().emit(eventEnvelope({ type: "MatchSnapshot", snapshot: SNAPSHOT, status: "ended" }, { matchVersion: 5, streamSequence: 7 }));
     expect(onlineStore.getState().completed).toBe(true);
+  });
+});
+
+describe("online session and lifecycle recovery", () => {
+  const INTENT_KEY = "assalto:online-intent";
+
+  it("persists a create intent before the response and clears it only after MatchCreated", async () => {
+    await expect(onlineStore.getState().hostMatch()).resolves.toBe(true);
+    const commandId = onlineStore.getState().pendingCommandId;
+
+    // The exact intent is persisted BEFORE the response, keyed by the same
+    // commandId, so a lost response is recoverable after a refresh.
+    const stored = JSON.parse(window.sessionStorage.getItem(INTENT_KEY) ?? "null");
+    expect(stored).toMatchObject({ kind: "create", commandId });
+    expect(onlineStore.getState().pendingLifecycle).toBe("create");
+    // It was replayed with the fixed commandId, not a fresh one.
+    expect(client().send).toHaveBeenCalledWith(expect.objectContaining({ type: "CreateMatch" }), {
+      commandId,
+      matchId: null,
+      expectedMatchVersion: null,
+    });
+
+    // The authoritative result finally arrives.
+    client().emit(
+      eventEnvelope(
+        { type: "MatchCreated", inviteCode: "INV00001", assignedSide: "Black", snapshot: SNAPSHOT },
+        { causationCommandId: commandId },
+      ),
+    );
+
+    expect(onlineStore.getState().matchId).toBe("match_online01");
+    // Intent is cleared ONLY after the response is applied.
+    expect(window.sessionStorage.getItem(INTENT_KEY)).toBeNull();
+    expect(onlineStore.getState().pendingLifecycle).toBe("none");
+  });
+
+  it("persists a join intent and clears it only after our own PlayerJoined", async () => {
+    await expect(onlineStore.getState().joinMatch("INV00001")).resolves.toBe(true);
+    const commandId = onlineStore.getState().pendingCommandId;
+    expect(JSON.parse(window.sessionStorage.getItem(INTENT_KEY) ?? "null")).toMatchObject({ kind: "join", commandId });
+
+    // An unrelated PlayerJoined (the opponent) must NOT clear our join intent.
+    client().emit(
+      eventEnvelope(
+        { type: "PlayerJoined", playerId: "player_other01", assignedSide: "Black", snapshot: SNAPSHOT },
+        { causationCommandId: commandId },
+      ),
+    );
+    expect(window.sessionStorage.getItem(INTENT_KEY)).not.toBeNull();
+
+    // Our own membership confirmation clears it.
+    client().emit(
+      eventEnvelope(
+        { type: "PlayerJoined", playerId: PRINCIPAL.playerId, assignedSide: "White", snapshot: SNAPSHOT },
+        { causationCommandId: commandId },
+      ),
+    );
+    expect(window.sessionStorage.getItem(INTENT_KEY)).toBeNull();
+    expect(onlineStore.getState().pendingLifecycle).toBe("none");
+  });
+
+  it("recovers a lost create after a refresh, replaying the same commandId for exactly one match", async () => {
+    // A prior load sent this create but never received the response.
+    window.sessionStorage.setItem(
+      INTENT_KEY,
+      JSON.stringify({
+        kind: "create",
+        commandId: "command_persisted01",
+        command: {
+          type: "CreateMatch",
+          config: {
+            visibility: "invite",
+            placementMode: "Manual",
+            transformEnabled: true,
+            preferredSide: "Random",
+            timeControl: { kind: "untimed" },
+          },
+        },
+        createdAt: 1,
+      }),
+    );
+    vi.resetModules();
+    const store = (await import("./onlineStore")).useOnlineMatchStore;
+    // The intent is loaded from storage on module init.
+    expect(store.getState().pendingLifecycle).toBe("create");
+    expect(store.getState().matchId).toBeNull();
+
+    await expect(store.getState().recoverPendingLifecycle()).resolves.toBe(true);
+    // The recovery replays the ORIGINAL commandId (server replays, never duplicates).
+    expect(client().send).toHaveBeenCalledWith(expect.objectContaining({ type: "CreateMatch" }), {
+      commandId: "command_persisted01",
+      matchId: null,
+      expectedMatchVersion: null,
+    });
+
+    client().emit(
+      eventEnvelope(
+        { type: "MatchCreated", inviteCode: "INV00001", assignedSide: "Black", snapshot: SNAPSHOT },
+        { causationCommandId: "command_persisted01" },
+      ),
+    );
+    expect(store.getState().matchId).toBe("match_online01");
+    expect(window.sessionStorage.getItem(INTENT_KEY)).toBeNull();
+    store.getState().disconnect(false);
+  });
+
+  it("blocks a second lifecycle command while one is pending (duplicate-click guard)", async () => {
+    await onlineStore.getState().hostMatch();
+    const calls = client().send.mock.calls.length;
+
+    await expect(onlineStore.getState().hostMatch()).resolves.toBe(false);
+    await expect(onlineStore.getState().joinMatch("INV00001")).resolves.toBe(false);
+
+    expect(client().send.mock.calls.length).toBe(calls);
+    expect(onlineStore.getState().lastError).toContain("already in progress");
+  });
+
+  it("surfaces session-expired and drops the pending intent so it is never replayed as a new identity", async () => {
+    await onlineStore.getState().hostMatch();
+    expect(onlineStore.getState().pendingLifecycle).toBe("create");
+
+    // A confirmed anonymous-identity expiry (deterministic auth failure).
+    client().status("expired", "Your session has expired.");
+
+    expect(onlineStore.getState().connectionStatus).toBe("expired");
+    expect(onlineStore.getState().syncStatus).toBe("failed");
+    // The intent is cleared: replaying it under a new playerId is forbidden.
+    expect(onlineStore.getState().pendingLifecycle).toBe("none");
+    expect(window.sessionStorage.getItem(INTENT_KEY)).toBeNull();
+    // Recovery refuses to run while expired.
+    await expect(onlineStore.getState().recoverPendingLifecycle()).resolves.toBe(false);
+  });
+
+  it("keeps the pending intent across a transient offline (recoverable, not expired)", async () => {
+    await onlineStore.getState().hostMatch();
+
+    client().status("offline", "Connection lost. Reconnecting…");
+
+    expect(onlineStore.getState().connectionStatus).toBe("offline");
+    // A transient outage must NOT be treated as expiry: the intent is preserved.
+    expect(onlineStore.getState().pendingLifecycle).toBe("create");
+    expect(window.sessionStorage.getItem(INTENT_KEY)).not.toBeNull();
+  });
+
+  it("discards the intent and match when the user starts over (cancellation)", async () => {
+    await onlineStore.getState().hostMatch();
+    onlineStore.getState().startNewMatch();
+
+    expect(onlineStore.getState().pendingLifecycle).toBe("none");
+    expect(onlineStore.getState().matchId).toBeNull();
+    expect(onlineStore.getState().connectionStatus).toBe("idle");
+    expect(window.sessionStorage.getItem(INTENT_KEY)).toBeNull();
   });
 });

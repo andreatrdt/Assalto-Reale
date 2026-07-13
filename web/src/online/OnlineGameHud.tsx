@@ -23,7 +23,15 @@ export function OnlineGameHud() {
   }, []);
 
   useEffect(() => {
-    if (matchId && connectionStatus !== "connected" && connectionStatus !== "connecting" && connectionStatus !== "reconnecting") {
+    // Never auto-resume a confirmed-expired session: the anonymous identity can no
+    // longer own this match, so retrying would only loop on the same rejection.
+    if (
+      matchId &&
+      connectionStatus !== "connected" &&
+      connectionStatus !== "connecting" &&
+      connectionStatus !== "reconnecting" &&
+      connectionStatus !== "expired"
+    ) {
       void resumeMatch();
     }
   }, [connectionStatus, matchId, resumeMatch]);
@@ -32,7 +40,11 @@ export function OnlineGameHud() {
 
   const reason = onlineActionBlockReason();
   const tone =
-    connectionStatus === "connected" ? "success" : connectionStatus === "offline" || connectionStatus === "error" ? "danger" : "info";
+    connectionStatus === "connected"
+      ? "success"
+      : connectionStatus === "offline" || connectionStatus === "error" || connectionStatus === "expired"
+        ? "danger"
+        : "info";
   const connectionLabel = {
     idle: "Not connected",
     connecting: "Connecting",
@@ -40,6 +52,7 @@ export function OnlineGameHud() {
     reconnecting: "Reconnecting",
     offline: "Offline",
     error: "Connection error",
+    expired: "Session expired",
   }[connectionStatus];
 
   return (
