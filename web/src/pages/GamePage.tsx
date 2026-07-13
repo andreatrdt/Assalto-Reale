@@ -47,11 +47,14 @@ export function GamePage({ navigate }: GamePageProps) {
   const runAiTurn = useGameStore((state) => state.runAiTurn);
   const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
   const onlineConnection = useOnlineMatchStore((state) => state.connectionStatus);
+  const onlineSide = useOnlineMatchStore((state) => state.side);
+  const onlineWinner = useOnlineMatchStore((state) => state.winner);
   const rematchStatus = useOnlineMatchStore((state) => state.rematchStatus);
   const offerRematch = useOnlineMatchStore((state) => state.offerRematch);
   const respondToRematch = useOnlineMatchStore((state) => state.respondToRematch);
   const [confirmHome, setConfirmHome] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const isOnline = Boolean(onlineMatchId);
 
   // Online matches negotiate a server-authoritative rematch; local matches rebuild
   // from the stored setup. The two paths never mix.
@@ -68,8 +71,19 @@ export function GamePage({ navigate }: GamePageProps) {
 
   usePresentationSound();
 
+  // "Did the local viewer win?" drives the Victory/Defeat framing. Online, the
+  // viewer's side is authoritative (winner comes from the server), so both
+  // players see the correct outcome rather than a shared "Victory".
   const humanIsWinner =
-    phase === "gameOver" && aiEnabled && matchConfig?.resolvedHumanSide ? message.split(" ")[0] === matchConfig.resolvedHumanSide : null;
+    phase !== "gameOver"
+      ? null
+      : isOnline
+        ? onlineWinner && onlineSide
+          ? onlineWinner === onlineSide
+          : null
+        : aiEnabled && matchConfig?.resolvedHumanSide
+          ? message.split(" ")[0] === matchConfig.resolvedHumanSide
+          : null;
 
   useEffect(() => {
     const aiOwnsPlacement = phase === "placement" && currentPlacement?.player === aiPlayer;
@@ -180,13 +194,17 @@ export function GamePage({ navigate }: GamePageProps) {
         <div className="gameHeaderActions" aria-label="Match actions">
           <IconButton icon="book" label="Rules" onClick={() => navigate("/rules")} />
           <IconButton icon="gear" label="Settings" onClick={() => navigate("/settings")} />
-          <IconButton
-            icon="warning"
-            label={canRestartMatch ? "Restart match" : "Restart unavailable until a match setup is stored"}
-            variant="danger"
-            onClick={() => setConfirmRestart(true)}
-            disabled={!canRestartMatch}
-          />
+          {/* Restart rebuilds from the local setup — meaningless for a
+              server-authoritative online match, so it is hidden there. */}
+          {!isOnline && (
+            <IconButton
+              icon="warning"
+              label={canRestartMatch ? "Restart match" : "Restart unavailable until a match setup is stored"}
+              variant="danger"
+              onClick={() => setConfirmRestart(true)}
+              disabled={!canRestartMatch}
+            />
+          )}
         </div>
       </header>
 
@@ -202,6 +220,7 @@ export function GamePage({ navigate }: GamePageProps) {
           timeLeft={timeLeft}
           timerLabel={timerLabel}
           selectedWithoutTargets={Boolean(selected) && legalTargets.length === 0}
+          viewerSide={isOnline ? onlineSide : null}
         />
 
         <div className="gameBoardArea" aria-label="Game board">
@@ -225,6 +244,7 @@ export function GamePage({ navigate }: GamePageProps) {
               undo={undo}
               saveGame={saveGame}
               disabled={aiEnabled && currentPlacement.player === aiPlayer}
+              online={isOnline}
             />
           ) : phase === "defenderSelection" && pendingDefendedKing ? (
             <DefendedKingPanel pendingDefendedKing={pendingDefendedKing} message={activeMessage} cancel={cancelDefenderSelection} />
@@ -235,8 +255,9 @@ export function GamePage({ navigate }: GamePageProps) {
               message={activeMessage}
               saveGame={saveGame}
               rematch={handleRematch}
-              newMatch={() => navigate("/setup")}
+              newMatch={() => navigate(isOnline ? "/online" : "/setup")}
               home={() => setConfirmHome(true)}
+              online={isOnline}
             />
           ) : (
             <MatchPanel
@@ -247,6 +268,7 @@ export function GamePage({ navigate }: GamePageProps) {
               saveGame={saveGame}
               loadGame={loadGame}
               disabled={Boolean(aiControlsTurn)}
+              online={isOnline}
             />
           )}
         </aside>
@@ -304,6 +326,7 @@ export function GameStatus({
   timeLeft,
   timerLabel,
   selectedWithoutTargets,
+  viewerSide = null,
 }: {
   phase: string;
   currentPlayer: Player;
@@ -315,10 +338,12 @@ export function GameStatus({
   timeLeft: Record<Player, number>;
   timerLabel: string;
   selectedWithoutTargets: boolean;
+  /** The online viewer's own side; null for local play. Enables you/opponent copy. */
+  viewerSide?: Player | null;
 }) {
   const timed = timerSeconds > 0;
   const showActionPoints = phase === "playing";
-  const headline = statusHeadline(phase, currentPlayer, currentPlacement, aiControlsTurn);
+  const headline = statusHeadline(phase, currentPlayer, currentPlacement, aiControlsTurn, viewerSide);
   const totalSpecial = board.specialSquares.length;
   const blackControl = board.controlledSquares.Black.length;
   const whiteControl = board.controlledSquares.White.length;
@@ -383,6 +408,7 @@ export function PlacementPanel({
   undo,
   saveGame,
   disabled,
+  online = false,
 }: {
   currentPlacement: { player: Player; pieceType: string };
   piecesLeft: Record<Player, Record<string, number>>;
@@ -392,6 +418,8 @@ export function PlacementPanel({
   undo: () => void;
   saveGame: () => void;
   disabled: boolean;
+  /** Online play is server-authoritative: local Undo/Save do not apply. */
+  online?: boolean;
 }) {
   return (
     <div className="matchPanel">
@@ -415,14 +443,16 @@ export function PlacementPanel({
           Computer is placing this piece.
         </StatusBadge>
       )}
-      <div className="commandGrid">
-        <GameButton variant="secondary" onClick={undo} disabled={disabled}>
-          Undo
-        </GameButton>
-        <GameButton variant="secondary" icon="save" onClick={saveGame}>
-          Save
-        </GameButton>
-      </div>
+      {!online && (
+        <div className="commandGrid">
+          <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+            Undo
+          </GameButton>
+          <GameButton variant="secondary" icon="save" onClick={saveGame}>
+            Save
+          </GameButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -537,6 +567,7 @@ export function MatchPanel({
   saveGame,
   loadGame,
   disabled,
+  online = false,
 }: {
   board: BoardState;
   lastAction: string;
@@ -545,6 +576,8 @@ export function MatchPanel({
   saveGame: () => void;
   loadGame: () => void;
   disabled: boolean;
+  /** Online play is server-authoritative: only Pass is a real online action. */
+  online?: boolean;
 }) {
   return (
     <div className="matchPanel">
@@ -559,15 +592,19 @@ export function MatchPanel({
         <GameButton variant="primary" onClick={passTurn} disabled={disabled}>
           Pass
         </GameButton>
-        <GameButton variant="secondary" onClick={undo} disabled={disabled}>
-          Undo
-        </GameButton>
-        <GameButton variant="secondary" icon="save" onClick={saveGame}>
-          Save
-        </GameButton>
-        <GameButton variant="secondary" icon="load" onClick={loadGame}>
-          Load
-        </GameButton>
+        {!online && (
+          <>
+            <GameButton variant="secondary" onClick={undo} disabled={disabled}>
+              Undo
+            </GameButton>
+            <GameButton variant="secondary" icon="save" onClick={saveGame}>
+              Save
+            </GameButton>
+            <GameButton variant="secondary" icon="load" onClick={loadGame}>
+              Load
+            </GameButton>
+          </>
+        )}
       </div>
     </div>
   );
@@ -579,12 +616,15 @@ export function VictoryPanel({
   rematch,
   newMatch,
   home,
+  online = false,
 }: {
   message: string;
   saveGame: () => void;
   rematch: () => void;
   newMatch: () => void;
   home: () => void;
+  /** Online: local Save has no meaning and "New Match" is the online lobby. */
+  online?: boolean;
 }) {
   return (
     <div className="matchPanel victoryPanel">
@@ -596,15 +636,23 @@ export function VictoryPanel({
         <GameButton variant="primary" onClick={rematch}>
           Rematch
         </GameButton>
-        <GameButton variant="primary" icon="play" onClick={newMatch}>
-          New Match
-        </GameButton>
-        <GameButton variant="secondary" icon="save" onClick={saveGame}>
-          Save
-        </GameButton>
-        <GameButton variant="ghost" icon="home" onClick={home}>
-          Home
-        </GameButton>
+        {online ? (
+          <GameButton variant="ghost" icon="home" onClick={home}>
+            Return home
+          </GameButton>
+        ) : (
+          <>
+            <GameButton variant="primary" icon="play" onClick={newMatch}>
+              New Match
+            </GameButton>
+            <GameButton variant="secondary" icon="save" onClick={saveGame}>
+              Save
+            </GameButton>
+            <GameButton variant="ghost" icon="home" onClick={home}>
+              Home
+            </GameButton>
+          </>
+        )}
       </div>
     </div>
   );
@@ -691,16 +739,24 @@ function statusHeadline(
   currentPlayer: Player,
   currentPlacement: { player: Player; pieceType: string } | null,
   aiControlsTurn: boolean,
+  viewerSide: Player | null,
 ): string {
   if (phase === "gameOver") return "Match complete";
   if (phase === "placement") {
-    return currentPlacement
-      ? `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}`
-      : "Manual placement";
+    if (!currentPlacement) return "Manual placement";
+    // Online, frame placement around the viewer instead of a bare colour they
+    // must map to themselves.
+    if (viewerSide) {
+      return currentPlacement.player === viewerSide
+        ? `Place ${withArticle(pieceLabel(currentPlacement.pieceType))}`
+        : "Opponent is placing";
+    }
+    return `${currentPlacement.player} is placing ${withArticle(pieceLabel(currentPlacement.pieceType))}`;
   }
   if (phase === "defenderSelection") return "Defended King decision";
   if (phase === "transformSelection") return "Transform decision";
   if (aiControlsTurn) return "Computer is thinking";
+  if (viewerSide) return currentPlayer === viewerSide ? "Your turn" : "Opponent's turn";
   return `${currentPlayer} to move`;
 }
 

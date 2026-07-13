@@ -9,7 +9,7 @@ export function OnlineGameHud() {
   const matchId = useOnlineMatchStore((state) => state.matchId);
   const side = useOnlineMatchStore((state) => state.side);
   const inviteCode = useOnlineMatchStore((state) => state.inviteCode);
-  const matchVersion = useOnlineMatchStore((state) => state.matchVersion);
+  const waitingForOpponent = useOnlineMatchStore((state) => state.waitingForOpponent);
   const connectionStatus = useOnlineMatchStore((state) => state.connectionStatus);
   const connectionDetail = useOnlineMatchStore((state) => state.connectionDetail);
   const pendingCommandId = useOnlineMatchStore((state) => state.pendingCommandId);
@@ -61,8 +61,7 @@ export function OnlineGameHud() {
         <div className="onlineGameHudPrimary">
           <StatusBadge tone={tone}>{connectionLabel}</StatusBadge>
           <strong>You play {side ?? "…"}</strong>
-          <span>v{matchVersion ?? "…"}</span>
-          {inviteCode && <span>Invite {inviteCode}</span>}
+          {waitingForOpponent && inviteCode && <span>Invite {inviteCode}</span>}
         </div>
         <div className="onlineGameHudSecondary">
           <span aria-live="polite">
