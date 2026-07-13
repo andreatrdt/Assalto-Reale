@@ -6,6 +6,25 @@ metadata derive from it.
 
 ## Unreleased
 
+Online lifecycle-command recovery & session-expiry hardening. Two lost-response
+defects and one reconnect defect fixed, client-side only (the server's
+command-receipt idempotency already reconstructs the original result — no
+protocol, persistence, or migration change). (A/B) A `CreateMatch`/`JoinMatch`
+whose authoritative response is lost is now recoverable: the exact command and its
+`commandId` are persisted to `sessionStorage` **before** sending, and replayed with
+the **same** commandId on reconnect, so the server replays the original
+`MatchCreated`/`PlayerJoined` (recovering matchId, invite code, side, snapshot,
+lifecycle status, version, stream) instead of creating a duplicate match/membership;
+the intent is cleared only after the result is applied. (D) An expired guest token
+no longer loops forever on close code 1006: the client uses the token's `expiresAt`
+as the deterministic auth-failure signal, stops reconnecting when an expired token
+guards an active match or pending intent, and surfaces an explicit "session expired"
+state with "Start a new match" / "Return home" — never silently adopting a new
+identity for the old match. A transient outage still reconnects. Documented in
+[`docs/online-session-recovery.md`](docs/online-session-recovery.md), including the
+standing limitation that anonymous memberships cannot survive identity expiry
+without durable accounts (out of scope).
+
 Online-match lifecycle audit hardening. Three confirmed canonical-state defects
 fixed: (A) a lost command response after the server committed left
 `pendingCommandId` stuck forever, deadlocking the client — a `MatchSnapshot` now
