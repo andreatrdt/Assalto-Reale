@@ -8,6 +8,10 @@ import type { ClientCommandEnvelope } from "@assalto-reale/multiplayer-protocol"
 export interface AuthenticatedPrincipal {
   playerId: string;
   sessionId: string;
+  /** Transport-only classification; never copied into multiplayer envelopes. */
+  authKind?: "guest" | "registered";
+  /** Registered account owner, when present. Membership still uses playerId. */
+  userId?: string;
 }
 
 /**

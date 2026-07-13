@@ -26,6 +26,7 @@ function imports(source: string): string[] {
 const ALLOWED_BARE = new Set([
   "@assalto-reale/authoritative-server",
   "@assalto-reale/multiplayer-protocol",
+  "jose",
   "ws",
 ]);
 

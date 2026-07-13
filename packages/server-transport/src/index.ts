@@ -17,6 +17,20 @@ export {
   type IssuedGuestSession,
 } from "./guestSessions.js";
 export {
+  GuestOrRegisteredConnectionAuthenticator,
+  RegisteredAuthError,
+  RegisteredAuthService,
+  RegisteredTicketConnectionAuthenticator,
+  type RegisteredAccessTokenVerifier,
+  type RegisteredSessionSummary,
+  type RegisteredWebsocketTicket,
+  type VerifiedAccessToken,
+} from "./registeredAuth.js";
+export {
+  OidcAccessTokenVerifier,
+  type OidcAccessTokenVerifierOptions,
+} from "./oidcAccessTokenVerifier.js";
+export {
   AuthoritativeTransportServer,
   createAuthoritativeTransportServer,
   type ReadinessProbe,
