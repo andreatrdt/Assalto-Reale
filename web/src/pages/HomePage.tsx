@@ -13,6 +13,19 @@ export function accountActionLabel(state: ReturnType<typeof useAccount>["state"]
   return "Sign in";
 }
 
+export function onlineHomeAction(input: {
+  matchId: string | null;
+  lifecycle: "active" | "postGame" | null;
+  selfPostGamePresence: "present" | "grace" | "absent" | null;
+}): "Resume Match" | "Return to post-game room" | "Play Online" {
+  if (!input.matchId) return "Play Online";
+  if (input.lifecycle === "active") return "Resume Match";
+  if (input.lifecycle === "postGame" && input.selfPostGamePresence !== "absent") {
+    return "Return to post-game room";
+  }
+  return "Play Online";
+}
+
 interface HomePageProps {
   route: AppRoute;
   navigate: (route: AppRoute, replace?: boolean) => void;
@@ -21,7 +34,10 @@ interface HomePageProps {
 export function HomePage({ route, navigate }: HomePageProps) {
   const account = useAccount();
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
+  const gamePhase = useGameStore((state) => state.phase.phase);
   const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
+  const onlineLifecycle = useOnlineMatchStore((state) => state.lifecycle);
+  const selfPostGamePresence = useOnlineMatchStore((state) => state.selfPostGamePresence);
   const disconnectOnline = useOnlineMatchStore((state) => state.disconnect);
 
   function startLocalMatch() {
@@ -46,11 +62,15 @@ export function HomePage({ route, navigate }: HomePageProps) {
             Start Match
           </GameButton>
           <GameButton variant="secondary" size="lg" onClick={() => navigate("/online")}>
-            {onlineMatchId ? "Resume Online Match" : "Play Online"}
+            {onlineHomeAction({
+              matchId: onlineMatchId,
+              lifecycle: onlineLifecycle,
+              selfPostGamePresence,
+            })}
           </GameButton>
-          {hasActiveMatch && !onlineMatchId && (
+          {hasActiveMatch && !onlineMatchId && gamePhase !== "gameOver" && (
             <GameButton variant="secondary" size="lg" onClick={() => navigate("/game")}>
-              Continue Last Match
+              Resume Match
             </GameButton>
           )}
           {account.enabled && (

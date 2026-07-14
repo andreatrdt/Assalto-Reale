@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AccountContext, type AccountContextValue } from "../account/AccountProvider";
-import { HomePage } from "./HomePage";
+import { HomePage, onlineHomeAction } from "./HomePage";
 
 const navigate = () => undefined;
 
@@ -13,7 +13,7 @@ function renderHome(account?: AccountContextValue) {
 // Note: zustand v5 renders its React SSR snapshot from getInitialState(), so
 // renderToStaticMarkup always reflects the initial store state (no active
 // match). That covers the default "no Continue" case here; the reactive
-// "Continue Last Match appears after a match starts" branch is verified in the
+// "Resume Match appears after a match starts" branch is verified in the
 // Playwright e2e (real browser, live store snapshot).
 describe("Home page", () => {
   it("shows the strong wordmark, value line and primary Start Match action", () => {
@@ -35,10 +35,34 @@ describe("Home page", () => {
     expect(html).toContain(">Settings<");
   });
 
-  it("hides Continue Last Match by default (no active match)", () => {
+  it("hides Resume Match by default (no active match)", () => {
     const html = renderHome();
 
-    expect(html).not.toContain("Continue Last Match");
+    expect(html).not.toContain("Resume Match");
+  });
+
+  it("uses distinct active, post-game, and exited online actions", () => {
+    expect(
+      onlineHomeAction({
+        matchId: "match_active01",
+        lifecycle: "active",
+        selfPostGamePresence: null,
+      }),
+    ).toBe("Resume Match");
+    expect(
+      onlineHomeAction({
+        matchId: "match_ended01",
+        lifecycle: "postGame",
+        selfPostGamePresence: "present",
+      }),
+    ).toBe("Return to post-game room");
+    expect(
+      onlineHomeAction({
+        matchId: "match_ended01",
+        lifecycle: "postGame",
+        selfPostGamePresence: "absent",
+      }),
+    ).toBe("Play Online");
   });
 
   it("does not settle into a false Sign in action while checking the provider session", () => {

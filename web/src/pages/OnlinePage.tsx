@@ -17,8 +17,13 @@ interface OnlinePageProps {
  * opponent. A connected socket alone is not enough. Placement and playing
  * matches both reopen the same `/game` board, which renders the correct phase.
  */
-export function shouldReopenBoard(input: { matchId: string | null; hasActiveMatch: boolean; waitingForOpponent: boolean }): boolean {
-  return Boolean(input.matchId) && input.hasActiveMatch && !input.waitingForOpponent;
+export function shouldReopenBoard(input: {
+  matchId: string | null;
+  hasActiveMatch: boolean;
+  waitingForOpponent: boolean;
+  lifecycle?: "active" | "postGame" | null;
+}): boolean {
+  return Boolean(input.matchId) && (input.hasActiveMatch || input.lifecycle === "postGame") && !input.waitingForOpponent;
 }
 
 export function OnlinePage({ route, navigate }: OnlinePageProps) {
@@ -29,6 +34,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const connectionDetail = useOnlineMatchStore((state) => state.connectionDetail);
   const syncStatus = useOnlineMatchStore((state) => state.syncStatus);
   const matchId = useOnlineMatchStore((state) => state.matchId);
+  const lifecycle = useOnlineMatchStore((state) => state.lifecycle);
   const inviteCode = useOnlineMatchStore((state) => state.inviteCode);
   const side = useOnlineMatchStore((state) => state.side);
   const waitingForOpponent = useOnlineMatchStore((state) => state.waitingForOpponent);
@@ -41,6 +47,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   const recoverPendingLifecycle = useOnlineMatchStore((state) => state.recoverPendingLifecycle);
   const startNewMatch = useOnlineMatchStore((state) => state.startNewMatch);
   const disconnect = useOnlineMatchStore((state) => state.disconnect);
+  const leavePostGame = useOnlineMatchStore((state) => state.leavePostGame);
   const clearError = useOnlineMatchStore((state) => state.clearError);
   const configured = Boolean(configuredWebSocketUrl());
   const autoResumeStarted = useRef(false);
@@ -53,10 +60,17 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
   // Navigate to the board only once canonical state is actually hydrated, not
   // merely because the socket is connected.
   useEffect(() => {
-    if (shouldReopenBoard({ matchId, hasActiveMatch, waitingForOpponent })) {
+    if (
+      shouldReopenBoard({
+        matchId,
+        hasActiveMatch,
+        waitingForOpponent,
+        lifecycle,
+      })
+    ) {
       navigate("/game", true);
     }
-  }, [hasActiveMatch, matchId, navigate, waitingForOpponent]);
+  }, [hasActiveMatch, lifecycle, matchId, navigate, waitingForOpponent]);
 
   // On refresh, automatically reconnect and request the canonical snapshot when a
   // match is persisted. Runs once; the button remains as a fallback on failure.
@@ -92,7 +106,11 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
     }
   }
 
-  function abandonMatch() {
+  async function abandonMatch() {
+    if (lifecycle === "postGame" && connectionStatus === "connected") {
+      if (!(await leavePostGame())) return;
+      if (useOnlineMatchStore.getState().lifecycle === "active") return;
+    }
     disconnect(false);
     setInviteInput("");
     clearError();
@@ -201,7 +219,7 @@ export function OnlinePage({ route, navigate }: OnlinePageProps) {
               <GameButton variant="primary" disabled={!configured || busy} onClick={() => void resumeMatch()}>
                 {synchronizing ? "Synchronizing…" : connectionStatus === "connected" ? "Synchronize Match" : "Reconnect"}
               </GameButton>
-              <GameButton variant="ghost" onClick={abandonMatch}>
+              <GameButton variant="ghost" onClick={() => void abandonMatch()}>
                 Forget Match
               </GameButton>
             </div>

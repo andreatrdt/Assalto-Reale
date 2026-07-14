@@ -613,6 +613,9 @@ describe("online rematch", () => {
       winner: "White",
       pendingCommandId: null,
       rematchStatus: "none",
+      lifecycle: "postGame",
+      selfPostGamePresence: "present",
+      opponentPostGamePresence: "present",
     });
   }
 
@@ -645,6 +648,87 @@ describe("online rematch", () => {
     onlineStore.setState({ rematchStatus: "sent" });
     client().emit(eventEnvelope({ type: "RematchDeclined", declinedByPlayerId: "player_bob0001" }));
     expect(onlineStore.getState().rematchStatus).toBe("declined");
+  });
+
+  it("cancels stale controls and reports an opponent departure", async () => {
+    await connectedTerminalMatch();
+    onlineStore.setState({ rematchStatus: "received" });
+    client().emit(
+      eventEnvelope({
+        type: "PostGamePresenceChanged",
+        side: "White",
+        presence: "absent",
+        reason: "left",
+        offerCancelled: true,
+        postGame: {
+          presence: { Black: "present", White: "absent" },
+          rematchOfferedBy: null,
+        },
+      }),
+    );
+    expect(onlineStore.getState()).toMatchObject({
+      lifecycle: "postGame",
+      opponentPostGamePresence: "absent",
+      rematchStatus: "none",
+    });
+    expect(gameStore.getState().message).toBe("Opponent left the post-game room.");
+    expect(onlineStore.getState().offerRematch()).toBe(false);
+    onlineStore.setState({ rematchStatus: "received" });
+    expect(onlineStore.getState().respondToRematch(true)).toBe(false);
+  });
+
+  it("waits for authoritative departure before resolving Home navigation", async () => {
+    await connectedTerminalMatch();
+    const leaving = onlineStore.getState().leavePostGame();
+    const commandId = client().send.mock.results.at(-1)?.value as string;
+    expect(client().send).toHaveBeenLastCalledWith({ type: "LeavePostGame" }, { expectedMatchVersion: null });
+    client().emit(
+      eventEnvelope(
+        {
+          type: "PostGamePresenceChanged",
+          side: "Black",
+          presence: "absent",
+          reason: "left",
+          offerCancelled: false,
+          postGame: {
+            presence: { Black: "absent", White: "present" },
+            rematchOfferedBy: null,
+          },
+        },
+        { causationCommandId: commandId },
+      ),
+    );
+    await expect(leaving).resolves.toBe(true);
+    expect(onlineStore.getState().selfPostGamePresence).toBe("absent");
+  });
+
+  it("restores a completed snapshot as post-game, never active resumability", async () => {
+    await connectedTerminalMatch();
+    client().emit(
+      eventEnvelope({
+        type: "MatchSnapshot",
+        snapshot: SNAPSHOT,
+        status: "ended",
+        postGame: {
+          presence: { Black: "present", White: "grace" },
+          rematchOfferedBy: "Black",
+        },
+      }),
+    );
+    expect(onlineStore.getState()).toMatchObject({
+      lifecycle: "postGame",
+      completed: true,
+      selfPostGamePresence: "present",
+      opponentPostGamePresence: "grace",
+      rematchStatus: "sent",
+    });
+    expect(applyOnlineSnapshot).toHaveBeenLastCalledWith(SNAPSHOT, expect.objectContaining({ ended: true }));
+    const persisted = JSON.parse(window.sessionStorage.getItem("assalto:online-match") ?? "null");
+    expect(persisted).toMatchObject({
+      lifecycle: "postGame",
+      selfPostGamePresence: "present",
+      opponentPostGamePresence: "grace",
+    });
   });
 
   it("replaces the whole context with the successor and drops the old result", async () => {

@@ -19,13 +19,14 @@ export const useGameStore = create<GameStore>((set, get) => {
   function syncClock(now = monotonicNow(), stopRunning = false): void {
     const patch = computeClockPatch(get(), now, stopRunning);
     if (Object.keys(patch).length > 0) {
-      set(patch);
+      set(patch.phase?.phase === "gameOver" ? { ...patch, hasActiveMatch: false } : patch);
     }
   }
 
   function restoreSavedGame(saved: SavedGame, message = "Game loaded."): boolean {
     try {
-      set(buildRestorePatch(saved, message));
+      const patch = buildRestorePatch(saved, message);
+      set(patch.phase?.phase === "gameOver" ? { ...patch, hasActiveMatch: false } : patch);
       return true;
     } catch {
       set({ message: "Saved data could not be restored safely." });
@@ -35,13 +36,13 @@ export const useGameStore = create<GameStore>((set, get) => {
 
   function applyStoreCommand(command: GameCommand, options: { historySource?: GameState; phaseCommand?: GameCommand } = {}): boolean {
     const { result, patch } = runStoreCommand(get(), command, options);
-    set(patch);
+    set(patch.phase?.phase === "gameOver" ? { ...patch, hasActiveMatch: false } : patch);
     return result.ok;
   }
 
   function applySubmittedAction(start: Vec2, end: Vec2, autoResolveDefenderFor?: Player): boolean {
     const { result, patch } = runStoreSubmittedAction(get(), start, end, autoResolveDefenderFor);
-    set(patch);
+    set(patch.phase?.phase === "gameOver" ? { ...patch, hasActiveMatch: false } : patch);
     return result.ok;
   }
 
@@ -139,7 +140,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         phase: { phase: "rules", previousPhase: state.phase.phase },
       })),
 
-    returnHome: () =>
+    returnHome: () => {
+      const completed = get().phase.phase === "gameOver";
       set({
         selected: null,
         legalTargets: [],
@@ -147,8 +149,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         pendingDefendedKing: null,
         clockRunningFor: null,
         clockLastSyncMs: null,
-        message: get().hasActiveMatch ? "Match preserved on the Home page." : "Choose a match flow.",
-      }),
+        hasActiveMatch: completed ? false : get().hasActiveMatch,
+        message: !completed && get().hasActiveMatch ? "Match preserved on the Home page." : "Choose a match flow.",
+      });
+    },
 
     activateSquare: (pos) => {
       const state = get();

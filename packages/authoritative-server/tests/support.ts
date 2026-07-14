@@ -7,10 +7,7 @@ import {
   type MatchState,
   type Player,
 } from "@assalto-reale/game-core";
-import type {
-  ClientCommand,
-  OnlineMatchConfig,
-} from "@assalto-reale/multiplayer-protocol";
+import type { ClientCommand, OnlineMatchConfig } from "@assalto-reale/multiplayer-protocol";
 import {
   CommandHandler,
   InMemoryStore,
@@ -61,9 +58,7 @@ export class SequentialSeeds implements SeedGenerator {
 
 /** Trusts the declared actor as the authenticated principal. */
 export class TrustingAuthenticator implements Authenticator {
-  async authenticate(envelope: {
-    actor: AuthenticatedPrincipal;
-  }): Promise<AuthenticatedPrincipal | null> {
+  async authenticate(envelope: { actor: AuthenticatedPrincipal }): Promise<AuthenticatedPrincipal | null> {
     return {
       playerId: envelope.actor.playerId,
       sessionId: envelope.actor.sessionId,
@@ -81,6 +76,8 @@ export class FixedPrincipalAuthenticator implements Authenticator {
 export interface HarnessOptions {
   authenticator?: Authenticator;
   store?: InMemoryStore;
+  clock?: Clock;
+  postGameReconnectGraceMs?: number;
 }
 
 export function harness(options: HarnessOptions = {}): {
@@ -97,9 +94,10 @@ export function harness(options: HarnessOptions = {}): {
     matches: persistence.matches,
     unitOfWork: persistence.unitOfWork,
     authenticator: options.authenticator ?? new TrustingAuthenticator(),
-    clock: new FixedClock(),
+    clock: options.clock ?? new FixedClock(),
     ids,
     seeds,
+    postGameReconnectGraceMs: options.postGameReconnectGraceMs,
   });
   return { handler, store, ids, seeds };
 }
@@ -112,10 +110,7 @@ export interface MessageOptions {
   expectedMatchVersion?: number | null;
 }
 
-export function message(
-  command: ClientCommand,
-  options: MessageOptions,
-): unknown {
+export function message(command: ClientCommand, options: MessageOptions): unknown {
   return {
     protocol: "assalto-reale",
     protocolVersion: 1,
@@ -140,10 +135,7 @@ export const ONLINE_CONFIG: OnlineMatchConfig = {
   timeControl: { kind: "untimed" },
 };
 
-export function playingState(
-  board: BoardState,
-  overrides: Partial<MatchState> = {},
-): MatchState {
+export function playingState(board: BoardState, overrides: Partial<MatchState> = {}): MatchState {
   return {
     board,
     phase: "playing",
@@ -162,13 +154,7 @@ export function playingState(
 }
 
 export function boardWith(
-  pieces: Array<
-    [
-      Player,
-      "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn",
-      [number, number],
-    ]
-  >,
+  pieces: Array<[Player, "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn", [number, number]]>,
   transformSquares: Array<[number, number]> = [],
 ): BoardState {
   const board = createBoard({ transformEnabled: transformSquares.length > 0 });
@@ -179,14 +165,10 @@ export function boardWith(
   // fixtures often specify only the transforming pawn, so add distant kings when
   // the scenario did not provide them explicitly.
   if (transformSquares.length > 0) {
-    if (
-      !pieces.some(([player, type]) => player === "Black" && type === "King")
-    ) {
+    if (!pieces.some(([player, type]) => player === "Black" && type === "King")) {
       setPiece(board, [10, 1], { player: "Black", type: "King" });
     }
-    if (
-      !pieces.some(([player, type]) => player === "White" && type === "King")
-    ) {
+    if (!pieces.some(([player, type]) => player === "White" && type === "King")) {
       setPiece(board, [1, 10], { player: "White", type: "King" });
     }
   }
@@ -209,6 +191,7 @@ export function seedMatch(
     rematchOfferedBy?: string | null;
     successorMatchId?: string | null;
     predecessorMatchId?: string | null;
+    postGame?: MatchAggregate["postGame"];
   } = {},
 ): MatchAggregate {
   const aggregate: MatchAggregate = {
@@ -228,6 +211,14 @@ export function seedMatch(
     rematchOfferedBy: options.rematchOfferedBy ?? null,
     successorMatchId: options.successorMatchId ?? null,
     predecessorMatchId: options.predecessorMatchId ?? null,
+    postGame:
+      options.postGame ??
+      (options.status === "ended"
+        ? {
+            Black: { presence: "present", graceExpiresAt: null },
+            White: { presence: "present", graceExpiresAt: null },
+          }
+        : null),
   };
   store.matches.set(aggregate.matchId, aggregate);
   store.invites.set(aggregate.inviteCode, aggregate.matchId);

@@ -176,6 +176,35 @@ FROM authoritative_matches
 WHERE white_player_id IS NOT NULL;
 `,
   },
+  {
+    version: 4,
+    name: "add_durable_post_game_presence",
+    sql: `
+ALTER TABLE authoritative_matches
+  ADD COLUMN post_game_presence JSONB;
+
+UPDATE authoritative_matches
+SET post_game_presence = jsonb_build_object(
+  'Black', jsonb_build_object('presence', 'absent', 'graceExpiresAt', NULL),
+  'White', jsonb_build_object('presence', 'absent', 'graceExpiresAt', NULL)
+)
+WHERE status = 'ended';
+
+ALTER TABLE authoritative_matches
+  ADD CONSTRAINT authoritative_matches_post_game_presence_shape CHECK (
+    (
+      status <> 'ended' AND post_game_presence IS NULL
+    ) OR (
+      status = 'ended'
+      AND jsonb_typeof(post_game_presence) = 'object'
+      AND post_game_presence -> 'Black' ->> 'presence' IN ('present', 'grace', 'absent')
+      AND post_game_presence -> 'White' ->> 'presence' IN ('present', 'grace', 'absent')
+      AND jsonb_typeof(post_game_presence -> 'Black' -> 'graceExpiresAt') IN ('null', 'string')
+      AND jsonb_typeof(post_game_presence -> 'White' -> 'graceExpiresAt') IN ('null', 'string')
+    )
+  );
+`,
+  },
 ] as const;
 
 function checksum(sql: string): string {
@@ -205,21 +234,14 @@ export async function runPostgresMigrations(pool: Pool): Promise<void> {
     const applied = await client.query<AppliedMigrationRow>(
       "SELECT version, name, checksum FROM authoritative_schema_migrations ORDER BY version",
     );
-    const appliedByVersion = new Map(
-      applied.rows.map((row) => [row.version, row] as const),
-    );
+    const appliedByVersion = new Map(applied.rows.map((row) => [row.version, row] as const));
 
     for (const migration of POSTGRES_MIGRATIONS) {
       const expectedChecksum = checksum(migration.sql);
       const existing = appliedByVersion.get(migration.version);
       if (existing) {
-        if (
-          existing.name !== migration.name ||
-          existing.checksum !== expectedChecksum
-        ) {
-          throw new Error(
-            `PostgreSQL migration ${migration.version} no longer matches the applied checksum.`,
-          );
+        if (existing.name !== migration.name || existing.checksum !== expectedChecksum) {
+          throw new Error(`PostgreSQL migration ${migration.version} no longer matches the applied checksum.`);
         }
         continue;
       }

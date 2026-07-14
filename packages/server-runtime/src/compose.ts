@@ -24,11 +24,7 @@ import {
   type RegisteredAccessTokenVerifier,
 } from "@assalto-reale/server-transport";
 import type { RuntimeConfig } from "./config.js";
-import {
-  CryptoIdGenerator,
-  CryptoSeedGenerator,
-  SystemClock,
-} from "./ports.js";
+import { CryptoIdGenerator, CryptoSeedGenerator, SystemClock } from "./ports.js";
 
 export interface RuntimePersistence {
   matches: MatchRepository;
@@ -74,37 +70,28 @@ export function composeServer(options: ComposeOptions): ComposedServer {
     clock: options.clock ?? new SystemClock(),
     ids: options.ids ?? new CryptoIdGenerator(),
     seeds: options.seeds ?? new CryptoSeedGenerator(),
+    postGameReconnectGraceMs: config.postGameReconnectGraceMs,
   });
   const executor = bindCommandHandler(handler, contextual);
 
   const guestSessions = new HmacGuestSessionService(config.guestSessionSecret, {
     ttlMs: config.guestSessionTtlMs,
     ...(options.guestSessionNow ? { now: options.guestSessionNow } : {}),
-    ...(options.guestSessionRandomId
-      ? { randomId: options.guestSessionRandomId }
-      : {}),
+    ...(options.guestSessionRandomId ? { randomId: options.guestSessionRandomId } : {}),
     ...(persistence.accounts
       ? {
           registerIdentity: async (playerId: string) => {
             await persistence.accounts!.ensureGuestIdentity(playerId);
           },
-          validateIdentity: (playerId: string) =>
-            persistence.accounts!.isGuestAuthenticationAllowed(playerId),
+          validateIdentity: (playerId: string) => persistence.accounts!.isGuestAuthenticationAllowed(playerId),
         }
       : {}),
   });
-  const guestAuthenticator = new GuestSessionConnectionAuthenticator(
-    guestSessions,
-  );
+  const guestAuthenticator = new GuestSessionConnectionAuthenticator(guestSessions);
   let registeredAuth: RegisteredAuthService | null = null;
   let authenticateConnection: ConnectionAuthenticator = guestAuthenticator;
   if (config.authEnabled) {
-    if (
-      !persistence.accounts ||
-      !config.authIssuerUrl ||
-      !config.authAudience ||
-      !config.authSessionIdClaim
-    ) {
+    if (!persistence.accounts || !config.authIssuerUrl || !config.authAudience || !config.authSessionIdClaim) {
       throw new Error("Registered authentication dependencies are incomplete.");
     }
     const verifier =

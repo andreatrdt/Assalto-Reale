@@ -1,14 +1,8 @@
 // Authoritative multiplayer server — application/domain core (Phase C.8).
 // Transport-independent. Game rules belong to @assalto-reale/game-core and the
 // wire contract belongs to @assalto-reale/multiplayer-protocol.
-export { CommandHandler, type CommandHandlerDeps } from "./commandHandler.js";
-export type {
-  AuthenticatedPrincipal,
-  Authenticator,
-  Clock,
-  IdGenerator,
-  SeedGenerator,
-} from "./ports.js";
+export { CommandHandler, type CommandHandlerDeps, type PostGamePresenceUpdate } from "./commandHandler.js";
+export type { AuthenticatedPrincipal, Authenticator, Clock, IdGenerator, SeedGenerator } from "./ports.js";
 export {
   AccountIdentityConflictError,
   AccountSessionRevokedError,
@@ -47,15 +41,5 @@ export {
   createPostgresPersistence,
   type PostgresPersistence,
 } from "./persistence/postgres/postgresPersistence.js";
-export {
-  POSTGRES_MIGRATIONS,
-  runPostgresMigrations,
-  type PostgresMigration,
-} from "./persistence/postgres/migrations.js";
-export type {
-  Emission,
-  MatchAggregate,
-  MatchMembers,
-  MatchStatus,
-  OperationOutcome,
-} from "./domain/matchAggregate.js";
+export { POSTGRES_MIGRATIONS, runPostgresMigrations, type PostgresMigration } from "./persistence/postgres/migrations.js";
+export type { Emission, MatchAggregate, MatchMembers, MatchStatus, OperationOutcome } from "./domain/matchAggregate.js";

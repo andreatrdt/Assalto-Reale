@@ -85,7 +85,7 @@ These six wire commands are compile-time compatible with the corresponding `game
 
 ### Rematch commands
 
-`OfferRematch` and `RespondToRematch { accept }` target a **terminal** match. Like `RequestSync`, they carry a `matchId` but **no** `expectedMatchVersion` (rematch negotiation is not an optimistic gameplay mutation). The server accepts them only for an ended match, only from a member, and only lets the opponent answer an open offer; it creates at most one successor match. See [`authoritative-server.md`](authoritative-server.md) for the full lifecycle.
+`OfferRematch`, `RespondToRematch { accept }`, and `LeavePostGame` target a **terminal** match. Like `RequestSync`, they carry a `matchId` but **no** `expectedMatchVersion`. The server accepts rematch actions only while both members remain authoritatively available in the post-game room. `LeavePostGame` records deliberate departure; a WebSocket close does not. See [`post-game-lifecycle.md`](post-game-lifecycle.md) for the full state machine.
 
 `RematchDeclined { declinedByPlayerId }` notifies the offerer of a refusal. `RematchCreated` carries `newMatchId`, `inviteCode`, the recipient's `assignedSide` (sides swap between rematches) and a canonical `snapshot`, so both clients switch straight into the new manual-placement match — no new invite code or rejoin is required.
 
@@ -162,6 +162,12 @@ MatchSnapshot
 `MatchUpdated` contains the canonical snapshot plus serializable domain events reported by game-core. Specific events such as `DecisionRequired`, `TurnChanged` and `MatchEnded` make common client reactions explicit without requiring UI code to infer them from a state diff.
 
 `MatchSnapshot` carries the canonical snapshot **and** the authoritative match lifecycle `status` (`awaitingOpponent` | `active` | `ended`). Because game-core state alone cannot distinguish "created, awaiting an opponent" from "rematch just created with both players present" (both are version 1, empty placement board), a reconnecting client must read waiting/completion from `status` rather than inferring it from `matchVersion`.
+
+Ended snapshots and `MatchEnded` may also carry `postGame`, containing each
+side's `present | grace | absent` status and the side that owns any current
+offer. `PostGamePresenceChanged` broadcasts authoritative presence changes and
+whether absence cancelled an offer. Older persisted v1 receipts may omit the
+optional `postGame` field and remain valid.
 
 A server may publish multiple envelopes for one accepted command. They share the same `matchVersion` and `causationCommandId`, while `streamSequence` determines their order. Clients must scope ordering and de-duplication by `(matchId, streamSequence)`: an event addressed to a different match than the active one is ignored, except `RematchCreated`, which is the only event permitted to switch the client to a successor match.
 

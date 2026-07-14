@@ -9,8 +9,7 @@ export type PlacementMode = "Manual" | "QuickBalanced";
 export type Coordinate = [number, number];
 
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue =
-  JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
 export interface CanonicalMatchSnapshot extends JsonObject {
@@ -47,6 +46,15 @@ export interface OnlineMatchConfig {
  */
 export type MatchLifecycleStatus = "awaitingOpponent" | "active" | "ended";
 
+export type PostGamePresenceStatus = "present" | "grace" | "absent";
+export type PostGamePresenceReason = "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired";
+
+/** Durable, side-addressed post-game state. Grace deadlines remain server-only. */
+export interface PostGameSnapshot {
+  presence: Record<PlayerSide, PostGamePresenceStatus>;
+  rematchOfferedBy: PlayerSide | null;
+}
+
 export type ClientCommand =
   | { type: "CreateMatch"; config: OnlineMatchConfig }
   | { type: "JoinMatch"; inviteCode: string }
@@ -59,11 +67,10 @@ export type ClientCommand =
   | { type: "Resign" }
   | { type: "OfferRematch" }
   | { type: "RespondToRematch"; accept: boolean }
+  | { type: "LeavePostGame" }
   | { type: "RequestSync"; lastSeenMatchVersion: number | null };
 
-export interface ClientCommandEnvelope<
-  C extends ClientCommand = ClientCommand,
-> {
+export interface ClientCommandEnvelope<C extends ClientCommand = ClientCommand> {
   protocol: ProtocolName;
   protocolVersion: ProtocolVersion;
   messageType: "command";
@@ -92,8 +99,7 @@ export type PendingDecisionWire =
       options: PawnType[];
     };
 
-export type MatchEndReason =
-  "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
+export type MatchEndReason = "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
 
 export type CommandRejectionCode =
   | "invalid_message"
@@ -109,6 +115,7 @@ export type CommandRejectionCode =
   | "illegal_command"
   | "decision_required"
   | "match_ended"
+  | "post_game_unavailable"
   | "rate_limited"
   | "internal_error";
 
@@ -144,6 +151,7 @@ export type ServerEvent =
       loser: PlayerSide | null;
       reason: MatchEndReason;
       snapshot: CanonicalMatchSnapshot;
+      postGame?: PostGameSnapshot;
     }
   | {
       type: "CommandRejected";
@@ -152,6 +160,7 @@ export type ServerEvent =
       message: string;
       currentMatchVersion: number | null;
       snapshot?: CanonicalMatchSnapshot;
+      postGame?: PostGameSnapshot;
     }
   | {
       type: "RematchOffered";
@@ -169,9 +178,19 @@ export type ServerEvent =
       snapshot: CanonicalMatchSnapshot;
     }
   | {
+      type: "PostGamePresenceChanged";
+      side: PlayerSide;
+      presence: PostGamePresenceStatus;
+      reason: PostGamePresenceReason;
+      offerCancelled: boolean;
+      postGame: PostGameSnapshot;
+    }
+  | {
       type: "MatchSnapshot";
       snapshot: CanonicalMatchSnapshot;
       status: MatchLifecycleStatus;
+      /** Optional only for compatibility with already-persisted v1 receipts. */
+      postGame?: PostGameSnapshot;
     };
 
 export interface ServerEventEnvelope<E extends ServerEvent = ServerEvent> {
@@ -189,15 +208,9 @@ export interface ServerEventEnvelope<E extends ServerEvent = ServerEvent> {
 }
 
 export interface ProtocolValidationError {
-  code:
-    | "invalid_json"
-    | "invalid_envelope"
-    | "unsupported_protocol_version"
-    | "invalid_command"
-    | "invalid_event";
+  code: "invalid_json" | "invalid_envelope" | "unsupported_protocol_version" | "invalid_command" | "invalid_event";
   path: string;
   message: string;
 }
 
-export type ValidationResult<T> =
-  { ok: true; value: T } | { ok: false; error: ProtocolValidationError };
+export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: ProtocolValidationError };

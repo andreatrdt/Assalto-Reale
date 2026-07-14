@@ -26,6 +26,7 @@ describe("runtime configuration", () => {
     expect(config.sessionPath).toBe("/session");
     expect(config.usingDevelopmentSecret).toBe(false);
     expect(config.guestSessionTtlMs).toBe(12 * 60 * 60 * 1000);
+    expect(config.postGameReconnectGraceMs).toBe(30_000);
     expect(config.authEnabled).toBe(false);
   });
 
@@ -108,6 +109,13 @@ describe("runtime configuration", () => {
       loadConfig(prodEnv({ GUEST_SESSION_TTL_SECONDS: "3600" }))
         .guestSessionTtlMs,
     ).toBe(3_600_000);
+    expect(
+      loadConfig(prodEnv({ POST_GAME_RECONNECT_GRACE_SECONDS: "45" }))
+        .postGameReconnectGraceMs,
+    ).toBe(45_000);
+    expect(() =>
+      loadConfig(prodEnv({ POST_GAME_RECONNECT_GRACE_SECONDS: "0" })),
+    ).toThrow(/between/);
   });
 
   it("rejects an unknown NODE_ENV", () => {

@@ -80,17 +80,17 @@ test.describe("web v1 smoke flows", () => {
     await expect(page.getByLabel("Match controls").getByText("0/26", { exact: true })).toBeVisible();
   });
 
-  test("Home offers Continue Last Match only after a match has started", async ({ page }) => {
+  test("Home offers Resume Match only after a match has started", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Assalto Reale" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue Last Match" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Resume Match" })).toHaveCount(0);
 
     await startHumanMatch(page);
 
     await page.getByRole("button", { name: /Leave match/i }).click();
     await page.getByRole("button", { name: "Return Home" }).click();
 
-    await expect(page.getByRole("button", { name: "Continue Last Match" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Resume Match" })).toBeVisible();
   });
 
   test("selected timer preset is shown during the match", async ({ page }) => {

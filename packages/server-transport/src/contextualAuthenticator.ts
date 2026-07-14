@@ -1,20 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type {
-  AuthenticatedPrincipal,
-  Authenticator,
-  CommandHandler,
-} from "@assalto-reale/authoritative-server";
-import type {
-  ClientCommandEnvelope,
-  ServerEventEnvelope,
-} from "@assalto-reale/multiplayer-protocol";
+import type { AuthenticatedPrincipal, Authenticator, CommandHandler, PostGamePresenceUpdate } from "@assalto-reale/authoritative-server";
+import type { ClientCommandEnvelope, ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
 
 /** Executes application commands as a principal authenticated by the transport. */
 export interface AuthenticatedCommandExecutor {
-  execute(
-    principal: AuthenticatedPrincipal,
-    rawMessage: unknown,
-  ): Promise<ServerEventEnvelope[]>;
+  execute(principal: AuthenticatedPrincipal, rawMessage: unknown): Promise<ServerEventEnvelope[]>;
+  postGameDisconnected?(principal: AuthenticatedPrincipal, matchId: string): Promise<PostGamePresenceUpdate>;
+  expirePostGameDisconnect?(principal: AuthenticatedPrincipal, matchId: string): Promise<PostGamePresenceUpdate>;
 }
 
 /**
@@ -24,17 +16,12 @@ export interface AuthenticatedCommandExecutor {
 export class ContextualAuthenticator implements Authenticator {
   private readonly principals = new AsyncLocalStorage<AuthenticatedPrincipal>();
 
-  async authenticate(
-    _envelope: ClientCommandEnvelope,
-  ): Promise<AuthenticatedPrincipal | null> {
+  async authenticate(_envelope: ClientCommandEnvelope): Promise<AuthenticatedPrincipal | null> {
     const principal = this.principals.getStore();
     return principal ? { ...principal } : null;
   }
 
-  run<T>(
-    principal: AuthenticatedPrincipal,
-    work: () => Promise<T>,
-  ): Promise<T> {
+  run<T>(principal: AuthenticatedPrincipal, work: () => Promise<T>): Promise<T> {
     return this.principals.run({ ...principal }, work);
   }
 }
@@ -44,11 +31,17 @@ export class ContextualAuthenticator implements Authenticator {
  * dependencies. The transport calls only this executor.
  */
 export function bindCommandHandler(
-  handler: Pick<CommandHandler, "handle">,
+  handler: Pick<CommandHandler, "handle"> & Partial<Pick<CommandHandler, "markPostGameDisconnected" | "expirePostGameDisconnect">>,
   authenticator: ContextualAuthenticator,
 ): AuthenticatedCommandExecutor {
-  return {
-    execute: (principal, rawMessage) =>
-      authenticator.run(principal, () => handler.handle(rawMessage)),
+  const executor: AuthenticatedCommandExecutor = {
+    execute: (principal, rawMessage) => authenticator.run(principal, () => handler.handle(rawMessage)),
   };
+  if (handler.markPostGameDisconnected) {
+    executor.postGameDisconnected = (principal, matchId) => handler.markPostGameDisconnected!(principal, matchId);
+  }
+  if (handler.expirePostGameDisconnect) {
+    executor.expirePostGameDisconnect = (principal, matchId) => handler.expirePostGameDisconnect!(principal, matchId);
+  }
+  return executor;
 }

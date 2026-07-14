@@ -9,10 +9,7 @@ import {
   type ServerEventEnvelope,
 } from "@assalto-reale/multiplayer-protocol";
 import type { QueryResultRow } from "pg";
-import type {
-  MatchAggregate,
-  MatchStatus,
-} from "../../domain/matchAggregate.js";
+import type { MatchAggregate, MatchStatus, PostGameState } from "../../domain/matchAggregate.js";
 import type { StoredCommandReceipt } from "../../repositories.js";
 
 export interface PostgresMatchRow extends QueryResultRow {
@@ -30,6 +27,7 @@ export interface PostgresMatchRow extends QueryResultRow {
   rematch_offered_by: string | null;
   successor_match_id: string | null;
   predecessor_match_id: string | null;
+  post_game_presence: unknown;
 }
 
 export interface PostgresReceiptRow extends QueryResultRow {
@@ -55,6 +53,7 @@ export interface EncodedMatchAggregate {
   rematchOfferedBy: string | null;
   successorMatchId: string | null;
   predecessorMatchId: string | null;
+  postGame: PostGameState | null;
 }
 
 function safeInteger(value: number | string, field: string): number {
@@ -107,6 +106,39 @@ function endReason(value: string | null): MatchEndReason | null {
   return value;
 }
 
+function postGameState(value: unknown, status: MatchStatus): PostGameState | null {
+  if (value === null || value === undefined) {
+    return status === "ended"
+      ? {
+          Black: { presence: "absent", graceExpiresAt: null },
+          White: { presence: "absent", graceExpiresAt: null },
+        }
+      : null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Corrupt PostgreSQL post-game presence.");
+  }
+  const record = value as Record<string, unknown>;
+  const participant = (side: "Black" | "White"): PostGameState["Black"] => {
+    const entry = record[side];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`Corrupt PostgreSQL ${side} post-game presence.`);
+    }
+    const parsed = entry as Record<string, unknown>;
+    if (parsed.presence !== "present" && parsed.presence !== "grace" && parsed.presence !== "absent") {
+      throw new Error(`Corrupt PostgreSQL ${side} post-game status.`);
+    }
+    if (parsed.graceExpiresAt !== null && typeof parsed.graceExpiresAt !== "string") {
+      throw new Error(`Corrupt PostgreSQL ${side} post-game deadline.`);
+    }
+    if (typeof parsed.graceExpiresAt === "string" && !Number.isFinite(Date.parse(parsed.graceExpiresAt))) {
+      throw new Error(`Corrupt PostgreSQL ${side} post-game deadline.`);
+    }
+    return { presence: parsed.presence, graceExpiresAt: parsed.graceExpiresAt };
+  };
+  return { Black: participant("Black"), White: participant("White") };
+}
+
 function eventEnvelopes(value: unknown): ServerEventEnvelope[] {
   if (!Array.isArray(value)) {
     throw new Error("Corrupt PostgreSQL command receipt envelopes.");
@@ -114,17 +146,13 @@ function eventEnvelopes(value: unknown): ServerEventEnvelope[] {
   return value.map((entry) => {
     const validated = validateServerMessage(entry);
     if (!validated.ok) {
-      throw new Error(
-        `Corrupt PostgreSQL command receipt envelope at ${validated.error.path}.`,
-      );
+      throw new Error(`Corrupt PostgreSQL command receipt envelope at ${validated.error.path}.`);
     }
     return validated.value;
   });
 }
 
-export function encodeMatchAggregate(
-  aggregate: MatchAggregate,
-): EncodedMatchAggregate {
+export function encodeMatchAggregate(aggregate: MatchAggregate): EncodedMatchAggregate {
   return {
     matchId: aggregate.matchId,
     inviteCode: aggregate.inviteCode,
@@ -140,6 +168,7 @@ export function encodeMatchAggregate(
     rematchOfferedBy: aggregate.rematchOfferedBy,
     successorMatchId: aggregate.successorMatchId,
     predecessorMatchId: aggregate.predecessorMatchId,
+    postGame: aggregate.postGame,
   };
 }
 
@@ -148,6 +177,7 @@ export function decodeMatchAggregate(row: PostgresMatchRow): MatchAggregate {
   if (!state) {
     throw new Error(`Corrupt PostgreSQL match state for ${row.match_id}.`);
   }
+  const status = matchStatus(row.status);
   return {
     matchId: row.match_id,
     inviteCode: row.invite_code,
@@ -159,12 +189,13 @@ export function decodeMatchAggregate(row: PostgresMatchRow): MatchAggregate {
       Black: row.black_player_id,
       White: row.white_player_id,
     },
-    status: matchStatus(row.status),
+    status,
     state,
     endReason: endReason(row.end_reason),
     rematchOfferedBy: row.rematch_offered_by,
     successorMatchId: row.successor_match_id,
     predecessorMatchId: row.predecessor_match_id,
+    postGame: postGameState(row.post_game_presence, status),
   };
 }
 

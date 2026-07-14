@@ -5,7 +5,14 @@ import { OnlineClient, type OnlineConnectionStatus } from "./onlineClient";
 import { configuredWebSocketUrl } from "./onlineIdentity";
 import { clearPendingIntent, loadPendingIntent, newCommandId, savePendingIntent, type PendingLifecycleIntent } from "./onlineIntent";
 import { applyOnlineSnapshot, clearOnlineProjection } from "./onlineProjection";
-import type { ClientCommand, CommandRejectionCode, JsonObject, ServerEventEnvelope } from "./protocol";
+import type {
+  ClientCommand,
+  CommandRejectionCode,
+  JsonObject,
+  PostGamePresenceStatus,
+  PostGameSnapshot,
+  ServerEventEnvelope,
+} from "./protocol";
 
 const MATCH_STORAGE_KEY = "assalto:online-match";
 
@@ -32,6 +39,9 @@ interface PersistedOnlineMatch {
   matchVersion: number | null;
   streamSequence: number | null;
   waitingForOpponent: boolean;
+  lifecycle: "active" | "postGame" | null;
+  selfPostGamePresence: PostGamePresenceStatus | null;
+  opponentPostGamePresence: PostGamePresenceStatus | null;
 }
 
 export interface OnlineMatchState {
@@ -55,6 +65,9 @@ export interface OnlineMatchState {
   lastRejectionCode: CommandRejectionCode | null;
   winner: Player | null;
   completed: boolean;
+  lifecycle: "active" | "postGame" | null;
+  selfPostGamePresence: PostGamePresenceStatus | null;
+  opponentPostGamePresence: PostGamePresenceStatus | null;
 }
 
 export interface OnlineMatchActions {
@@ -67,6 +80,7 @@ export interface OnlineMatchActions {
   startNewMatch: () => void;
   offerRematch: () => boolean;
   respondToRematch: (accept: boolean) => boolean;
+  leavePostGame: () => Promise<boolean>;
   sendPlacement: (position: Vec2) => boolean;
   sendAction: (start: Vec2, end: Vec2) => boolean;
   chooseDefender: (position: Vec2) => boolean;
@@ -106,6 +120,17 @@ function loadPersistedMatch(): PersistedOnlineMatch | null {
       matchVersion: typeof value.matchVersion === "number" ? value.matchVersion : null,
       streamSequence: typeof value.streamSequence === "number" ? value.streamSequence : null,
       waitingForOpponent: Boolean(value.waitingForOpponent),
+      lifecycle: value.lifecycle === "active" || value.lifecycle === "postGame" ? value.lifecycle : null,
+      selfPostGamePresence:
+        value.selfPostGamePresence === "present" || value.selfPostGamePresence === "grace" || value.selfPostGamePresence === "absent"
+          ? value.selfPostGamePresence
+          : null,
+      opponentPostGamePresence:
+        value.opponentPostGamePresence === "present" ||
+        value.opponentPostGamePresence === "grace" ||
+        value.opponentPostGamePresence === "absent"
+          ? value.opponentPostGamePresence
+          : null,
     };
   } catch {
     return null;
@@ -127,6 +152,9 @@ function persistMatch(state: OnlineMatchState): void {
       matchVersion: state.matchVersion,
       streamSequence: state.streamSequence,
       waitingForOpponent: state.waitingForOpponent,
+      lifecycle: state.lifecycle,
+      selfPostGamePresence: state.selfPostGamePresence,
+      opponentPostGamePresence: state.opponentPostGamePresence,
     };
     target.setItem(MATCH_STORAGE_KEY, JSON.stringify(value));
   } catch {
@@ -141,6 +169,37 @@ const persisted = loadPersistedMatch();
 let pendingIntent: PendingLifecycleIntent | null = loadPendingIntent();
 let client: OnlineClient | null = null;
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+let departureWaiter: {
+  commandId: string;
+  resolve: (left: boolean) => void;
+  timeout: ReturnType<typeof setTimeout>;
+} | null = null;
+
+function settleDeparture(commandId: string | null, left: boolean): void {
+  if (!departureWaiter || commandId !== departureWaiter.commandId) return;
+  clearTimeout(departureWaiter.timeout);
+  departureWaiter.resolve(left);
+  departureWaiter = null;
+}
+
+function postGameView(
+  postGame: PostGameSnapshot | undefined,
+  side: Player | null,
+): Pick<OnlineMatchState, "selfPostGamePresence" | "opponentPostGamePresence" | "rematchStatus"> {
+  if (!postGame || !side) {
+    return {
+      selfPostGamePresence: "absent",
+      opponentPostGamePresence: "absent",
+      rematchStatus: "none",
+    };
+  }
+  const opponent = side === "Black" ? "White" : "Black";
+  return {
+    selfPostGamePresence: postGame.presence[side],
+    opponentPostGamePresence: postGame.presence[opponent],
+    rematchStatus: postGame.rematchOfferedBy === null ? "none" : postGame.rematchOfferedBy === side ? "sent" : "received",
+  };
+}
 
 /**
  * Set or clear the pending lifecycle intent across every place it lives: the
@@ -187,6 +246,14 @@ function eventMessage(envelope: ServerEventEnvelope): string {
       return "Your opponent wants a rematch.";
     case "RematchDeclined":
       return "Your opponent declined the rematch.";
+    case "PostGamePresenceChanged":
+      if (envelope.event.presence === "absent") {
+        return "Opponent left the post-game room.";
+      }
+      if (envelope.event.presence === "grace") {
+        return "Opponent disconnected. Waiting for reconnect.";
+      }
+      return "Opponent returned to the post-game room.";
     case "RematchCreated":
       return "Starting the rematch…";
   }
@@ -302,6 +369,9 @@ function handleEnvelope(
         lastRejectionCode: null,
         winner: null,
         completed: false,
+        lifecycle: "active",
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
       } satisfies Partial<OnlineMatchStore>;
       set(next);
       // The create is now authoritatively resolved (first receipt or replay):
@@ -322,6 +392,7 @@ function handleEnvelope(
         waitingForOpponent: false,
         lastError: null,
         lastRejectionCode: null,
+        lifecycle: "active",
       });
       // Only the joining device carries a join intent; clear it once our own
       // membership is confirmed. The host sees the opponent's PlayerJoined too and
@@ -331,13 +402,22 @@ function handleEnvelope(
       break;
     }
     case "MatchUpdated":
-      set({ ...base, lastError: null, lastRejectionCode: null });
+      set({
+        ...base,
+        lifecycle: "active",
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
+        lastError: null,
+        lastRejectionCode: null,
+      });
       applyOnlineSnapshot(envelope.event.snapshot, {
         message,
         side: state.side,
       });
       break;
-    case "MatchSnapshot":
+    case "MatchSnapshot": {
+      const ended = envelope.event.status === "ended";
+      const postGame = ended ? postGameView(envelope.event.postGame, state.side) : null;
       set({
         ...base,
         // A canonical snapshot is the authoritative resolution of any in-flight
@@ -351,22 +431,35 @@ function handleEnvelope(
         // players present, which the old matchVersion < 2 heuristic mis-flagged as
         // still waiting for an opponent).
         waitingForOpponent: envelope.event.status === "awaitingOpponent",
-        completed: envelope.event.status === "ended",
-        winner: envelope.event.status === "ended" ? state.winner : null,
+        completed: ended,
+        lifecycle: ended ? "postGame" : "active",
+        ...(postGame ?? {
+          selfPostGamePresence: null,
+          opponentPostGamePresence: null,
+          rematchStatus: "none" as const,
+        }),
+        winner: ended ? state.winner : null,
         lastError: null,
         lastRejectionCode: null,
       });
       applyOnlineSnapshot(envelope.event.snapshot, {
         message,
         side: state.side,
+        ...(ended ? { ended: true } : {}),
       });
+      if (postGame?.selfPostGamePresence === "absent") {
+        settleDeparture(envelope.causationCommandId, true);
+      }
       break;
+    }
     case "MatchEnded":
       set({
         ...base,
         waitingForOpponent: false,
         winner: envelope.event.winner,
         completed: true,
+        lifecycle: "postGame",
+        ...postGameView(envelope.event.postGame, state.side),
         lastError: null,
         lastRejectionCode: null,
       });
@@ -396,6 +489,7 @@ function handleEnvelope(
           side: state.side,
         });
       }
+      settleDeparture(envelope.causationCommandId, false);
       break;
     case "RematchOffered":
       set({ ...base, rematchStatus: "received", lastError: null, lastRejectionCode: null });
@@ -417,6 +511,9 @@ function handleEnvelope(
         streamSequence: envelope.streamSequence,
         waitingForOpponent: false,
         completed: false,
+        lifecycle: "active",
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
         winner: null,
         pendingCommandId: null,
         rematchStatus: "none",
@@ -435,6 +532,25 @@ function handleEnvelope(
       } catch {
         // The next action (or a reconnect) will subscribe and resync.
       }
+      settleDeparture(envelope.causationCommandId, true);
+      break;
+    }
+    case "PostGamePresenceChanged": {
+      const view = postGameView(envelope.event.postGame, state.side);
+      set({
+        ...base,
+        lifecycle: "postGame",
+        completed: true,
+        ...view,
+        lastError: null,
+        lastRejectionCode: null,
+      });
+      const changedSelf = state.side !== null && envelope.event.side === state.side;
+      if (changedSelf && envelope.event.presence === "absent") {
+        settleDeparture(envelope.causationCommandId, true);
+      } else if (!changedSelf) {
+        useGameStore.setState({ message });
+      }
       break;
     }
     case "DecisionRequired":
@@ -445,7 +561,7 @@ function handleEnvelope(
   }
 
   // A pending synchronization resolves as soon as canonical state is in hand.
-  if ((get().syncStatus === "connecting" || get().syncStatus === "synchronizing") && useGameStore.getState().hasActiveMatch) {
+  if ((get().syncStatus === "connecting" || get().syncStatus === "synchronizing") && get().lifecycle !== null) {
     clearSyncTimeout();
     set({ syncStatus: "synchronized" });
   }
@@ -553,6 +669,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     lastRejectionCode: null,
     winner: null,
     completed: false,
+    lifecycle: persisted?.lifecycle ?? null,
+    selfPostGamePresence: persisted?.selfPostGamePresence ?? null,
+    opponentPostGamePresence: persisted?.opponentPostGamePresence ?? null,
 
     connect,
 
@@ -583,6 +702,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         lastRejectionCode: null,
         completed: false,
         winner: null,
+        lifecycle: null,
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
       });
       const alreadyOpen = client?.connected ?? false;
       if (!(await connect())) return false;
@@ -611,6 +733,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         lastRejectionCode: null,
         completed: false,
         winner: null,
+        lifecycle: null,
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
       });
       const alreadyOpen = client?.connected ?? false;
       if (!(await connect())) return false;
@@ -699,6 +824,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         lastRejectionCode: null,
         winner: null,
         completed: false,
+        lifecycle: null,
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
       });
       persistMatch(get());
       return get().resumeMatch();
@@ -742,6 +870,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
         pendingCommandId: null,
         winner: null,
         completed: false,
+        lifecycle: null,
+        selfPostGamePresence: null,
+        opponentPostGamePresence: null,
         lastError: null,
         lastRejectionCode: null,
       });
@@ -751,7 +882,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     offerRematch: () => {
       // Idempotent from the UI's side: while an offer is in flight or received,
       // do not fire another request.
-      if (get().rematchStatus === "sent") return false;
+      if (get().rematchStatus === "sent" || get().opponentPostGamePresence === "absent") {
+        return false;
+      }
       const sent = sendRematch({ type: "OfferRematch" });
       if (sent) {
         set({ rematchStatus: "sent" });
@@ -761,12 +894,39 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     },
 
     respondToRematch: (accept) => {
-      if (get().rematchStatus !== "received") return false;
+      if (get().rematchStatus !== "received" || get().opponentPostGamePresence === "absent") {
+        return false;
+      }
       const sent = sendRematch({ type: "RespondToRematch", accept });
       if (sent && !accept) {
         set({ rematchStatus: "none" });
       }
       return sent;
+    },
+
+    leavePostGame: async () => {
+      const state = get();
+      if (state.lifecycle !== "postGame" || !state.matchId || state.connectionStatus !== "connected" || departureWaiter) {
+        return false;
+      }
+      try {
+        const commandId = client?.send({ type: "LeavePostGame" }, { expectedMatchVersion: null });
+        if (!commandId) return false;
+        return await new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => {
+            if (departureWaiter?.commandId === commandId) {
+              departureWaiter = null;
+              resolve(false);
+            }
+          }, 5_000);
+          departureWaiter = { commandId, resolve, timeout };
+        });
+      } catch (error) {
+        set({
+          lastError: error instanceof Error ? error.message : "Could not leave the post-game room.",
+        });
+        return false;
+      }
     },
 
     sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),
@@ -799,6 +959,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
               winner: null,
               completed: false,
               rematchStatus: "none",
+              lifecycle: null,
+              selfPostGamePresence: null,
+              opponentPostGamePresence: null,
             }),
       });
       if (!preserveMatch) {

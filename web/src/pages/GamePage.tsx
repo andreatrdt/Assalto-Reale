@@ -50,8 +50,11 @@ export function GamePage({ navigate }: GamePageProps) {
   const onlineSide = useOnlineMatchStore((state) => state.side);
   const onlineWinner = useOnlineMatchStore((state) => state.winner);
   const rematchStatus = useOnlineMatchStore((state) => state.rematchStatus);
+  const opponentPostGamePresence = useOnlineMatchStore((state) => state.opponentPostGamePresence);
   const offerRematch = useOnlineMatchStore((state) => state.offerRematch);
   const respondToRematch = useOnlineMatchStore((state) => state.respondToRematch);
+  const leavePostGame = useOnlineMatchStore((state) => state.leavePostGame);
+  const disconnectOnline = useOnlineMatchStore((state) => state.disconnect);
   const [confirmHome, setConfirmHome] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const isOnline = Boolean(onlineMatchId);
@@ -65,6 +68,7 @@ export function GamePage({ navigate }: GamePageProps) {
         offer: () => void offerRematch(),
         accept: () => void respondToRematch(true),
         decline: () => void respondToRematch(false),
+        opponentPresence: opponentPostGamePresence,
       }
     : undefined;
   const handleRematch = onlineMatchId ? () => void offerRematch() : () => setConfirmRestart(true);
@@ -149,7 +153,13 @@ export function GamePage({ navigate }: GamePageProps) {
   const restartSummary = matchConfig ? describeMatchMode(matchConfig) : "No stored match setup";
   const canRestartMatch = Boolean(matchConfig);
 
-  function confirmReturnHome() {
+  async function confirmReturnHome() {
+    if (onlineMatchId && phase === "gameOver") {
+      const left = await leavePostGame();
+      if (!left) return;
+      const online = useOnlineMatchStore.getState();
+      disconnectOnline(online.lifecycle === "active");
+    }
     returnHome();
     setConfirmHome(false);
     navigate("/");
@@ -258,6 +268,7 @@ export function GamePage({ navigate }: GamePageProps) {
               newMatch={() => navigate(isOnline ? "/online" : "/setup")}
               home={() => setConfirmHome(true)}
               online={isOnline}
+              rematchUnavailable={opponentPostGamePresence === "absent"}
             />
           ) : (
             <MatchPanel
@@ -290,10 +301,16 @@ export function GamePage({ navigate }: GamePageProps) {
         <ConfirmDialog
           title="Return to menu?"
           confirmLabel="Return Home"
-          onConfirm={confirmReturnHome}
+          onConfirm={() => void confirmReturnHome()}
           onCancel={() => setConfirmHome(false)}
         >
-          <p>Your active match remains in memory and can be continued from Home. Save first if you want a local browser save.</p>
+          <p>
+            {onlineMatchId && phase === "gameOver"
+              ? "Leaving closes your participation in this post-game room and cancels pending rematch negotiation."
+              : phase === "gameOver"
+                ? "The completed result remains saved, but it will not appear as an active match."
+                : "Your active match remains in memory and can be resumed from Home."}
+          </p>
         </ConfirmDialog>
       )}
 
@@ -617,6 +634,7 @@ export function VictoryPanel({
   newMatch,
   home,
   online = false,
+  rematchUnavailable = false,
 }: {
   message: string;
   saveGame: () => void;
@@ -625,6 +643,7 @@ export function VictoryPanel({
   home: () => void;
   /** Online: local Save has no meaning and "New Match" is the online lobby. */
   online?: boolean;
+  rematchUnavailable?: boolean;
 }) {
   return (
     <div className="matchPanel victoryPanel">
@@ -633,9 +652,10 @@ export function VictoryPanel({
       </StatusBadge>
       <p className="statusLine">{message}</p>
       <div className="commandGrid">
-        <GameButton variant="primary" onClick={rematch}>
+        <GameButton variant="primary" disabled={rematchUnavailable} onClick={rematch}>
           Rematch
         </GameButton>
+        {rematchUnavailable && <p className="victoryRematchNote">Opponent left the post-game room.</p>}
         {online ? (
           <GameButton variant="ghost" icon="home" onClick={home}>
             Return home
