@@ -23,6 +23,7 @@ import type {
 } from "./matchTypes.js";
 import { canPlacePiece, placePiece } from "./placement.js";
 import { refreshTerritoryClaim, updateControl } from "./territory.js";
+import { CURRENT_GAME_RULES_VERSION } from "./versions.js";
 import { ensureTransformSquare, transformPiece } from "./transform.js";
 import type { Action, PawnType, Player, TransitionResult, Vec2, VictoryResult } from "./types.js";
 import { evaluateVictory, opponent } from "./victory.js";
@@ -116,7 +117,7 @@ function success(
 }
 
 export function createMatch(options: CreateMatchOptions): MatchState {
-  const common = { rulesVersion: options.rulesVersion ?? 2, seed: options.seed } as const;
+  const common = { rulesVersion: options.rulesVersion ?? CURRENT_GAME_RULES_VERSION, seed: options.seed } as const;
   if (options.placementMode === "QuickBalanced") {
     return {
       ...common,

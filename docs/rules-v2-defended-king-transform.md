@@ -1,6 +1,6 @@
 # Rules v2: Defended King and Transform relocation
 
-New matches use game-rules version 2, protocol version 2, replay schema version 2 and browser save schema 3. Rules-v1 saves and schema-v1 immutable replays remain readable and retain the original stop-when-blocked deflection and Transform selection behavior. A rematch inherits its predecessor's rules version.
+New matches and every newly created rematch use `CURRENT_GAME_RULES_VERSION` (version 2), protocol version 2, replay schema version 2 and browser save schema 3. Rules-v1 saves and schema-v1 immutable replays remain readable and retain the original stop-when-blocked deflection and Transform selection behavior; completed predecessor history is never rewritten when its rematch is created.
 
 The Python reference remains the version-1 compatibility oracle. TypeScript/Python parity fixtures therefore execute rules version 1 explicitly; rules version 2 is shared by local play, AI, the authoritative server and replay through `game-core`.
 

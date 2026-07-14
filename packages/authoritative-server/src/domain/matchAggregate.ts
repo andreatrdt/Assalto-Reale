@@ -2,6 +2,7 @@ import {
   applyCommand,
   cloneMatchState,
   createMatch as coreCreateMatch,
+  CURRENT_GAME_RULES_VERSION,
   opponent,
   type GameCommand,
   type MatchState,
@@ -669,7 +670,7 @@ export function createRematchAggregate(
     placementMode: "Manual",
     transformEnabled: config.transformEnabled,
     seed: ids.seed,
-    rulesVersion: previous.state.rulesVersion,
+    rulesVersion: CURRENT_GAME_RULES_VERSION,
   });
   // Swap: the previous White player becomes Black and vice versa.
   const members: MatchMembers = {
