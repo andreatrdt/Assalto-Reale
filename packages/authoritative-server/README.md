@@ -70,6 +70,8 @@ const handler = new CommandHandler({
 
 The process owns pool startup and shutdown. The application core remains unaware of PostgreSQL and networking.
 
+Completed online matches are finalized into compact immutable summaries and replay events in the same transaction as the terminal aggregate. See [immutable match history](../../docs/immutable-match-history.md) for the schema, replay compatibility, privacy, migration, and operational cleanup contract.
+
 ## Transport integration
 
 Phase C.8.3 is implemented separately in `@assalto-reale/server-transport`. That package authenticates HTTP upgrades, propagates the connection principal into this package's `Authenticator` port, calls `CommandHandler.handle`, and routes the returned envelopes. It does not import internal application or persistence modules.

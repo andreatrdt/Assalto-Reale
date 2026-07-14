@@ -1,6 +1,13 @@
 import { cloneMatchState } from "@assalto-reale/game-core";
 import type { MatchAggregate } from "../domain/matchAggregate.js";
 import {
+  buildImmutableMatchHistory,
+  applyMatchToPlayerStatistics,
+  emptyPlayerStatistics,
+  type ImmutableMatchHistoryRecord,
+  type StoredHistoryEvent,
+} from "../history.js";
+import {
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
   ReceiptConflictError,
@@ -36,6 +43,14 @@ export class InMemoryStore {
   readonly matches = new Map<string, MatchAggregate>();
   readonly receipts = new Map<string, StoredCommandReceipt>();
   readonly invites = new Map<string, string>();
+  readonly historyEvents = new Map<string, StoredHistoryEvent[]>();
+  readonly histories = new Map<string, ImmutableMatchHistoryRecord>();
+  readonly historySuccessors = new Map<string, string>();
+  readonly userByPlayer = new Map<string, string>();
+  readonly statistics = new Map<
+    string,
+    ReturnType<typeof emptyPlayerStatistics>
+  >();
 
   getByInvite(inviteCode: string): MatchAggregate | null {
     const matchId = this.invites.get(inviteCode);
@@ -65,6 +80,18 @@ interface StagedMatch {
 class InMemoryTransaction implements Transaction {
   readonly stagedMatches: StagedMatch[] = [];
   readonly stagedReceipts: StoredCommandReceipt[] = [];
+  readonly stagedHistoryEvents: Array<{
+    matchId: string;
+    event: StoredHistoryEvent;
+  }> = [];
+  readonly stagedHistoryFinalizations: Array<{
+    aggregate: MatchAggregate;
+    completedAt: Date;
+  }> = [];
+  readonly stagedHistorySuccessors: Array<{
+    predecessorMatchId: string;
+    successorMatchId: string;
+  }> = [];
 
   constructor(private readonly store: InMemoryStore) {}
 
@@ -94,6 +121,24 @@ class InMemoryTransaction implements Transaction {
 
   saveReceipt(receipt: StoredCommandReceipt): void {
     this.stagedReceipts.push(cloneReceipt(receipt));
+  }
+
+  appendHistoryEvent(matchId: string, event: StoredHistoryEvent): void {
+    this.stagedHistoryEvents.push({ matchId, event: jsonClone(event) });
+  }
+
+  finalizeMatchHistory(aggregate: MatchAggregate, completedAt: Date): void {
+    this.stagedHistoryFinalizations.push({
+      aggregate: cloneAggregate(aggregate),
+      completedAt,
+    });
+  }
+
+  linkHistorySuccessor(
+    predecessorMatchId: string,
+    successorMatchId: string,
+  ): void {
+    this.stagedHistorySuccessors.push({ predecessorMatchId, successorMatchId });
   }
 }
 
@@ -138,6 +183,89 @@ export class InMemoryUnitOfWork implements UnitOfWork {
       }
     }
 
+    // Build every immutable-history side effect in shadow maps before applying
+    // any write. A conflict therefore cannot leave a receipt, aggregate, event,
+    // summary, statistic, or lineage edge partially committed in this adapter.
+    const nextHistoryEvents = new Map(
+      [...this.store.historyEvents].map(([matchId, events]) => [
+        matchId,
+        jsonClone(events),
+      ]),
+    );
+    const nextHistories = new Map(
+      [...this.store.histories].map(([matchId, history]) => [
+        matchId,
+        jsonClone(history),
+      ]),
+    );
+    const nextStatistics = new Map(
+      [...this.store.statistics].map(([userId, statistics]) => [
+        userId,
+        jsonClone(statistics),
+      ]),
+    );
+    const nextHistorySuccessors = new Map(this.store.historySuccessors);
+
+    for (const staged of tx.stagedHistoryEvents) {
+      const events = nextHistoryEvents.get(staged.matchId) ?? [];
+      const existing = events.find(
+        (event) => event.sequenceNumber === staged.event.sequenceNumber,
+      );
+      if (
+        existing &&
+        JSON.stringify(existing) !== JSON.stringify(staged.event)
+      ) {
+        throw new Error("Conflicting immutable in-memory replay event.");
+      }
+      if (!existing) events.push(jsonClone(staged.event));
+      events.sort((left, right) => left.sequenceNumber - right.sequenceNumber);
+      nextHistoryEvents.set(staged.matchId, events);
+    }
+    for (const staged of tx.stagedHistoryFinalizations) {
+      const existing = nextHistories.get(staged.aggregate.matchId);
+      const events = nextHistoryEvents.get(staged.aggregate.matchId) ?? [];
+      const first = events[0]?.occurredAt ?? staged.completedAt.toISOString();
+      const record = buildImmutableMatchHistory(staged.aggregate, events, {
+        createdAt: first,
+        startedAt: first,
+        completedAt: staged.completedAt.toISOString(),
+        blackUserId: staged.aggregate.members.Black
+          ? (this.store.userByPlayer.get(staged.aggregate.members.Black) ??
+            null)
+          : null,
+        whiteUserId: staged.aggregate.members.White
+          ? (this.store.userByPlayer.get(staged.aggregate.members.White) ??
+            null)
+          : null,
+      });
+      if (existing && existing.integrityChecksum !== record.integrityChecksum) {
+        throw new Error("Conflicting immutable in-memory match history.");
+      }
+      if (!existing) {
+        nextHistories.set(record.matchId, jsonClone(record));
+        for (const [userId, side] of [
+          [record.blackUserId, "Black"],
+          [record.whiteUserId, "White"],
+        ] as const) {
+          if (!userId) continue;
+          const current = nextStatistics.get(userId) ?? emptyPlayerStatistics();
+          nextStatistics.set(
+            userId,
+            applyMatchToPlayerStatistics(current, record, side),
+          );
+        }
+      }
+    }
+    for (const staged of tx.stagedHistorySuccessors) {
+      const existing = nextHistorySuccessors.get(staged.predecessorMatchId);
+      if (existing && existing !== staged.successorMatchId)
+        throw new Error("Conflicting historical successor.");
+      nextHistorySuccessors.set(
+        staged.predecessorMatchId,
+        staged.successorMatchId,
+      );
+    }
+
     for (const staged of tx.stagedMatches) {
       const aggregate = cloneAggregate(staged.aggregate);
       this.store.matches.set(aggregate.matchId, aggregate);
@@ -146,6 +274,22 @@ export class InMemoryUnitOfWork implements UnitOfWork {
     for (const staged of tx.stagedReceipts) {
       this.store.receipts.set(staged.commandId, cloneReceipt(staged));
     }
+    this.store.historyEvents.clear();
+    nextHistoryEvents.forEach((events, matchId) =>
+      this.store.historyEvents.set(matchId, events),
+    );
+    this.store.histories.clear();
+    nextHistories.forEach((history, matchId) =>
+      this.store.histories.set(matchId, history),
+    );
+    this.store.statistics.clear();
+    nextStatistics.forEach((statistics, userId) =>
+      this.store.statistics.set(userId, statistics),
+    );
+    this.store.historySuccessors.clear();
+    nextHistorySuccessors.forEach((successor, predecessor) =>
+      this.store.historySuccessors.set(predecessor, successor),
+    );
   }
 }
 

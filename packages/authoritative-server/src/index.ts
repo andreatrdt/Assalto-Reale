@@ -28,6 +28,19 @@ export {
   type RegisteredSession,
 } from "./accounts.js";
 export {
+  buildImmutableMatchHistory,
+  applyMatchToPlayerStatistics,
+  createStoredHistoryEvent,
+  emptyPlayerStatistics,
+  type HistoryStorageMetrics,
+  type ImmutableMatchHistoryRecord,
+  type MatchHistoryFilters,
+  type MatchHistoryRepository,
+  type OperationalCleanupResult,
+  type OperationalMaintenanceRepository,
+  type StoredHistoryEvent,
+} from "./history.js";
+export {
   CommandAlreadyProcessedError,
   ConcurrencyConflictError,
   ReceiptConflictError,

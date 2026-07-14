@@ -20,6 +20,18 @@ import {
 } from "./codec.js";
 import { PostgresAccountRepository } from "./postgresAccountRepository.js";
 import type { AccountRepository } from "../../accounts.js";
+import type {
+  MatchHistoryRepository,
+  OperationalMaintenanceRepository,
+  StoredHistoryEvent,
+} from "../../history.js";
+import {
+  PostgresMatchHistoryRepository,
+  PostgresOperationalMaintenanceRepository,
+  appendPostgresHistoryEvent,
+  finalizePostgresHistory,
+  linkPostgresHistorySuccessor,
+} from "./postgresHistoryRepository.js";
 
 const MATCH_COLUMNS = `
   match_id,
@@ -37,6 +49,8 @@ const MATCH_COLUMNS = `
   successor_match_id,
   predecessor_match_id,
   post_game_presence
+  ,history_event_sequence
+  ,history_capture_started_at_version
 `;
 
 interface StagedMatch {
@@ -97,6 +111,18 @@ export class PostgresMatchRepository implements MatchRepository {
 class PostgresTransaction implements Transaction {
   private readonly stagedMatches: StagedMatch[] = [];
   private readonly stagedReceipts: StoredCommandReceipt[] = [];
+  private readonly stagedHistoryEvents: Array<{
+    matchId: string;
+    event: StoredHistoryEvent;
+  }> = [];
+  private readonly stagedHistoryFinalizations: Array<{
+    aggregate: MatchAggregate;
+    completedAt: Date;
+  }> = [];
+  private readonly stagedHistorySuccessors: Array<{
+    predecessorMatchId: string;
+    successorMatchId: string;
+  }> = [];
 
   constructor(private readonly client: PoolClient) {}
 
@@ -122,6 +148,21 @@ class PostgresTransaction implements Transaction {
     this.stagedReceipts.push(receipt);
   }
 
+  appendHistoryEvent(matchId: string, event: StoredHistoryEvent): void {
+    this.stagedHistoryEvents.push({ matchId, event });
+  }
+
+  finalizeMatchHistory(aggregate: MatchAggregate, completedAt: Date): void {
+    this.stagedHistoryFinalizations.push({ aggregate, completedAt });
+  }
+
+  linkHistorySuccessor(
+    predecessorMatchId: string,
+    successorMatchId: string,
+  ): void {
+    this.stagedHistorySuccessors.push({ predecessorMatchId, successorMatchId });
+  }
+
   async commitStaged(): Promise<void> {
     // Receipts are claimed before match writes. A concurrent exact retry therefore
     // replays the already-committed result without creating another match or state
@@ -131,6 +172,20 @@ class PostgresTransaction implements Transaction {
     }
     for (const match of this.stagedMatches) {
       await this.persistMatch(match);
+    }
+    for (const { matchId, event } of this.stagedHistoryEvents) {
+      await appendPostgresHistoryEvent(this.client, matchId, event);
+    }
+    for (const { aggregate, completedAt } of this.stagedHistoryFinalizations) {
+      await finalizePostgresHistory(this.client, aggregate, completedAt);
+    }
+    for (const { predecessorMatchId, successorMatchId } of this
+      .stagedHistorySuccessors) {
+      await linkPostgresHistorySuccessor(
+        this.client,
+        predecessorMatchId,
+        successorMatchId,
+      );
     }
   }
 
@@ -192,6 +247,8 @@ class PostgresTransaction implements Transaction {
       encoded.successorMatchId,
       encoded.predecessorMatchId,
       encoded.postGame ? JSON.stringify(encoded.postGame) : null,
+      encoded.historyEventSequence,
+      encoded.historyCaptureStartedAtVersion,
     ];
 
     if (staged.precondition.kind === "create") {
@@ -214,10 +271,12 @@ class PostgresTransaction implements Transaction {
               successor_match_id,
               predecessor_match_id,
               post_game_presence
+              ,history_event_sequence
+              ,history_capture_started_at_version
             )
             VALUES (
               $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10::jsonb, $11,
-              $12, $13, $14, $15::jsonb
+              $12, $13, $14, $15::jsonb, $16, $17
             )
           `,
           values,
@@ -252,8 +311,10 @@ class PostgresTransaction implements Transaction {
           successor_match_id = $13,
           predecessor_match_id = $14,
           post_game_presence = $15::jsonb,
+          history_event_sequence = $16,
+          history_capture_started_at_version = $17,
           updated_at = NOW()
-        WHERE match_id = $1 AND version = $16
+        WHERE match_id = $1 AND version = $18
       `,
       [...values, staged.precondition.version],
     );
@@ -327,6 +388,8 @@ export interface PostgresPersistence {
   matches: MatchRepository;
   unitOfWork: UnitOfWork;
   accounts: AccountRepository;
+  history: MatchHistoryRepository;
+  maintenance: OperationalMaintenanceRepository;
 }
 
 export function createPostgresPersistence(pool: Pool): PostgresPersistence {
@@ -335,5 +398,7 @@ export function createPostgresPersistence(pool: Pool): PostgresPersistence {
     matches: new PostgresMatchRepository(pool),
     unitOfWork: new PostgresUnitOfWork(pool),
     accounts: new PostgresAccountRepository(pool),
+    history: new PostgresMatchHistoryRepository(pool),
+    maintenance: new PostgresOperationalMaintenanceRepository(pool),
   };
 }

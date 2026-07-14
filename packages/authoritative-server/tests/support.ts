@@ -213,6 +213,8 @@ export function seedMatch(
     successorMatchId?: string | null;
     predecessorMatchId?: string | null;
     postGame?: MatchAggregate["postGame"];
+    historyEventSequence?: number;
+    historyCaptureStartedAtVersion?: number | null;
   } = {},
 ): MatchAggregate {
   const aggregate: MatchAggregate = {
@@ -232,6 +234,8 @@ export function seedMatch(
     rematchOfferedBy: options.rematchOfferedBy ?? null,
     successorMatchId: options.successorMatchId ?? null,
     predecessorMatchId: options.predecessorMatchId ?? null,
+    historyEventSequence: options.historyEventSequence ?? 0,
+    historyCaptureStartedAtVersion: options.historyCaptureStartedAtVersion ?? 1,
     postGame:
       options.postGame ??
       (options.status === "ended"

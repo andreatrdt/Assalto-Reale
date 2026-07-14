@@ -1,5 +1,6 @@
 import type { ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
 import type { MatchAggregate } from "./domain/matchAggregate.js";
+import type { StoredHistoryEvent } from "./history.js";
 
 /**
  * Stored idempotency result. Exact retries replay these envelopes verbatim;
@@ -55,6 +56,12 @@ export interface Transaction {
   findReceipt(commandId: string): Promise<StoredCommandReceipt | null>;
   saveMatch(aggregate: MatchAggregate, precondition: MatchPrecondition): void;
   saveReceipt(receipt: StoredCommandReceipt): void;
+  appendHistoryEvent(matchId: string, event: StoredHistoryEvent): void;
+  finalizeMatchHistory(aggregate: MatchAggregate, completedAt: Date): void;
+  linkHistorySuccessor(
+    predecessorMatchId: string,
+    successorMatchId: string,
+  ): void;
 }
 
 export interface UnitOfWork {

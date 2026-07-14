@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type AppRoute = "/" | "/setup" | "/online" | "/game" | "/rules" | "/load" | "/settings" | "/account";
+export type AppRoute = "/" | "/setup" | "/online" | "/game" | "/rules" | "/load" | "/settings" | "/account" | `/account/history/${string}`;
 
 const ROUTES = new Set<AppRoute>(["/", "/setup", "/online", "/game", "/rules", "/load", "/settings", "/account"]);
 const REDIRECT_PATH_KEY = "assalto:redirect-path";
@@ -35,6 +35,7 @@ function consumeStaticRedirect(): string | null {
 
 export function routeFromPathname(pathname: string): AppRoute {
   const route = stripBase(pathname);
+  if (/^\/account\/history\/[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(route)) return route as AppRoute;
   return ROUTES.has(route as AppRoute) ? (route as AppRoute) : "/";
 }
 

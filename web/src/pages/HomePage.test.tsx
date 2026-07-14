@@ -71,10 +71,20 @@ describe("Home page", () => {
       enabled: true,
       account: null,
       matches: [],
+      history: [],
+      historyNextCursor: null,
+      statistics: null,
+      historyLoading: false,
+      historyError: null,
       error: null,
       signIn: async () => undefined,
       signOut: async () => undefined,
       refreshMatches: async () => undefined,
+      refreshHistory: async () => undefined,
+      loadMoreHistory: async () => undefined,
+      loadHistoryMatch: async () => {
+        throw new Error("not loaded");
+      },
     });
 
     expect(html).toContain("Checking account");

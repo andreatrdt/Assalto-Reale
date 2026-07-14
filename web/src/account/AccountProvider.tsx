@@ -6,6 +6,7 @@ import { useOnlineMatchStore } from "../online/onlineStore";
 import { AccountApiError, accountApi, type AccountSummary, type ActiveAccountMatch } from "./accountApi";
 import { AccountSessionHydrator, restoreAccountSession } from "./accountSessionHydration";
 import { browserAuthConfig, fixedLoginReturnUri, safeAuthReturnRoute, type BrowserAuthConfig } from "./authConfig";
+import type { MatchHistoryDetails, MatchHistorySummary, PlayerStatisticsSummary } from "../online/protocol";
 
 export type AccountState = "checking-session" | "guest" | "signing-in" | "signed-in" | "auth-failed" | "session-expired" | "signed-out";
 
@@ -14,10 +15,18 @@ export interface AccountContextValue {
   enabled: boolean;
   account: AccountSummary | null;
   matches: ActiveAccountMatch[];
+  history: MatchHistorySummary[];
+  historyNextCursor: string | null;
+  statistics: PlayerStatisticsSummary | null;
+  historyLoading: boolean;
+  historyError: string | null;
   error: string | null;
   signIn(): Promise<void>;
   signOut(): Promise<void>;
   refreshMatches(): Promise<void>;
+  refreshHistory(): Promise<void>;
+  loadMoreHistory(): Promise<void>;
+  loadHistoryMatch(matchId: string): Promise<MatchHistoryDetails>;
 }
 
 const disabledValue: AccountContextValue = {
@@ -25,10 +34,20 @@ const disabledValue: AccountContextValue = {
   enabled: false,
   account: null,
   matches: [],
+  history: [],
+  historyNextCursor: null,
+  statistics: null,
+  historyLoading: false,
+  historyError: null,
   error: null,
   signIn: async () => undefined,
   signOut: async () => undefined,
   refreshMatches: async () => undefined,
+  refreshHistory: async () => undefined,
+  loadMoreHistory: async () => undefined,
+  loadHistoryMatch: async () => {
+    throw new Error("Account history is unavailable.");
+  },
 };
 
 export const AccountContext = createContext<AccountContextValue>(disabledValue);
@@ -46,6 +65,11 @@ function AccountBridge({ config, children }: { config: BrowserAuthConfig; childr
   const [state, setState] = useState<AccountState>("checking-session");
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [matches, setMatches] = useState<ActiveAccountMatch[]>([]);
+  const [history, setHistory] = useState<MatchHistorySummary[]>([]);
+  const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null);
+  const [statistics, setStatistics] = useState<PlayerStatisticsSummary | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hydrationGeneration = useRef(0);
   const hydrationApplied = useRef(false);
@@ -76,6 +100,61 @@ function AccountBridge({ config, children }: { config: BrowserAuthConfig; childr
       }
     }
   }, [accessToken, account, config.apiBaseUrl]);
+
+  const refreshHistory = useCallback(async () => {
+    if (!account) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const token = await accessToken();
+      const [page, playerStatistics] = await Promise.all([
+        accountApi.history(config.apiBaseUrl, token),
+        accountApi.statistics(config.apiBaseUrl, token),
+      ]);
+      setHistory(page.matches);
+      setHistoryNextCursor(page.nextCursor);
+      setStatistics(playerStatistics);
+    } catch (reason) {
+      if (reason instanceof AccountApiError && reason.status === 401) {
+        setRegisteredSessionProvider(null);
+        setAccount(null);
+        setMatches([]);
+        setHistory([]);
+        setHistoryNextCursor(null);
+        setStatistics(null);
+        setState("session-expired");
+        setError("Your account session has expired or ended. Sign in again.");
+      } else {
+        setHistoryError("Could not load match history.");
+      }
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [accessToken, account, config.apiBaseUrl]);
+
+  const loadMoreHistory = useCallback(async () => {
+    if (!account || !historyNextCursor || historyLoading) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const query = new URLSearchParams({ cursor: historyNextCursor }).toString();
+      const page = await accountApi.history(config.apiBaseUrl, await accessToken(), query);
+      setHistory((current) => [
+        ...current,
+        ...page.matches.filter((match) => !current.some((existing) => existing.matchId === match.matchId)),
+      ]);
+      setHistoryNextCursor(page.nextCursor);
+    } catch {
+      setHistoryError("Could not load more match history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [accessToken, account, config.apiBaseUrl, historyLoading, historyNextCursor]);
+
+  const loadHistoryMatch = useCallback(
+    async (matchId: string) => accountApi.historyDetails(config.apiBaseUrl, await accessToken(), matchId),
+    [accessToken, config.apiBaseUrl],
+  );
 
   useEffect(() => {
     if (isLoading) {
@@ -108,13 +187,28 @@ function AccountBridge({ config, children }: { config: BrowserAuthConfig; childr
         useOnlineMatchStore.getState().disconnect(true);
         setAccount(result.account);
         setMatches(result.matches);
+        setHistoryLoading(true);
         setError(null);
         setState("signed-in");
+        void accessTokenRef
+          .current()
+          .then((token) => Promise.all([accountApi.history(config.apiBaseUrl, token), accountApi.statistics(config.apiBaseUrl, token)]))
+          .then(([page, playerStatistics]) => {
+            setHistory(page.matches);
+            setHistoryNextCursor(page.nextCursor);
+            setStatistics(playerStatistics);
+            setHistoryError(null);
+          })
+          .catch(() => setHistoryError("Could not load match history."))
+          .finally(() => setHistoryLoading(false));
         return;
       }
       setRegisteredSessionProvider(null);
       setAccount(null);
       setMatches([]);
+      setHistory([]);
+      setHistoryNextCursor(null);
+      setStatistics(null);
       setError(result.error);
       setState(result.state);
     });
@@ -144,14 +238,50 @@ function AccountBridge({ config, children }: { config: BrowserAuthConfig; childr
     } finally {
       setAccount(null);
       setMatches([]);
+      setHistory([]);
+      setHistoryNextCursor(null);
+      setStatistics(null);
       setState("signed-out");
       await logout({ logoutParams: { returnTo: fixedLoginReturnUri() } });
     }
   }, [accessToken, account, config.apiBaseUrl, logout]);
 
   const value = useMemo<AccountContextValue>(
-    () => ({ state, enabled: true, account, matches, error, signIn, signOut, refreshMatches }),
-    [account, error, matches, refreshMatches, signIn, signOut, state],
+    () => ({
+      state,
+      enabled: true,
+      account,
+      matches,
+      history,
+      historyNextCursor,
+      statistics,
+      historyLoading,
+      historyError,
+      error,
+      signIn,
+      signOut,
+      refreshMatches,
+      refreshHistory,
+      loadMoreHistory,
+      loadHistoryMatch,
+    }),
+    [
+      account,
+      error,
+      history,
+      historyError,
+      historyLoading,
+      historyNextCursor,
+      loadHistoryMatch,
+      loadMoreHistory,
+      matches,
+      refreshHistory,
+      refreshMatches,
+      signIn,
+      signOut,
+      state,
+      statistics,
+    ],
   );
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
 }

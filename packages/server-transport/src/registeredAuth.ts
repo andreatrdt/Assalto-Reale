@@ -4,11 +4,19 @@ import { URL } from "node:url";
 import {
   AccountIdentityConflictError,
   AccountSessionRevokedError,
+  emptyPlayerStatistics,
   type AccountRepository,
   type AuthenticatedPrincipal,
+  type MatchHistoryFilters,
+  type MatchHistoryRepository,
   type RegisteredIdentityClaims,
   type RegisteredSession,
 } from "@assalto-reale/authoritative-server";
+import type {
+  MatchHistoryDetails,
+  MatchHistoryPage,
+  PlayerStatisticsSummary,
+} from "@assalto-reale/multiplayer-protocol";
 import type { ConnectionAuthenticator } from "./connectionAuth.js";
 import type { GuestSessionVerifier } from "./guestSessions.js";
 
@@ -43,7 +51,9 @@ export class RegisteredAuthError extends Error {
       | "session_revoked"
       | "guest_proof_invalid"
       | "identity_conflict"
-      | "match_not_owned",
+      | "match_not_owned"
+      | "invalid_history_query"
+      | "match_history_not_found",
     message: string,
   ) {
     super(message);
@@ -82,6 +92,7 @@ export class RegisteredAuthService {
     private readonly now: () => Date = () => new Date(),
     private readonly randomTicket: () => string = () =>
       randomBytes(32).toString("base64url"),
+    private readonly history?: MatchHistoryRepository,
   ) {}
 
   async establishSession(
@@ -146,6 +157,56 @@ export class RegisteredAuthService {
         updatedAt: match.updatedAt.toISOString(),
       })),
     };
+  }
+
+  async listMatchHistory(
+    accessToken: string,
+    filters: MatchHistoryFilters,
+  ): Promise<MatchHistoryPage> {
+    const session = await this.authenticate(accessToken);
+    if (!this.history) return { matches: [], nextCursor: null };
+    try {
+      return await this.history.listForUser(session.user.userId, filters);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.toLowerCase().includes("cursor")
+      ) {
+        throw new RegisteredAuthError(
+          400,
+          "invalid_history_query",
+          error.message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  async getMatchHistory(
+    accessToken: string,
+    matchId: string,
+  ): Promise<MatchHistoryDetails> {
+    const session = await this.authenticate(accessToken);
+    const match = this.history
+      ? await this.history.getForUser(session.user.userId, matchId)
+      : null;
+    if (!match) {
+      throw new RegisteredAuthError(
+        404,
+        "match_history_not_found",
+        "The completed match was not found for this account.",
+      );
+    }
+    return match;
+  }
+
+  async getPlayerStatistics(
+    accessToken: string,
+  ): Promise<PlayerStatisticsSummary> {
+    const session = await this.authenticate(accessToken);
+    return this.history
+      ? this.history.statisticsForUser(session.user.userId)
+      : emptyPlayerStatistics();
   }
 
   async issueWebsocketTicket(

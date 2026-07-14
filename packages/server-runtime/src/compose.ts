@@ -4,6 +4,8 @@ import {
   type Clock,
   type IdGenerator,
   type MatchRepository,
+  type MatchHistoryRepository,
+  type OperationalMaintenanceRepository,
   type SeedGenerator,
   type UnitOfWork,
 } from "@assalto-reale/authoritative-server";
@@ -34,6 +36,8 @@ export interface RuntimePersistence {
   matches: MatchRepository;
   unitOfWork: UnitOfWork;
   accounts?: AccountRepository;
+  history?: MatchHistoryRepository;
+  maintenance?: OperationalMaintenanceRepository;
 }
 
 export interface ComposeOptions {
@@ -122,6 +126,7 @@ export function composeServer(options: ComposeOptions): ComposedServer {
       config.authWebsocketTicketTtlMs,
       options.registeredTicketNow,
       options.registeredTicketRandom,
+      persistence.history,
     );
     authenticateConnection = new GuestOrRegisteredConnectionAuthenticator(
       guestAuthenticator,

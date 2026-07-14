@@ -93,6 +93,90 @@ export function AccountPage({ route, navigate }: AccountPageProps) {
               ))
             )}
           </section>
+          <section className="accountMatches" aria-labelledby="player-statistics-title">
+            <div className="accountSectionHeading">
+              <h2 id="player-statistics-title">Player statistics</h2>
+              <GameButton variant="secondary" size="sm" onClick={() => void account.refreshHistory()}>
+                Refresh history
+              </GameButton>
+            </div>
+            {account.statistics ? (
+              <Panel className="accountStatistics">
+                <div>
+                  <strong>{account.statistics.gamesPlayed}</strong>
+                  <span>Games</span>
+                </div>
+                <div>
+                  <strong>{account.statistics.wins}</strong>
+                  <span>Wins</span>
+                </div>
+                <div>
+                  <strong>{account.statistics.losses}</strong>
+                  <span>Losses</span>
+                </div>
+                <div>
+                  <strong>{account.statistics.currentWinStreak}</strong>
+                  <span>Current streak</span>
+                </div>
+                <div>
+                  <strong>{account.statistics.capturesMade}</strong>
+                  <span>Captures</span>
+                </div>
+                <div>
+                  <strong>{account.statistics.transformations}</strong>
+                  <span>Transformations</span>
+                </div>
+              </Panel>
+            ) : (
+              <Panel>
+                <p>{account.historyLoading ? "Loading statistics..." : "No completed-match statistics yet."}</p>
+              </Panel>
+            )}
+          </section>
+          <section className="accountMatches" aria-labelledby="match-history-title">
+            <h2 id="match-history-title">Match History</h2>
+            {account.historyError ? (
+              <Panel>
+                <p role="alert">{account.historyError}</p>
+              </Panel>
+            ) : null}
+            {account.historyLoading && account.history.length === 0 ? (
+              <Panel>
+                <p>Loading completed matches...</p>
+              </Panel>
+            ) : account.history.length === 0 ? (
+              <Panel>
+                <p>No completed online matches yet.</p>
+              </Panel>
+            ) : (
+              account.history.map((match) => (
+                <Panel key={match.matchId} className="accountMatch accountHistoryMatch">
+                  <div>
+                    <strong>
+                      {match.result === "win" ? "Victory" : match.result === "loss" ? "Defeat" : "Draw"} vs {match.opponent.displayIdentity}
+                    </strong>
+                    <p>
+                      {match.side} - {match.victoryReason.replaceAll("_", " ")} - {match.turnCount} turns
+                    </p>
+                    <small>{new Date(match.completedAt).toLocaleString()}</small>
+                  </div>
+                  <GameButton
+                    variant="primary"
+                    size="sm"
+                    disabled={!match.replayAvailable}
+                    onClick={() => navigate(`/account/history/${match.matchId}`)}
+                  >
+                    {match.replayAvailable ? "View replay" : "Replay unavailable"}
+                  </GameButton>
+                </Panel>
+              ))
+            )}
+            {account.historyNextCursor ? (
+              <GameButton variant="secondary" size="sm" disabled={account.historyLoading} onClick={() => void account.loadMoreHistory()}>
+                {account.historyLoading ? "Loading..." : "Load more matches"}
+              </GameButton>
+            ) : null}
+          </section>
         </div>
       ) : (
         <Panel className="accountPanel">

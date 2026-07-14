@@ -32,6 +32,8 @@ export interface PostgresMatchRow extends QueryResultRow {
   successor_match_id: string | null;
   predecessor_match_id: string | null;
   post_game_presence: unknown;
+  history_event_sequence: number | string;
+  history_capture_started_at_version: number | string | null;
 }
 
 export interface PostgresReceiptRow extends QueryResultRow {
@@ -58,6 +60,8 @@ export interface EncodedMatchAggregate {
   successorMatchId: string | null;
   predecessorMatchId: string | null;
   postGame: PostGameState | null;
+  historyEventSequence: number;
+  historyCaptureStartedAtVersion: number | null;
 }
 
 function safeInteger(value: number | string, field: string): number {
@@ -190,6 +194,8 @@ export function encodeMatchAggregate(
     successorMatchId: aggregate.successorMatchId,
     predecessorMatchId: aggregate.predecessorMatchId,
     postGame: aggregate.postGame,
+    historyEventSequence: aggregate.historyEventSequence,
+    historyCaptureStartedAtVersion: aggregate.historyCaptureStartedAtVersion,
   };
 }
 
@@ -217,6 +223,17 @@ export function decodeMatchAggregate(row: PostgresMatchRow): MatchAggregate {
     successorMatchId: row.successor_match_id,
     predecessorMatchId: row.predecessor_match_id,
     postGame: postGameState(row.post_game_presence, status),
+    historyEventSequence: safeInteger(
+      row.history_event_sequence,
+      "history event sequence",
+    ),
+    historyCaptureStartedAtVersion:
+      row.history_capture_started_at_version === null
+        ? null
+        : safeInteger(
+            row.history_capture_started_at_version,
+            "history capture start version",
+          ),
   };
 }
 
