@@ -89,7 +89,7 @@ export function replayHistoricalMatch(input: HistoricalReplayInput): HistoricalR
       };
     }
     const command = event.payload.command;
-    if (!event.actorSide || event.actorSide !== expectedActor(state, command)) {
+    if (!event.actorSide || (command.type !== "Resign" && event.actorSide !== expectedActor(state, command))) {
       return {
         ok: false,
         code: "invalid_replay",
