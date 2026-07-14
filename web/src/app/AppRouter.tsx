@@ -12,6 +12,7 @@ import { RulesPage } from "../pages/RulesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SetupPage } from "../pages/SetupPage";
 import { AccountPage } from "../pages/AccountPage";
+import { MatchHistoryReplayPage } from "../pages/MatchHistoryReplayPage";
 import { useAppRoute } from "./routes";
 
 export function AppRouter() {
@@ -71,6 +72,9 @@ export function AppRouter() {
   }
   if (route === "/account") {
     return <AccountPage route={route} navigate={navigate} />;
+  }
+  if (route.startsWith("/account/history/")) {
+    return <MatchHistoryReplayPage route={route} navigate={navigate} />;
   }
   return <HomePage route={route} navigate={navigate} />;
 }

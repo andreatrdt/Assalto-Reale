@@ -74,6 +74,26 @@ describe("post-game persistence migration contract", () => {
   });
 });
 
+describe("immutable history migration contract", () => {
+  it("stores compact replay events, immutable summaries, lineage and derived statistics", () => {
+    const migration = POSTGRES_MIGRATIONS.find(
+      (candidate) => candidate.name === "add_immutable_match_history",
+    );
+
+    expect(migration?.version).toBe(5);
+    expect(migration?.sql).toContain("CREATE TABLE match_history_events");
+    expect(migration?.sql).toContain("CREATE TABLE match_history (");
+    expect(migration?.sql).toContain("CREATE TABLE match_history_successors");
+    expect(migration?.sql).toContain("CREATE TABLE player_statistics");
+    expect(migration?.sql).toContain("match_history_no_update_or_delete");
+    expect(migration?.sql).toContain(
+      "match_history_events_no_update_or_delete",
+    );
+    expect(migration?.sql).toContain("replay_available");
+    expect(migration?.sql).toContain("WHERE match.status = 'ended'");
+  });
+});
+
 describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
   let pool: Pool;
 
@@ -401,6 +421,111 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
         (SELECT COUNT(*)::int FROM authoritative_command_receipts) AS receipts
     `);
     expect(counts.rows[0]).toEqual({ matches: 1, receipts: 2 });
+  });
+
+  it("finalizes immutable history exactly once and attaches guest history on account claim", async () => {
+    const handler = makeHandler(pool);
+    const created = await handler.handle(
+      message(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "cmd_pg_history_create", playerId: ALICE },
+      ),
+    );
+    const first = created[0];
+    if (!first?.matchId || first.event.type !== "MatchCreated")
+      throw new Error("Expected MatchCreated.");
+    await handler.handle(
+      message(
+        { type: "JoinMatch", inviteCode: first.event.inviteCode },
+        {
+          commandId: "cmd_pg_history_join",
+          playerId: BOB,
+          matchId: first.matchId,
+        },
+      ),
+    );
+    const terminal = message(
+      { type: "Resign" },
+      {
+        commandId: "cmd_pg_history_resign",
+        playerId: BOB,
+        matchId: first.matchId,
+        expectedMatchVersion: 2,
+      },
+    );
+    const completed = await handler.handle(terminal);
+    await expect(handler.handle(terminal)).resolves.toEqual(completed);
+
+    const beforeClaim = await pool.query<{
+      histories: number;
+      events: number;
+      statistics: number;
+    }>(`
+      SELECT
+        (SELECT COUNT(*)::int FROM match_history) AS histories,
+        (SELECT COUNT(*)::int FROM match_history_events) AS events,
+        (SELECT COUNT(*)::int FROM player_statistics) AS statistics
+    `);
+    expect(beforeClaim.rows[0]).toEqual({
+      histories: 1,
+      events: 1,
+      statistics: 0,
+    });
+
+    const persistence = createPostgresPersistence(pool);
+    const account = await persistence.accounts.provisionRegisteredSession({
+      issuer: "https://tenant.example/",
+      providerSubject: "auth0|history-owner",
+      providerSessionId: "provider-session-history-owner",
+      expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+      verifiedEmail: null,
+    });
+    await persistence.accounts.claimGuestIdentity(
+      account.session.sessionId,
+      ALICE,
+    );
+    await persistence.accounts.claimGuestIdentity(
+      account.session.sessionId,
+      ALICE,
+    );
+
+    await expect(
+      persistence.history.listForUser(account.user.userId, { limit: 10 }),
+    ).resolves.toMatchObject({
+      matches: [
+        { matchId: first.matchId, result: "win", replayAvailable: true },
+      ],
+      nextCursor: null,
+    });
+    await expect(
+      persistence.history.statisticsForUser(account.user.userId),
+    ).resolves.toMatchObject({
+      gamesPlayed: 1,
+      wins: 1,
+      resignationWins: 1,
+    });
+    await expect(
+      pool.query("UPDATE match_history SET total_turns = total_turns + 1"),
+    ).rejects.toThrow("completed match history is immutable");
+
+    const cleanup = await persistence.maintenance.cleanupTransientRecords({
+      before: new Date("2100-01-01T00:00:00.000Z"),
+      limit: 100,
+    });
+    expect(cleanup.commandReceiptsDeleted).toBeGreaterThan(0);
+    const restarted = createPostgresPersistence(pool);
+    await expect(
+      restarted.history.getForUser(account.user.userId, first.matchId),
+    ).resolves.toMatchObject({
+      matchId: first.matchId,
+      replayAvailable: true,
+      events: [{ sequenceNumber: 1, eventType: "resignation" }],
+    });
+    await expect(
+      pool.query("SELECT COUNT(*)::int AS count FROM match_history"),
+    ).resolves.toMatchObject({
+      rows: [{ count: 1 }],
+    });
   });
 
   it("round-trips durable post-game presence without changing completed state", async () => {

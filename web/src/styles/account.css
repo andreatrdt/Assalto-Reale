@@ -36,6 +36,50 @@
   gap: 1rem;
   justify-content: space-between;
 }
+.accountSectionHeading,
+.accountStatistics {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.accountSectionHeading h2 {
+  margin: 0;
+}
+.accountStatistics > div {
+  display: grid;
+  min-width: 6rem;
+}
+.accountStatistics strong {
+  font-size: 1.45rem;
+}
+.accountStatistics span,
+.accountHistoryMatch small {
+  color: var(--text-muted);
+}
+.replayLayout {
+  display: grid;
+  gap: 1rem;
+}
+.replaySummary,
+.replayControls {
+  display: grid;
+  gap: 0.75rem;
+}
+.replaySummary h2,
+.replaySummary p,
+.replayControls p {
+  margin: 0;
+}
+.replayBoard {
+  margin: 0 auto;
+  max-width: 48rem;
+  width: 100%;
+}
+.replayControls input[type="range"] {
+  width: 100%;
+}
 @media (max-width: 38rem) {
   .accountMatch {
     align-items: stretch;

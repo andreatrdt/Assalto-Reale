@@ -2,9 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import {
   AccountSessionRevokedError,
+  emptyPlayerStatistics,
   type AccountRepository,
+  type MatchHistoryRepository,
   type RegisteredSession,
 } from "@assalto-reale/authoritative-server";
+import type {
+  MatchHistoryDetails,
+  MatchHistoryPage,
+} from "@assalto-reale/multiplayer-protocol";
 import {
   GuestOrRegisteredConnectionAuthenticator,
   GuestSessionConnectionAuthenticator,
@@ -127,6 +133,43 @@ function harness() {
     now: () => NOW.getTime(),
     randomId: () => "guestidentifier1234",
   });
+  const history: MatchHistoryRepository = {
+    listForUser: vi.fn(
+      async () =>
+        ({
+          matches: [
+            {
+              matchId: "match_history001",
+              completedAt: NOW.toISOString(),
+              opponent: {
+                side: "White",
+                kind: "guest",
+                displayIdentity: "Guest player",
+              },
+              side: "Black",
+              result: "win",
+              victoryReason: "resignation",
+              durationSeconds: 30,
+              turnCount: 2,
+              predecessorMatchId: null,
+              successorMatchId: null,
+              replayAvailable: true,
+            },
+          ],
+          nextCursor: null,
+        }) satisfies MatchHistoryPage,
+    ),
+    getForUser: vi.fn(async (_userId, matchId) =>
+      matchId === "match_history001"
+        ? ({ matchId, replayAvailable: true } as MatchHistoryDetails)
+        : null,
+    ),
+    statisticsForUser: vi.fn(async () => ({
+      ...emptyPlayerStatistics(),
+      gamesPlayed: 1,
+      wins: 1,
+    })),
+  };
   const auth = new RegisteredAuthService(
     verifier,
     accounts,
@@ -134,8 +177,9 @@ function harness() {
     30_000,
     () => NOW,
     () => "A".repeat(43),
+    history,
   );
-  return { accounts, auth, guest, isRevoked: () => revoked };
+  return { accounts, auth, guest, history, isRevoked: () => revoked };
 }
 
 const servers: AuthoritativeTransportServer[] = [];
@@ -185,7 +229,7 @@ describe("registered account authentication", () => {
   });
 
   it("serves CORS-restricted HTTP auth, logout revocation and registered WebSocket upgrade", async () => {
-    const { auth, guest, isRevoked } = harness();
+    const { auth, guest, history, isRevoked } = harness();
     const authenticator = new GuestOrRegisteredConnectionAuthenticator(
       new GuestSessionConnectionAuthenticator(guest),
       new RegisteredTicketConnectionAuthenticator(auth),
@@ -252,6 +296,40 @@ describe("registered account authentication", () => {
       socket.once("error", reject);
     });
     expect(socket.readyState).toBe(WebSocket.OPEN);
+
+    const historyResponse = await fetch(
+      `${base}/auth/matches/history?limit=10&result=win&side=Black`,
+      { headers },
+    );
+    expect(historyResponse.status).toBe(200);
+    await expect(historyResponse.json()).resolves.toMatchObject({
+      matches: [{ matchId: "match_history001", result: "win" }],
+    });
+    expect(history.listForUser).toHaveBeenCalledWith("user_account001", {
+      limit: 10,
+      result: "win",
+      side: "Black",
+    });
+    expect(
+      (
+        await fetch(`${base}/auth/matches/history/match_history001`, {
+          headers,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await fetch(`${base}/auth/matches/history/match_unknown001`, {
+          headers,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await fetch(`${base}/auth/matches/history?limit=0`, { headers })).status,
+    ).toBe(400);
+    await expect(
+      (await fetch(`${base}/auth/statistics`, { headers })).json(),
+    ).resolves.toMatchObject({ gamesPlayed: 1, wins: 1 });
 
     expect(
       (await fetch(`${base}/auth/logout`, { method: "POST", headers })).status,

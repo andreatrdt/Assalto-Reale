@@ -18,3 +18,4 @@ export * from "./matchTypes.js";
 export * from "./matchSetup.js";
 export * from "./match.js";
 export * from "./matchSerialization.js";
+export * from "./historyReplay.js";

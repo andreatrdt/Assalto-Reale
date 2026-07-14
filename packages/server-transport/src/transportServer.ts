@@ -398,22 +398,34 @@ export class AuthoritativeTransportServer {
       return;
     }
 
+    const requestUrl = new URL(request.url ?? path, "http://transport.local");
+    const historyDetailMatch =
+      /^\/auth\/matches\/history\/([A-Za-z0-9][A-Za-z0-9_-]{7,127})$/.exec(
+        path,
+      );
+
     const allowed =
       (path === "/auth/session" &&
         (request.method === "GET" || request.method === "POST")) ||
       (path === "/auth/matches" && request.method === "GET") ||
+      (path === "/auth/matches/history" && request.method === "GET") ||
+      (path === "/auth/statistics" && request.method === "GET") ||
+      (Boolean(historyDetailMatch) && request.method === "GET") ||
       ((path === "/auth/logout" ||
         path === "/auth/upgrade-guest" ||
         path === "/auth/websocket-ticket") &&
         request.method === "POST");
     if (!allowed) {
-      const known = new Set([
-        "/auth/session",
-        "/auth/matches",
-        "/auth/logout",
-        "/auth/upgrade-guest",
-        "/auth/websocket-ticket",
-      ]).has(path);
+      const known =
+        new Set([
+          "/auth/session",
+          "/auth/matches",
+          "/auth/matches/history",
+          "/auth/statistics",
+          "/auth/logout",
+          "/auth/upgrade-guest",
+          "/auth/websocket-ticket",
+        ]).has(path) || path.startsWith("/auth/matches/history/");
       this.sendJson(
         response,
         known ? 405 : 404,
@@ -457,6 +469,96 @@ export class AuthoritativeTransportServer {
           response,
           200,
           await auth.listActiveMatches(token),
+          false,
+          origin,
+        );
+        return;
+      }
+      if (path === "/auth/matches/history") {
+        const limitValue = requestUrl.searchParams.get("limit");
+        const limit = limitValue === null ? undefined : Number(limitValue);
+        if (
+          limit !== undefined &&
+          (!Number.isInteger(limit) || limit < 1 || limit > 50)
+        ) {
+          throw new TypeError("invalid_history_limit");
+        }
+        const result = requestUrl.searchParams.get("result") ?? undefined;
+        const side = requestUrl.searchParams.get("side") ?? undefined;
+        const victoryReason =
+          requestUrl.searchParams.get("victoryReason") ?? undefined;
+        const completedFrom =
+          requestUrl.searchParams.get("completedFrom") ?? undefined;
+        const completedTo =
+          requestUrl.searchParams.get("completedTo") ?? undefined;
+        if (
+          result &&
+          result !== "win" &&
+          result !== "loss" &&
+          result !== "draw"
+        )
+          throw new TypeError("invalid_history_result");
+        if (side && side !== "Black" && side !== "White")
+          throw new TypeError("invalid_history_side");
+        if (
+          victoryReason &&
+          ![
+            "king_capture",
+            "territory",
+            "timeout",
+            "resignation",
+            "abandonment",
+          ].includes(victoryReason)
+        ) {
+          throw new TypeError("invalid_history_reason");
+        }
+        if (completedFrom && !Number.isFinite(Date.parse(completedFrom)))
+          throw new TypeError("invalid_history_date");
+        if (completedTo && !Number.isFinite(Date.parse(completedTo)))
+          throw new TypeError("invalid_history_date");
+        this.sendJson(
+          response,
+          200,
+          await auth.listMatchHistory(token, {
+            ...(limit === undefined ? {} : { limit }),
+            ...(requestUrl.searchParams.get("cursor")
+              ? { cursor: requestUrl.searchParams.get("cursor")! }
+              : {}),
+            ...(result ? { result: result as "win" | "loss" | "draw" } : {}),
+            ...(side ? { side: side as "Black" | "White" } : {}),
+            ...(victoryReason
+              ? {
+                  victoryReason: victoryReason as
+                    | "king_capture"
+                    | "territory"
+                    | "timeout"
+                    | "resignation"
+                    | "abandonment",
+                }
+              : {}),
+            ...(completedFrom ? { completedFrom } : {}),
+            ...(completedTo ? { completedTo } : {}),
+          }),
+          false,
+          origin,
+        );
+        return;
+      }
+      if (historyDetailMatch) {
+        this.sendJson(
+          response,
+          200,
+          await auth.getMatchHistory(token, historyDetailMatch[1]!),
+          false,
+          origin,
+        );
+        return;
+      }
+      if (path === "/auth/statistics") {
+        this.sendJson(
+          response,
+          200,
+          await auth.getPlayerStatistics(token),
           false,
           origin,
         );

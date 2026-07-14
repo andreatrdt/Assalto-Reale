@@ -205,6 +205,246 @@ ALTER TABLE authoritative_matches
   );
 `,
   },
+  {
+    version: 5,
+    name: "add_immutable_match_history",
+    sql: `
+ALTER TABLE authoritative_matches
+  ADD COLUMN history_event_sequence INTEGER NOT NULL DEFAULT 0 CHECK (history_event_sequence >= 0),
+  ADD COLUMN history_capture_started_at_version INTEGER CHECK (history_capture_started_at_version > 0);
+
+CREATE TABLE match_history_events (
+  match_id TEXT NOT NULL REFERENCES authoritative_matches(match_id) ON DELETE RESTRICT,
+  sequence_number INTEGER NOT NULL CHECK (sequence_number > 0),
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'place_piece', 'submit_action', 'choose_defender', 'cancel_defended_king',
+    'choose_transform', 'pass_turn', 'resignation', 'timeout'
+  )),
+  actor_player_identity_id TEXT REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  actor_side TEXT CHECK (actor_side IS NULL OR actor_side IN ('Black', 'White')),
+  payload JSONB NOT NULL CHECK (jsonb_typeof(payload) = 'object'),
+  occurred_at TIMESTAMPTZ NOT NULL,
+  match_version_before INTEGER NOT NULL CHECK (match_version_before > 0),
+  match_version_after INTEGER NOT NULL CHECK (match_version_after > match_version_before),
+  replay_schema_version INTEGER NOT NULL CHECK (replay_schema_version > 0),
+  PRIMARY KEY (match_id, sequence_number)
+);
+
+CREATE TABLE match_history (
+  match_id TEXT PRIMARY KEY REFERENCES authoritative_matches(match_id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL,
+  started_at TIMESTAMPTZ NOT NULL,
+  completed_at TIMESTAMPTZ NOT NULL,
+  black_player_identity_id TEXT NOT NULL REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  white_player_identity_id TEXT NOT NULL REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  black_user_id TEXT REFERENCES account_users(user_id) ON DELETE RESTRICT,
+  white_user_id TEXT REFERENCES account_users(user_id) ON DELETE RESTRICT,
+  winner_player_identity_id TEXT REFERENCES player_identities(player_id) ON DELETE RESTRICT,
+  winner_side TEXT CHECK (winner_side IS NULL OR winner_side IN ('Black', 'White')),
+  result TEXT NOT NULL CHECK (result IN ('Black', 'White', 'draw')),
+  victory_reason TEXT NOT NULL CHECK (victory_reason IN (
+    'king_capture', 'territory', 'timeout', 'resignation', 'abandonment'
+  )),
+  total_turns INTEGER NOT NULL CHECK (total_turns >= 0),
+  total_events INTEGER NOT NULL CHECK (total_events >= 0),
+  duration_seconds INTEGER NOT NULL CHECK (duration_seconds >= 0),
+  time_control JSONB NOT NULL CHECK (jsonb_typeof(time_control) = 'object'),
+  rated BOOLEAN NOT NULL DEFAULT FALSE CHECK (rated = FALSE),
+  predecessor_match_id TEXT,
+  final_match_version INTEGER NOT NULL CHECK (final_match_version > 0),
+  rules_version INTEGER NOT NULL CHECK (rules_version > 0),
+  protocol_version INTEGER NOT NULL CHECK (protocol_version > 0),
+  replay_schema_version INTEGER NOT NULL CHECK (replay_schema_version > 0),
+  replay_available BOOLEAN NOT NULL,
+  seed BIGINT NOT NULL,
+  config JSONB NOT NULL CHECK (jsonb_typeof(config) = 'object'),
+  final_snapshot JSONB NOT NULL CHECK (jsonb_typeof(final_snapshot) = 'object'),
+  created_from_authoritative_match_version INTEGER NOT NULL CHECK (created_from_authoritative_match_version > 0),
+  black_statistics JSONB NOT NULL CHECK (jsonb_typeof(black_statistics) = 'object'),
+  white_statistics JSONB NOT NULL CHECK (jsonb_typeof(white_statistics) = 'object'),
+  history_generation_complete BOOLEAN NOT NULL DEFAULT TRUE CHECK (history_generation_complete = TRUE),
+  integrity_checksum TEXT NOT NULL CHECK (integrity_checksum ~ '^[a-f0-9]{64}$')
+);
+
+CREATE INDEX match_history_black_player_idx
+  ON match_history (black_player_identity_id, completed_at DESC, match_id DESC);
+CREATE INDEX match_history_white_player_idx
+  ON match_history (white_player_identity_id, completed_at DESC, match_id DESC);
+CREATE INDEX match_history_completed_idx
+  ON match_history (completed_at DESC, match_id DESC);
+
+CREATE TABLE match_history_successors (
+  predecessor_match_id TEXT PRIMARY KEY REFERENCES match_history(match_id) ON DELETE RESTRICT,
+  successor_match_id TEXT NOT NULL UNIQUE REFERENCES authoritative_matches(match_id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE player_statistics (
+  user_id TEXT PRIMARY KEY REFERENCES account_users(user_id) ON DELETE RESTRICT,
+  games_played BIGINT NOT NULL DEFAULT 0 CHECK (games_played >= 0),
+  wins BIGINT NOT NULL DEFAULT 0 CHECK (wins >= 0),
+  losses BIGINT NOT NULL DEFAULT 0 CHECK (losses >= 0),
+  draws BIGINT NOT NULL DEFAULT 0 CHECK (draws >= 0),
+  king_capture_wins BIGINT NOT NULL DEFAULT 0 CHECK (king_capture_wins >= 0),
+  territory_wins BIGINT NOT NULL DEFAULT 0 CHECK (territory_wins >= 0),
+  timeout_wins BIGINT NOT NULL DEFAULT 0 CHECK (timeout_wins >= 0),
+  resignation_wins BIGINT NOT NULL DEFAULT 0 CHECK (resignation_wins >= 0),
+  black_games BIGINT NOT NULL DEFAULT 0 CHECK (black_games >= 0),
+  black_wins BIGINT NOT NULL DEFAULT 0 CHECK (black_wins >= 0),
+  white_games BIGINT NOT NULL DEFAULT 0 CHECK (white_games >= 0),
+  white_wins BIGINT NOT NULL DEFAULT 0 CHECK (white_wins >= 0),
+  total_turns BIGINT NOT NULL DEFAULT 0 CHECK (total_turns >= 0),
+  total_duration_seconds BIGINT NOT NULL DEFAULT 0 CHECK (total_duration_seconds >= 0),
+  captures_made BIGINT NOT NULL DEFAULT 0 CHECK (captures_made >= 0),
+  pieces_lost BIGINT NOT NULL DEFAULT 0 CHECK (pieces_lost >= 0),
+  transformations BIGINT NOT NULL DEFAULT 0 CHECK (transformations >= 0),
+  defended_king_sacrifices BIGINT NOT NULL DEFAULT 0 CHECK (defended_king_sacrifices >= 0),
+  territory_claims_created BIGINT NOT NULL DEFAULT 0 CHECK (territory_claims_created >= 0),
+  current_win_streak BIGINT NOT NULL DEFAULT 0 CHECK (current_win_streak >= 0),
+  longest_win_streak BIGINT NOT NULL DEFAULT 0 CHECK (longest_win_streak >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  version BIGINT NOT NULL DEFAULT 1 CHECK (version > 0)
+);
+
+WITH terminal_results AS (
+  SELECT
+    match.match_id,
+    COALESCE(
+      match.state -> 'victory' ->> 'winner',
+      terminal_event.envelope -> 'event' ->> 'winner'
+    ) AS winner_side
+  FROM authoritative_matches match
+  LEFT JOIN LATERAL (
+    SELECT envelope
+    FROM authoritative_command_receipts receipt
+    CROSS JOIN LATERAL jsonb_array_elements(receipt.envelopes) envelope
+    WHERE receipt.match_id = match.match_id
+      AND envelope -> 'event' ->> 'type' = 'MatchEnded'
+    ORDER BY receipt.created_at DESC
+    LIMIT 1
+  ) terminal_event ON TRUE
+  WHERE match.status = 'ended'
+)
+INSERT INTO match_history (
+  match_id, created_at, started_at, completed_at,
+  black_player_identity_id, white_player_identity_id,
+  black_user_id, white_user_id, winner_player_identity_id, winner_side, result,
+  victory_reason, total_turns, total_events, duration_seconds, time_control,
+  predecessor_match_id, final_match_version, rules_version, protocol_version,
+  replay_schema_version, replay_available, seed, config, final_snapshot,
+  created_from_authoritative_match_version, black_statistics, white_statistics,
+  integrity_checksum
+)
+SELECT
+  match.match_id,
+  match.created_at,
+  match.created_at,
+  match.updated_at,
+  match.black_player_id,
+  match.white_player_id,
+  black_identity.user_id,
+  white_identity.user_id,
+  CASE terminal.winner_side
+    WHEN 'Black' THEN match.black_player_id
+    WHEN 'White' THEN match.white_player_id
+    ELSE NULL
+  END,
+  CASE WHEN terminal.winner_side IN ('Black', 'White') THEN terminal.winner_side ELSE NULL END,
+  CASE WHEN terminal.winner_side IN ('Black', 'White') THEN terminal.winner_side ELSE 'draw' END,
+  match.end_reason,
+  COALESCE((match.state ->> 'turnCounter')::INTEGER, 0),
+  0,
+  GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (match.updated_at - match.created_at)))::INTEGER),
+  match.config -> 'timeControl',
+  match.predecessor_match_id,
+  match.version,
+  1,
+  1,
+  1,
+  FALSE,
+  match.seed,
+  match.config,
+  match.state,
+  match.version,
+  '{"capturesMade":0,"piecesLost":0,"transformations":0,"defendedKingSacrifices":0,"territoryClaimsCreated":0}'::jsonb,
+  '{"capturesMade":0,"piecesLost":0,"transformations":0,"defendedKingSacrifices":0,"territoryClaimsCreated":0}'::jsonb,
+  md5(match.match_id || ':' || match.version::TEXT || ':' || match.updated_at::TEXT)
+    || md5(match.updated_at::TEXT || ':' || match.match_id)
+FROM authoritative_matches match
+JOIN terminal_results terminal ON terminal.match_id = match.match_id
+JOIN player_identities black_identity ON black_identity.player_id = match.black_player_id
+JOIN player_identities white_identity ON white_identity.player_id = match.white_player_id
+WHERE match.status = 'ended'
+  AND match.end_reason IS NOT NULL
+  AND match.black_player_id IS NOT NULL
+  AND match.white_player_id IS NOT NULL;
+
+WITH user_matches AS (
+  SELECT black_user_id AS user_id, 'Black'::TEXT AS side, winner_side, victory_reason, total_turns, duration_seconds
+  FROM match_history WHERE black_user_id IS NOT NULL
+  UNION ALL
+  SELECT white_user_id, 'White', winner_side, victory_reason, total_turns, duration_seconds
+  FROM match_history WHERE white_user_id IS NOT NULL
+)
+INSERT INTO player_statistics (
+  user_id, games_played, wins, losses, draws,
+  king_capture_wins, territory_wins, timeout_wins, resignation_wins,
+  black_games, black_wins, white_games, white_wins,
+  total_turns, total_duration_seconds
+)
+SELECT
+  user_id,
+  COUNT(*),
+  COUNT(*) FILTER (WHERE winner_side = side),
+  COUNT(*) FILTER (WHERE winner_side IS NOT NULL AND winner_side <> side),
+  COUNT(*) FILTER (WHERE winner_side IS NULL),
+  COUNT(*) FILTER (WHERE winner_side = side AND victory_reason = 'king_capture'),
+  COUNT(*) FILTER (WHERE winner_side = side AND victory_reason = 'territory'),
+  COUNT(*) FILTER (WHERE winner_side = side AND victory_reason = 'timeout'),
+  COUNT(*) FILTER (WHERE winner_side = side AND victory_reason = 'resignation'),
+  COUNT(*) FILTER (WHERE side = 'Black'),
+  COUNT(*) FILTER (WHERE side = 'Black' AND winner_side = side),
+  COUNT(*) FILTER (WHERE side = 'White'),
+  COUNT(*) FILTER (WHERE side = 'White' AND winner_side = side),
+  SUM(total_turns),
+  SUM(duration_seconds)
+FROM user_matches
+GROUP BY user_id;
+
+CREATE FUNCTION reject_immutable_match_history_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'completed match history is immutable';
+END;
+$$;
+
+CREATE TRIGGER match_history_no_update_or_delete
+BEFORE UPDATE OR DELETE ON match_history
+FOR EACH ROW EXECUTE FUNCTION reject_immutable_match_history_mutation();
+
+CREATE TRIGGER match_history_events_no_update_or_delete
+BEFORE UPDATE OR DELETE ON match_history_events
+FOR EACH ROW EXECUTE FUNCTION reject_immutable_match_history_mutation();
+
+CREATE TRIGGER match_history_successors_no_update_or_delete
+BEFORE UPDATE OR DELETE ON match_history_successors
+FOR EACH ROW EXECUTE FUNCTION reject_immutable_match_history_mutation();
+
+CREATE FUNCTION reject_late_match_history_event()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM match_history WHERE match_id = NEW.match_id) THEN
+    RAISE EXCEPTION 'cannot append replay events after history finalization';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER match_history_events_no_late_append
+BEFORE INSERT ON match_history_events
+FOR EACH ROW EXECUTE FUNCTION reject_late_match_history_event();
+`,
+  },
 ] as const;
 
 function checksum(sql: string): string {

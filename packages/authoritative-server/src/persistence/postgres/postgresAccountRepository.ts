@@ -12,6 +12,7 @@ import {
   type RegisteredIdentityClaims,
   type RegisteredSession,
 } from "../../accounts.js";
+import { rebuildPostgresPlayerStatistics } from "./postgresHistoryRepository.js";
 
 interface AccountRow extends QueryResultRow {
   user_id: string;
@@ -434,6 +435,7 @@ export class PostgresAccountRepository implements AccountRepository {
         `,
         [sessionId, guestPlayerId],
       );
+      await rebuildPostgresPlayerStatistics(client, session.user.userId);
       await client.query("COMMIT");
       const updated = await selectSession(this.pool, "s.session_id", sessionId);
       if (!updated)

@@ -53,6 +53,11 @@ export const accountApi = {
       body: JSON.stringify({ guestToken }),
     }),
   matches: async (base: string, token: string) => (await request<{ matches: ActiveAccountMatch[] }>(base, "/matches", token)).matches,
+  history: (base: string, token: string, query = "") =>
+    request<MatchHistoryPage>(base, `/matches/history${query ? `?${query}` : ""}`, token),
+  historyDetails: (base: string, token: string, matchId: string) =>
+    request<MatchHistoryDetails>(base, `/matches/history/${encodeURIComponent(matchId)}`, token),
+  statistics: (base: string, token: string) => request<PlayerStatisticsSummary>(base, "/statistics", token),
   logout: (base: string, token: string) => request<Record<string, never>>(base, "/logout", token, { method: "POST" }),
   websocketTicket: (base: string, token: string, matchId: string | null) =>
     request<{
@@ -65,3 +70,4 @@ export const accountApi = {
       body: JSON.stringify(matchId ? { matchId } : {}),
     }),
 };
+import type { MatchHistoryDetails, MatchHistoryPage, PlayerStatisticsSummary } from "../online/protocol";

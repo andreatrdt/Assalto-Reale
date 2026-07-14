@@ -66,6 +66,10 @@ export interface MatchAggregate {
   successorMatchId: string | null;
   /** The match this one is a rematch of, if any. */
   predecessorMatchId: string | null;
+  /** Monotonic compact replay sequence; post-game metadata never increments it. */
+  historyEventSequence: number;
+  /** Null for matches that began before durable replay capture was deployed. */
+  historyCaptureStartedAtVersion: number | null;
 }
 
 export interface Emission {
@@ -158,6 +162,8 @@ export function createMatchAggregate(input: CreateMatchInput): {
     rematchOfferedBy: null,
     successorMatchId: null,
     predecessorMatchId: null,
+    historyEventSequence: 0,
+    historyCaptureStartedAtVersion: 1,
   };
 
   const emissions: Emission[] = [
@@ -272,6 +278,7 @@ export function applyGameCommand(
   const next = cloneAggregate(aggregate);
   next.state = result.state;
   next.version += 1;
+  next.historyEventSequence += 1;
   if (result.state.phase === "gameOver" && result.state.victory) {
     next.status = "ended";
     next.endReason = result.state.victory.reason;
@@ -331,6 +338,7 @@ export function resignAggregate(
   next.endReason = "resignation";
   next.postGame = initialPostGameState(next.members);
   next.version += 1;
+  next.historyEventSequence += 1;
   next.streamSequence += 1;
 
   const winner = opponent(actorSide);
@@ -682,6 +690,8 @@ export function createRematchAggregate(
     rematchOfferedBy: null,
     successorMatchId: null,
     predecessorMatchId: previous.matchId,
+    historyEventSequence: 0,
+    historyCaptureStartedAtVersion: 1,
   };
   const updatedPrevious = cloneAggregate(previous);
   updatedPrevious.rematchOfferedBy = null;

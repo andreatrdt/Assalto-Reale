@@ -39,6 +39,127 @@ export interface OnlineMatchConfig {
   timeControl: TimeControl;
 }
 
+export const MATCH_REPLAY_SCHEMA_VERSION = 1 as const;
+export const MATCH_RULES_VERSION = 1 as const;
+
+export type HistoricalGameCommand = Extract<
+  ClientCommand,
+  {
+    type: "PlacePiece" | "SubmitAction" | "ChooseDefender" | "CancelDefendedKing" | "ChooseTransform" | "PassTurn" | "Resign";
+  }
+>;
+
+export type MatchHistoryEventType =
+  | "place_piece"
+  | "submit_action"
+  | "choose_defender"
+  | "cancel_defended_king"
+  | "choose_transform"
+  | "pass_turn"
+  | "resignation"
+  | "timeout";
+
+export interface MatchHistoryReplayEvent {
+  sequenceNumber: number;
+  eventType: MatchHistoryEventType;
+  actorSide: PlayerSide | null;
+  occurredAt: string;
+  matchVersionBefore: number;
+  matchVersionAfter: number;
+  payload: {
+    schemaVersion: typeof MATCH_REPLAY_SCHEMA_VERSION;
+    command: HistoricalGameCommand;
+  };
+}
+
+export type MatchHistoryPerspectiveResult = "win" | "loss" | "draw";
+
+export interface MatchHistoryParticipant {
+  side: PlayerSide;
+  kind: "guest" | "registered";
+  displayIdentity: string;
+}
+
+export interface MatchHistorySummary {
+  matchId: string;
+  completedAt: string;
+  opponent: MatchHistoryParticipant;
+  side: PlayerSide;
+  result: MatchHistoryPerspectiveResult;
+  victoryReason: MatchEndReason;
+  durationSeconds: number;
+  turnCount: number;
+  predecessorMatchId: string | null;
+  successorMatchId: string | null;
+  replayAvailable: boolean;
+}
+
+export interface MatchHistoryPage {
+  matches: MatchHistorySummary[];
+  nextCursor: string | null;
+}
+
+export interface MatchHistoryPlayerStatistics {
+  capturesMade: number;
+  piecesLost: number;
+  transformations: number;
+  defendedKingSacrifices: number;
+  territoryClaimsCreated: number;
+}
+
+export interface PlayerStatisticsSummary {
+  gamesPlayed: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  kingCaptureWins: number;
+  territoryWins: number;
+  timeoutWins: number;
+  resignationWins: number;
+  blackGames: number;
+  blackWins: number;
+  whiteGames: number;
+  whiteWins: number;
+  totalTurns: number;
+  totalDurationSeconds: number;
+  capturesMade: number;
+  piecesLost: number;
+  transformations: number;
+  defendedKingSacrifices: number;
+  territoryClaimsCreated: number;
+  currentWinStreak: number;
+  longestWinStreak: number;
+  updatedAt: string | null;
+  version: number;
+}
+
+export interface MatchHistoryDetails {
+  matchId: string;
+  createdAt: string;
+  startedAt: string;
+  completedAt: string;
+  players: Record<PlayerSide, MatchHistoryParticipant>;
+  viewerSide: PlayerSide;
+  result: MatchHistoryPerspectiveResult;
+  winner: PlayerSide | null;
+  victoryReason: MatchEndReason;
+  durationSeconds: number;
+  turnCount: number;
+  predecessorMatchId: string | null;
+  successorMatchId: string | null;
+  finalMatchVersion: number;
+  rulesVersion: number;
+  protocolVersion: number;
+  replaySchemaVersion: number;
+  replayAvailable: boolean;
+  integrityChecksum: string;
+  seed: number;
+  config: OnlineMatchConfig;
+  finalSnapshot: CanonicalMatchSnapshot;
+  statistics: Record<PlayerSide, MatchHistoryPlayerStatistics>;
+  events: MatchHistoryReplayEvent[];
+}
+
 /**
  * Authoritative match lifecycle, conveyed on a canonical snapshot so a
  * reconnecting client restores membership/completion state without inferring it

@@ -9,6 +9,7 @@ import {
   type PostGameSnapshot,
   type ServerEvent,
   type ServerEventEnvelope,
+  type HistoricalGameCommand,
 } from "@assalto-reale/multiplayer-protocol";
 import {
   applyGameCommand,
@@ -51,6 +52,7 @@ import {
   type UnitOfWork,
 } from "./repositories.js";
 import { snapshotOf } from "./protocol/translate.js";
+import { createStoredHistoryEvent } from "./history.js";
 
 export interface CommandHandlerDeps {
   matches: MatchRepository;
@@ -553,6 +555,7 @@ export class CommandHandler {
         resignAggregate(aggregate, actorSide),
         envelope,
         recipient,
+        { actorPlayerId: playerId, actorSide, command },
       );
     }
     if (isProtocolGameCommand(command)) {
@@ -562,6 +565,7 @@ export class CommandHandler {
         applyGameCommand(aggregate, actorSide, command),
         envelope,
         recipient,
+        { actorPlayerId: playerId, actorSide, command },
       );
     }
 
@@ -756,6 +760,7 @@ export class CommandHandler {
       kind: "expectedVersion",
       version: previous.version,
     });
+    tx.linkHistorySuccessor(previous.matchId, creation.rematch.matchId);
     return this.envelopesFor(
       creation.emissions,
       creation.rematch.matchId,
@@ -797,6 +802,11 @@ export class CommandHandler {
     outcome: OperationOutcome,
     envelope: ClientCommandEnvelope,
     recipient: { playerId: string },
+    history?: {
+      actorPlayerId: string;
+      actorSide: "Black" | "White";
+      command: HistoricalGameCommand;
+    },
   ): ServerEventEnvelope[] {
     if (!outcome.ok) {
       return [
@@ -815,6 +825,21 @@ export class CommandHandler {
       kind: "expectedVersion",
       version: previous.version,
     });
+    if (history) {
+      const occurredAt = this.deps.clock.now();
+      tx.appendHistoryEvent(
+        outcome.aggregate.matchId,
+        createStoredHistoryEvent({
+          previous,
+          next: outcome.aggregate,
+          ...history,
+          occurredAt,
+        }),
+      );
+      if (previous.status !== "ended" && outcome.aggregate.status === "ended") {
+        tx.finalizeMatchHistory(outcome.aggregate, occurredAt);
+      }
+    }
     return this.envelopesFor(
       outcome.emissions,
       outcome.aggregate.matchId,

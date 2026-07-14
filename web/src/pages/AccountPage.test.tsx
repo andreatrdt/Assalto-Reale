@@ -8,7 +8,13 @@ const actions = {
   signIn: async () => undefined,
   signOut: async () => undefined,
   refreshMatches: async () => undefined,
+  refreshHistory: async () => undefined,
+  loadMoreHistory: async () => undefined,
+  loadHistoryMatch: async () => {
+    throw new Error("not loaded");
+  },
 };
+const historyState = { history: [], historyNextCursor: null, statistics: null, historyLoading: false, historyError: null };
 
 function render(value: AccountContextValue): string {
   return renderToStaticMarkup(
@@ -20,7 +26,7 @@ function render(value: AccountContextValue): string {
 
 describe("minimal account page", () => {
   it("keeps guest play available when auth is disabled", () => {
-    const html = render({ state: "guest", enabled: false, account: null, matches: [], error: null, ...actions });
+    const html = render({ state: "guest", enabled: false, account: null, matches: [], error: null, ...historyState, ...actions });
     expect(html).toContain("Continue without an account");
     expect(html).toContain("Play online as guest");
   });
@@ -37,6 +43,7 @@ describe("minimal account page", () => {
       enabled: true,
       account: null,
       matches: [],
+      ...historyState,
       error: state === "auth-failed" ? "Failed safely." : null,
       ...actions,
     });
@@ -55,12 +62,32 @@ describe("minimal account page", () => {
         expiresAt: "2030-01-01T00:00:00.000Z",
       },
       matches: [{ matchId: "match_account01", side: "White", status: "active", updatedAt: "2028-01-01T00:00:00.000Z" }],
+      ...historyState,
+      history: [
+        {
+          matchId: "match_history01",
+          completedAt: "2028-01-01T00:00:00.000Z",
+          opponent: { side: "White", kind: "guest", displayIdentity: "Guest player" },
+          side: "Black",
+          result: "win",
+          victoryReason: "resignation",
+          durationSeconds: 10,
+          turnCount: 2,
+          predecessorMatchId: null,
+          successorMatchId: null,
+          replayAvailable: true,
+        },
+      ],
       error: null,
       ...actions,
     });
     expect(html).toContain("player@example.test");
     expect(html).toContain("match_account01");
     expect(html).toContain("Sign out");
-    expect(html).not.toMatch(/rating|leaderboard|match history/i);
+    expect(html).toContain("Match History");
+    expect(html).toContain("Victory");
+    expect(html).toContain("Guest player");
+    expect(html).toContain("View replay");
+    expect(html).not.toMatch(/rating|leaderboard/i);
   });
 });
