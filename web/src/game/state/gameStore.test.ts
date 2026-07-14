@@ -243,7 +243,7 @@ describe("game store wiring", () => {
       owner: "Black",
       player: "Black",
       pieceType: "AttackPawn",
-      forceTurnSwitch: true,
+      forceTurnSwitch: false,
     });
 
     useGameStore.getState().chooseTransform("DefensePawn");
@@ -252,6 +252,35 @@ describe("game store wiring", () => {
     expect(after.currentPlayer).toBe("White");
     expect(after.turnCounter).toBe(1);
     expect(after.phase.phase).toBe("playing");
+  });
+
+  it("lets the AI resolve a later-turn Transform without deadlocking", () => {
+    const board = createBoard({ transformEnabled: true });
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 6], { player: "Black", type: "AttackPawn" });
+    setPiece(board, [10, 1], { player: "Black", type: "King" });
+    setPiece(board, [10, 10], { player: "White", type: "King" });
+    updateControl(board);
+    useGameStore.setState({
+      phase: { phase: "playing" },
+      board,
+      currentPlayer: "Black",
+      movesThisTurn: 0,
+      kingMoved: false,
+      selected: null,
+      legalTargets: [],
+      pendingTransform: null,
+      pendingDefendedKing: null,
+      aiEnabled: true,
+      aiPlayer: "Black",
+    });
+
+    useGameStore.getState().runAiTurn();
+    expect(useGameStore.getState().phase.phase).toBe("transformSelection");
+    useGameStore.getState().runAiTurn();
+    expect(useGameStore.getState().phase.phase).toBe("playing");
+    expect(useGameStore.getState().movesThisTurn).toBe(1);
+    expect(getPiece(useGameStore.getState().board, [5, 6])?.type).not.toBe("AttackPawn");
   });
 
   it("counts down the active player clock with monotonic ticks and ends on timeout", () => {

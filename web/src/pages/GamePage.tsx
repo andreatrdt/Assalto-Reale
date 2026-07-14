@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { GameBoard, PieceGlyph } from "../board/GameBoard";
-import { canPlacePiece, PAWN_TYPES, type BoardState, type PieceType, type Player, type Vec2 } from "../game/engine";
+import { canPlacePiece, type BoardState, type PieceType, type Player, type Vec2 } from "../game/engine";
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
 import { useOnlineMatchStore } from "../online/onlineStore";
@@ -35,6 +35,7 @@ export function GamePage({ navigate }: GamePageProps) {
   const message = useGameStore((state) => state.message);
   const activateSquare = useGameStore((state) => state.activateSquare);
   const chooseTransform = useGameStore((state) => state.chooseTransform);
+  const declineTransform = useGameStore((state) => state.declineTransform);
   const passTurn = useGameStore((state) => state.passTurn);
   const undo = useGameStore((state) => state.undo);
   const saveGame = useGameStore((state) => state.saveGame);
@@ -254,7 +255,10 @@ export function GamePage({ navigate }: GamePageProps) {
             selected={selected}
             legalTargets={legalTargets}
             placementValid={placementValid}
+            transformDecision={pendingTransform}
             onSquareActivate={activateSquare}
+            onChooseTransform={chooseTransform}
+            onDeclineTransform={declineTransform}
           />
         </div>
 
@@ -271,8 +275,6 @@ export function GamePage({ navigate }: GamePageProps) {
               disabled={aiEnabled && currentPlacement.player === aiPlayer}
               online={isOnline}
             />
-          ) : phase === "transformSelection" && pendingTransform ? (
-            <TransformPanel pendingTransform={pendingTransform} message={activeMessage} chooseTransform={chooseTransform} />
           ) : phase === "gameOver" ? (
             <VictoryPanel
               message={activeMessage}
@@ -291,7 +293,7 @@ export function GamePage({ navigate }: GamePageProps) {
               undo={undo}
               saveGame={saveGame}
               loadGame={loadGame}
-              disabled={Boolean(aiControlsTurn)}
+              disabled={Boolean(aiControlsTurn) || phase === "transformSelection"}
               online={isOnline}
             />
           )}
@@ -483,32 +485,6 @@ export function PlacementPanel({
           </GameButton>
         </div>
       )}
-    </div>
-  );
-}
-
-export function TransformPanel({
-  pendingTransform,
-  message,
-  chooseTransform,
-}: {
-  pendingTransform: NonNullable<ReturnType<typeof useGameStore.getState>["pendingTransform"]>;
-  message: string;
-  chooseTransform: (pieceType: (typeof PAWN_TYPES)[number]) => void;
-}) {
-  return (
-    <div className="matchPanel">
-      <StatusBadge tone="info" icon="spark">
-        Transform
-      </StatusBadge>
-      <p className="statusLine">{message}</p>
-      <div className="choiceGrid">
-        {PAWN_TYPES.filter((pieceType) => pieceType !== pendingTransform.pieceType).map((pieceType) => (
-          <GameButton key={pieceType} variant="secondary" onClick={() => chooseTransform(pieceType)}>
-            {pieceType.replace("Pawn", " Pawn")}
-          </GameButton>
-        ))}
-      </div>
     </div>
   );
 }

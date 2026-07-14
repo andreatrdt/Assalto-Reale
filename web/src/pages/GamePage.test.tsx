@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { BoardState } from "../game/engine";
 import { GameBoard } from "../board/GameBoard";
-import { CapturedPieces, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
+import { CapturedPieces, GameStatus, MatchPanel, VictoryPanel } from "./GamePage";
 
 const noop = () => undefined;
 
@@ -97,20 +97,29 @@ describe("GameStatus", () => {
 });
 
 describe("Game decision and control panels", () => {
-  it("offers the transform replacement choices for the current pawn", () => {
+  it("offers transform and ignore choices directly on the board", () => {
     const pendingTransform = {
+      owner: "Black",
       player: "Black",
       pieceType: "AttackPawn",
       pos: [0, 0],
-    } as unknown as Parameters<typeof TransformPanel>[0]["pendingTransform"];
+      forceTurnSwitch: false,
+    } as const;
 
     const html = renderToStaticMarkup(
-      <TransformPanel pendingTransform={pendingTransform} message="Choose a transform." chooseTransform={noop} />,
+      <GameBoard
+        board={{ ...board, transformSquares: [[0, 0]] }}
+        transformDecision={pendingTransform}
+        onChooseTransform={noop}
+        onDeclineTransform={noop}
+      />,
     );
 
     expect(html).toContain("Defense Pawn");
     expect(html).toContain("Conquest Pawn");
-    expect(html).not.toContain("Attack Pawn");
+    expect(html).toContain("Ignore Transform Square");
+    expect(html).toContain("transformDecisionAnchor");
+    expect(html).not.toContain("matchPanel");
   });
 
   it("shows compact active-play controls and captured pieces", () => {

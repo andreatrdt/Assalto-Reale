@@ -18,7 +18,15 @@ import {
 type ProtocolCoreCommand = Extract<
   ClientCommand,
   {
-    type: "PlacePiece" | "SubmitAction" | "ChooseDefender" | "CancelDefendedKing" | "ChooseTransform" | "PassTurn";
+    type:
+      | "PlacePiece"
+      | "SubmitAction"
+      | "ChooseDefender"
+      | "CancelDefendedKing"
+      | "ActivateTransform"
+      | "ChooseTransform"
+      | "DeclineTransform"
+      | "PassTurn";
   }
 >;
 type Assert<T extends true> = T;
@@ -116,6 +124,19 @@ describe("multiplayer protocol", () => {
     const result = validateClientMessage(message);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.path).toBe("expectedMatchVersion");
+  });
+
+  it("validates explicit Transform activation and decline commands strictly", () => {
+    expect(validateClientMessage(createEnvelope({ type: "ActivateTransform", position: [5, 6] })).ok).toBe(true);
+    expect(validateClientMessage(createEnvelope({ type: "DeclineTransform" })).ok).toBe(true);
+
+    const malformedPosition = createEnvelope({ type: "PassTurn" }) as unknown as Record<string, unknown>;
+    malformedPosition.command = { type: "ActivateTransform", position: [5] };
+    expect(validateClientMessage(malformedPosition).ok).toBe(false);
+
+    const malformedDecline = createEnvelope({ type: "PassTurn" }) as unknown as Record<string, unknown>;
+    malformedDecline.command = { type: "DeclineTransform", newType: "DefensePawn" };
+    expect(validateClientMessage(malformedDecline).ok).toBe(false);
   });
 
   it("allows JoinMatch and RequestSync without an expected version", () => {

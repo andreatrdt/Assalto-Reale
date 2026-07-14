@@ -99,6 +99,22 @@ describe("immutable history migration contract", () => {
   });
 });
 
+describe("optional Transform history migration contract", () => {
+  it("adds activation and decline event types without rewriting history", () => {
+    const migration = POSTGRES_MIGRATIONS.find(
+      (candidate) => candidate.name === "add_optional_transform_history_events",
+    );
+
+    expect(migration?.version).toBe(6);
+    expect(migration?.sql).toContain(
+      "DROP CONSTRAINT match_history_events_event_type_check",
+    );
+    expect(migration?.sql).toContain("'activate_transform'");
+    expect(migration?.sql).toContain("'decline_transform'");
+    expect(migration?.sql).not.toContain("UPDATE match_history");
+  });
+});
+
 describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
   let pool: Pool;
 

@@ -111,7 +111,9 @@ export interface GameActions {
   activateSquare: (pos: Vec2) => void;
   chooseDefender: (pos: Vec2) => void;
   cancelDefenderSelection: () => void;
+  activateTransform: (pos: Vec2) => void;
   chooseTransform: (newType: PawnType) => void;
+  declineTransform: () => void;
   passTurn: () => void;
   undo: () => void;
   runAiTurn: () => void;

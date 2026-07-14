@@ -164,6 +164,26 @@ export function getPendingDecision(state: MatchState): PendingDecision | null {
   return null;
 }
 
+/**
+ * Return the single canonical rules-v2 Transform opportunity for the current
+ * player. Eligibility is derived from board occupancy, not from how the pawn
+ * arrived, so it survives passes, saves, reconnects and later turns.
+ */
+export function getTransformEligibility(state: MatchState, position?: Vec2): PendingTransform | null {
+  if (state.rulesVersion !== 2 || state.phase !== "playing" || state.victory || state.movesThisTurn >= 2) return null;
+  const pos = state.board.transformSquares[0];
+  if (!pos || (position && !hasPos([pos], position))) return null;
+  const piece = getPiece(state.board, pos);
+  if (!piece || piece.player !== state.currentPlayer || !PAWN_TYPES.includes(piece.type as PawnType)) return null;
+  return {
+    owner: piece.player,
+    player: piece.player,
+    pos: cloneVec(pos),
+    pieceType: piece.type as PawnType,
+    forceTurnSwitch: false,
+  };
+}
+
 export function getLegalActions(state: MatchState): Action[] {
   if (state.phase !== "playing" || state.victory) return [];
 
@@ -286,7 +306,7 @@ function commitAction(state: MatchState, command: GameCommand, action: Action): 
   let currentPlayer = state.currentPlayer;
   let turnCounter = state.turnCounter;
   let victory = result.victory;
-  let pendingTransform = transformEvent(result);
+  let pendingTransform = state.rulesVersion === 1 || !result.endsTurn ? transformEvent(result) : null;
   let turnChanged = false;
 
   if (result.endsTurn) {
@@ -297,11 +317,13 @@ function commitAction(state: MatchState, command: GameCommand, action: Action): 
     turnChanged = true;
   }
 
-  if (pendingTransform) {
+  if (pendingTransform && !victory) {
     pendingTransform = {
       ...pendingTransform,
-      forceTurnSwitch: !result.endsTurn,
+      forceTurnSwitch: state.rulesVersion === 1 && !result.endsTurn,
     };
+  } else if (victory) {
+    pendingTransform = null;
   }
 
   const next: MatchState = {
@@ -448,12 +470,37 @@ function cancelDefendedKing(state: MatchState, command: Extract<GameCommand, { t
   return success(command, next, [{ type: "DecisionCancelled", decision: "defendedKing" }]);
 }
 
+function activateTransform(state: MatchState, command: Extract<GameCommand, { type: "ActivateTransform" }>): CommandResult {
+  if (state.phase === "gameOver" || state.victory) {
+    return failure(state, command, "match_over", "The match has already ended.");
+  }
+  if (state.phase !== "playing") {
+    return failure(state, command, "wrong_phase", "Transform can only be activated during normal play.");
+  }
+  const pending = getTransformEligibility(state, command.position);
+  if (!pending) {
+    return failure(state, command, "illegal_action", "No eligible current-player pawn can transform on that square.");
+  }
+  const next = cloneMatchState(state);
+  next.phase = "transformSelection";
+  next.pendingTransform = pending;
+  return success(command, next, [{ type: "DecisionRequired", decision: { kind: "transform", value: pending } }]);
+}
+
 function chooseTransform(state: MatchState, command: Extract<GameCommand, { type: "ChooseTransform" }>): CommandResult {
   if (state.phase !== "transformSelection" || !state.pendingTransform) {
     return failure(state, command, "wrong_phase", "No Transform decision is pending.");
   }
   if (command.newType === state.pendingTransform.pieceType) {
     return failure(state, command, "invalid_decision", "A pawn must transform into a different pawn type.");
+  }
+  if (state.rulesVersion === 2) {
+    if (state.pendingTransform.owner !== state.currentPlayer) {
+      return failure(state, command, "wrong_player", "Only the current player can use this Transform action.");
+    }
+    if (state.movesThisTurn >= 2) {
+      return failure(state, command, "illegal_action", "No action token remains for Transform.");
+    }
   }
 
   const { board, result } = transformPiece(
@@ -462,6 +509,7 @@ function chooseTransform(state: MatchState, command: Extract<GameCommand, { type
     command.newType,
     state.rulesVersion === 1 ? state.turnCounter + 1 : state.seed ^ Math.imul(state.turnCounter + 1, 0x9e3779b1),
     state.rulesVersion,
+    { movesThisTurn: state.movesThisTurn, kingMoved: state.kingMoved },
   );
   if (result.error) return failure(state, command, "invalid_decision", result.error);
 
@@ -469,7 +517,7 @@ function chooseTransform(state: MatchState, command: Extract<GameCommand, { type
   let turnCounter = state.turnCounter;
   let victory = result.victory;
   let turnChanged = false;
-  if (state.pendingTransform.forceTurnSwitch) {
+  if ((state.rulesVersion === 1 && state.pendingTransform.forceTurnSwitch) || (state.rulesVersion === 2 && result.endsTurn)) {
     const advanced = advanceHalfTurnOnBoard(board, state.currentPlayer, state.turnCounter);
     currentPlayer = advanced.currentPlayer;
     turnCounter = advanced.turnCounter;
@@ -482,8 +530,8 @@ function chooseTransform(state: MatchState, command: Extract<GameCommand, { type
     board,
     phase: victory ? "gameOver" : "playing",
     currentPlayer,
-    movesThisTurn: 0,
-    kingMoved: false,
+    movesThisTurn: state.rulesVersion === 1 ? 0 : result.nextMovesThisTurn,
+    kingMoved: state.rulesVersion === 1 ? false : result.nextKingMoved,
     turnCounter,
     pendingDefendedKing: null,
     pendingTransform: null,
@@ -492,6 +540,19 @@ function chooseTransform(state: MatchState, command: Extract<GameCommand, { type
   const events: MatchEvent[] = [{ type: "ActionApplied", action: cloneAction(result.action), transition: result }];
   appendOutcomeEvents(events, next, turnChanged);
   return success(command, next, events, { action: result.action, transition: result });
+}
+
+function declineTransform(state: MatchState, command: Extract<GameCommand, { type: "DeclineTransform" }>): CommandResult {
+  if (state.rulesVersion !== 2 || state.phase !== "transformSelection" || !state.pendingTransform) {
+    return failure(state, command, "wrong_phase", "No optional Transform decision is pending.");
+  }
+  if (state.pendingTransform.owner !== state.currentPlayer) {
+    return failure(state, command, "wrong_player", "Only the current player can decline this Transform.");
+  }
+  const next = cloneMatchState(state);
+  next.phase = "playing";
+  next.pendingTransform = null;
+  return success(command, next, [{ type: "DecisionCancelled", decision: "transform" }]);
 }
 
 function passTurn(state: MatchState, command: Extract<GameCommand, { type: "PassTurn" }>): CommandResult {
@@ -524,8 +585,12 @@ export function applyCommand(state: MatchState, command: GameCommand): CommandRe
       return chooseDefender(state, command);
     case "CancelDefendedKing":
       return cancelDefendedKing(state, command);
+    case "ActivateTransform":
+      return activateTransform(state, command);
     case "ChooseTransform":
       return chooseTransform(state, command);
+    case "DeclineTransform":
+      return declineTransform(state, command);
     case "PassTurn":
       return passTurn(state, command);
   }

@@ -244,7 +244,11 @@ function requiredActorSide(
   ) {
     return state.pendingDefendedKing?.owner ?? state.currentPlayer;
   }
-  if (command.type === "ChooseTransform") {
+  if (
+    command.type === "ActivateTransform" ||
+    command.type === "ChooseTransform" ||
+    command.type === "DeclineTransform"
+  ) {
     return state.pendingTransform?.owner ?? state.currentPlayer;
   }
   return state.currentPlayer;

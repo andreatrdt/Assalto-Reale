@@ -8,7 +8,9 @@ type BridgedActions = Pick<
   GameActions,
   | "activateSquare"
   | "cancelDefenderSelection"
+  | "activateTransform"
   | "chooseTransform"
+  | "declineTransform"
   | "passTurn"
   | "undo"
   | "saveGame"
@@ -27,7 +29,9 @@ function rememberLocalActions(): BridgedActions {
   localActions = {
     activateSquare: state.activateSquare,
     cancelDefenderSelection: state.cancelDefenderSelection,
+    activateTransform: state.activateTransform,
     chooseTransform: state.chooseTransform,
+    declineTransform: state.declineTransform,
     passTurn: state.passTurn,
     undo: state.undo,
     saveGame: state.saveGame,
@@ -121,6 +125,10 @@ function activateSquare(pos: Vec2): void {
   const piece = getPiece(game.board, pos);
   if (!game.selected || piece?.player === online.side) {
     if (piece?.player === online.side) {
+      if (game.selected && hasPos([game.selected], pos) && hasPos(game.board.transformSquares, pos)) {
+        if (online.activateTransform(pos)) useGameStore.setState({ message: "Opening Transform choice with the server…" });
+        return;
+      }
       useGameStore.setState({
         selected: pos,
         legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved, game.rulesVersion),
@@ -165,6 +173,18 @@ function chooseTransform(newType: PawnType): void {
   }
 }
 
+function activateTransform(pos: Vec2): void {
+  if (requireAction() && useOnlineMatchStore.getState().activateTransform(pos)) {
+    useGameStore.setState({ message: "Opening Transform choice with the server…" });
+  }
+}
+
+function declineTransform(): void {
+  if (requireAction() && useOnlineMatchStore.getState().declineTransform()) {
+    useGameStore.setState({ message: "Ignoring Transform with the server…" });
+  }
+}
+
 function passTurn(): void {
   if (requireAction() && useOnlineMatchStore.getState().passTurn()) useGameStore.setState({ message: "Passing turn with the server…" });
 }
@@ -180,7 +200,9 @@ export function installOnlineGameActionBridge(): void {
   useGameStore.setState({
     activateSquare,
     cancelDefenderSelection,
+    activateTransform,
     chooseTransform,
+    declineTransform,
     passTurn,
     undo: onlineOnlyMessage,
     saveGame: onlineOnlyMessage,

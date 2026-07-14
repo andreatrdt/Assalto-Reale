@@ -150,7 +150,7 @@ describe("pure game-core command API", () => {
     expect(cancelled.state.board).toEqual(state.board === board ? state.board : board);
   });
 
-  it("resolves Transform and performs the deferred turn switch", () => {
+  it("charges Transform as the second action and then changes turn", () => {
     const board = createBoard({ transformEnabled: true });
     board.transformSquares = [[5, 6]];
     setPiece(board, [5, 5], { player: "Black", type: "AttackPawn" });
@@ -169,8 +169,9 @@ describe("pure game-core command API", () => {
     expect(pending.state.pendingTransform).toMatchObject({
       owner: "Black",
       pieceType: "AttackPawn",
-      forceTurnSwitch: true,
+      forceTurnSwitch: false,
     });
+    expect(pending.state.movesThisTurn).toBe(1);
 
     const transformed = applyCommand(pending.state, { type: "ChooseTransform", newType: "DefensePawn" });
     expect(transformed.ok).toBe(true);
@@ -178,7 +179,126 @@ describe("pure game-core command API", () => {
     expect(getPiece(transformed.state.board, [5, 6])).toEqual({ player: "Black", type: "DefensePawn" });
     expect(transformed.state.currentPlayer).toBe("White");
     expect(transformed.state.turnCounter).toBe(1);
+    expect(transformed.state.movesThisTurn).toBe(0);
     expect(transformed.state.phase).toBe("playing");
+  });
+
+  it("declines an immediate Transform without spending the remaining action", () => {
+    const board = boardWithKings();
+    board.config.transformEnabled = true;
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 5], { player: "Black", type: "AttackPawn" });
+    const landed = applyCommand(playingState(board), { type: "SubmitAction", start: [5, 5], end: [5, 6] });
+    expect(landed.ok).toBe(true);
+    if (!landed.ok) return;
+
+    const declined = applyCommand(landed.state, { type: "DeclineTransform" });
+    expect(declined.ok).toBe(true);
+    if (!declined.ok) return;
+    expect(declined.state.phase).toBe("playing");
+    expect(declined.state.movesThisTurn).toBe(1);
+    expect(declined.state.currentPlayer).toBe("Black");
+    expect(declined.state.board.transformSquares).toEqual([[5, 6]]);
+    expect(getPiece(declined.state.board, [5, 6])?.type).toBe("AttackPawn");
+  });
+
+  it("does not offer or consume Transform when landing uses the second action", () => {
+    const board = boardWithKings();
+    board.config.transformEnabled = true;
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 5], { player: "Black", type: "AttackPawn" });
+    const landed = applyCommand(playingState(board, { movesThisTurn: 1 }), {
+      type: "SubmitAction",
+      start: [5, 5],
+      end: [5, 6],
+    });
+    expect(landed.ok).toBe(true);
+    if (!landed.ok) return;
+    expect(landed.state.phase).toBe("playing");
+    expect(landed.state.pendingTransform).toBeNull();
+    expect(landed.state.currentPlayer).toBe("White");
+    expect(landed.state.board.transformSquares).toEqual([[5, 6]]);
+    expect(getPiece(landed.state.board, [5, 6])?.type).toBe("AttackPawn");
+    expect(landed.transition?.events.some((event) => event.kind === "transform_available")).toBe(false);
+  });
+
+  it("allows a pawn left on Transform to activate it on a later turn for one action", () => {
+    const board = boardWithKings();
+    board.config.transformEnabled = true;
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 5], { player: "Black", type: "AttackPawn" });
+    const landed = applyCommand(playingState(board, { movesThisTurn: 1 }), {
+      type: "SubmitAction",
+      start: [5, 5],
+      end: [5, 6],
+    });
+    expect(landed.ok).toBe(true);
+    if (!landed.ok) return;
+    const whitePassed = applyCommand(landed.state, { type: "PassTurn" });
+    expect(whitePassed.ok).toBe(true);
+    if (!whitePassed.ok) return;
+    const activated = applyCommand(whitePassed.state, { type: "ActivateTransform", position: [5, 6] });
+    expect(activated.ok).toBe(true);
+    if (!activated.ok) return;
+    const transformed = applyCommand(activated.state, { type: "ChooseTransform", newType: "ConquestPawn" });
+    expect(transformed.ok).toBe(true);
+    if (!transformed.ok) return;
+    expect(transformed.state.currentPlayer).toBe("Black");
+    expect(transformed.state.movesThisTurn).toBe(1);
+    expect(getPiece(transformed.state.board, [5, 6])?.type).toBe("ConquestPawn");
+    expect(transformed.state.board.transformSquares).not.toEqual([[5, 6]]);
+  });
+
+  it("can ignore a later-turn Transform or move away without relocating it", () => {
+    const board = boardWithKings();
+    board.config.transformEnabled = true;
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 6], { player: "Black", type: "AttackPawn" });
+    const state = playingState(board);
+    const activated = applyCommand(state, { type: "ActivateTransform", position: [5, 6] });
+    expect(activated.ok).toBe(true);
+    if (!activated.ok) return;
+    const declined = applyCommand(activated.state, { type: "DeclineTransform" });
+    expect(declined.ok).toBe(true);
+    if (!declined.ok) return;
+    expect(declined.state.movesThisTurn).toBe(0);
+    expect(declined.state.board.transformSquares).toEqual([[5, 6]]);
+
+    const moved = applyCommand(declined.state, { type: "SubmitAction", start: [5, 6], end: [5, 7] });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(moved.state.board.transformSquares).toEqual([[5, 6]]);
+    expect(getPiece(moved.state.board, [5, 7])?.type).toBe("AttackPawn");
+  });
+
+  it("rejects Transform with no action token and rejects stale decline or activation", () => {
+    const board = boardWithKings();
+    board.config.transformEnabled = true;
+    board.transformSquares = [[5, 6]];
+    setPiece(board, [5, 6], { player: "Black", type: "AttackPawn" });
+    const pending = {
+      owner: "Black" as const,
+      player: "Black" as const,
+      pos: [5, 6] as [number, number],
+      pieceType: "AttackPawn" as const,
+      forceTurnSwitch: false,
+    };
+    const noToken = applyCommand(playingState(board, { phase: "transformSelection", movesThisTurn: 2, pendingTransform: pending }), {
+      type: "ChooseTransform",
+      newType: "DefensePawn",
+    });
+    expect(noToken.ok).toBe(false);
+    if (!noToken.ok) expect(noToken.error.message).toContain("No action token");
+
+    const staleDecline = applyCommand(playingState(board), { type: "DeclineTransform" });
+    expect(staleDecline.ok).toBe(false);
+    const wrongSquare = applyCommand(playingState(board), { type: "ActivateTransform", position: [5, 5] });
+    expect(wrongSquare.ok).toBe(false);
+    const noTokenActivation = applyCommand(playingState(board, { movesThisTurn: 2 }), {
+      type: "ActivateTransform",
+      position: [5, 6],
+    });
+    expect(noTokenActivation.ok).toBe(false);
   });
 
   it("matures territory through server-style PassTurn commands", () => {

@@ -133,7 +133,11 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
               After a transformation, the next legal Transform Square is chosen at the greatest Chebyshev distance from the old square, then
               farthest from the transformed pawn, with remaining ties resolved by the match's deterministic seeded generator.
             </p>
-            <p>A pawn that lands on it may change into a different pawn type. Kings cannot transform.</p>
+            <p>
+              Transforming is an optional action that costs one of the turn's two action tokens. Landing with a token remaining offers the
+              choice directly on the board; Ignore spends nothing. Landing after the second action does not open a choice or consume the
+              square. A pawn that remains there can activate Transform on a later turn by selecting it twice. Kings cannot transform.
+            </p>
           </RuleSection>
 
           <RuleSection id="victory" title="Victory">

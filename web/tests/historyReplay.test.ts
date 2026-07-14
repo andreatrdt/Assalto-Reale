@@ -31,7 +31,9 @@ function actorFor(state: MatchState, command: HistoricalCommandV1): Player {
   if (command.type === "ChooseDefender" || command.type === "CancelDefendedKing") {
     return state.pendingDefendedKing?.owner ?? state.currentPlayer;
   }
-  if (command.type === "ChooseTransform") return state.pendingTransform?.owner ?? state.currentPlayer;
+  if (command.type === "ChooseTransform" || command.type === "DeclineTransform") {
+    return state.pendingTransform?.owner ?? state.currentPlayer;
+  }
   return state.currentPlayer;
 }
 
@@ -48,7 +50,7 @@ class ReplayRecorder {
     this.events.push({
       sequenceNumber: this.events.length + 1,
       actorSide,
-      payload: { schemaVersion: REPLAY_SCHEMA_VERSION, command },
+      payload: { schemaVersion: this.options.rulesVersion === 1 ? 1 : REPLAY_SCHEMA_VERSION, command },
     });
     if (command.type === "Resign") return;
     const result = applyCommand(this.state, command);
@@ -58,8 +60,8 @@ class ReplayRecorder {
 
   input(overrides: Partial<HistoricalReplayInput> = {}): HistoricalReplayInput {
     return {
-      rulesVersion: GAME_RULES_VERSION,
-      replaySchemaVersion: REPLAY_SCHEMA_VERSION,
+      rulesVersion: this.options.rulesVersion ?? GAME_RULES_VERSION,
+      replaySchemaVersion: this.options.rulesVersion === 1 ? 1 : REPLAY_SCHEMA_VERSION,
       seed: this.options.seed,
       placementMode: this.options.placementMode,
       transformEnabled: this.options.transformEnabled ?? false,
@@ -141,8 +143,8 @@ function combatScenario(defended: boolean): ReplayRecorder {
   return recorder;
 }
 
-function transformScenario(): ReplayRecorder {
-  const recorder = new ReplayRecorder({ placementMode: "QuickBalanced", transformEnabled: true, seed: 2 });
+function transformScenario(rulesVersion: 1 | 2 = 2): ReplayRecorder {
+  const recorder = new ReplayRecorder({ placementMode: "QuickBalanced", transformEnabled: true, seed: 2, rulesVersion });
   for (let index = 0; index < 20; index += 1) recorder.command({ type: "PassTurn" });
   const target = recorder.state.board.transformSquares[0];
   if (!target) throw new Error("Transform Square was not generated.");
@@ -158,11 +160,25 @@ function transformScenario(): ReplayRecorder {
       )
       .sort((left, right) => distance(left.end!, target) - distance(right.end!, target))[0];
     if (!action?.start || !action.end) throw new Error("No pawn can approach the Transform Square.");
+    if (rulesVersion === 2 && distance(action.end, target) === 0 && recorder.state.movesThisTurn === 1) {
+      recorder.command({ type: "PassTurn" });
+      continue;
+    }
     recorder.command({ type: "SubmitAction", start: action.start, end: action.end });
   }
   const originalType = recorder.state.pendingTransform?.pieceType;
+  const transformPosition = recorder.state.pendingTransform?.pos;
   if (!originalType) throw new Error("Transform decision was not reached.");
+  if (!transformPosition) throw new Error("Transform position was not recorded.");
   const newType: PawnType = originalType === "AttackPawn" ? "DefensePawn" : "AttackPawn";
+  if (rulesVersion === 1) {
+    recorder.command({ type: "ChooseTransform", newType });
+    return recorder;
+  }
+  recorder.command({ type: "DeclineTransform" });
+  recorder.command({ type: "PassTurn" });
+  recorder.command({ type: "PassTurn" });
+  recorder.command({ type: "ActivateTransform", position: transformPosition });
   recorder.command({ type: "ChooseTransform", newType });
   return recorder;
 }
@@ -285,18 +301,43 @@ describe("immutable history replay", () => {
     }
   });
 
-  it("replays a transformation decision", () => {
+  it("replays decline and delayed transformation deterministically", () => {
     const recorder = transformScenario();
-    const replay = replayHistoricalMatch(recorder.input());
-    expect(replay.ok).toBe(true);
-    if (replay.ok) {
-      expect(replay.frames.some((frame) => frame.state.phase === "transformSelection")).toBe(true);
+    const first = replayHistoricalMatch(recorder.input());
+    const second = replayHistoricalMatch(recorder.input());
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.frames.some((frame) => frame.command?.type === "DeclineTransform" && frame.state.phase === "playing")).toBe(true);
+      expect(first.frames.some((frame) => frame.command?.type === "ActivateTransform" && frame.state.phase === "transformSelection")).toBe(
+        true,
+      );
       expect(
-        replay.frames
+        first.frames
           .at(-1)!
           .events.some((event) => event.type === "ActionApplied" && event.transition.events.some((item) => item.kind === "transform")),
       ).toBe(true);
+      expect(serializeState(first.frames.at(-1)!.state)).toBe(serializeState(recorder.state));
+      expect(serializeState(second.frames.at(-1)!.state)).toBe(serializeState(first.frames.at(-1)!.state));
     }
+  });
+
+  it("keeps a rules-v1 Transform replay on its recorded legacy path", () => {
+    const recorder = transformScenario(1);
+    const input = recorder.input();
+    const encoded = JSON.stringify(input);
+    const first = replayHistoricalMatch(input);
+    const second = replayHistoricalMatch(JSON.parse(encoded) as HistoricalReplayInput);
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.frames[0]?.state.rulesVersion).toBe(1);
+      expect(first.frames.some((frame) => frame.command?.type === "ChooseTransform")).toBe(true);
+      expect(first.frames.some((frame) => frame.command?.type === "ActivateTransform" || frame.command?.type === "DeclineTransform")).toBe(
+        false,
+      );
+      expect(serializeState(first.frames.at(-1)!.state)).toBe(serializeState(recorder.state));
+      expect(second).toEqual(first);
+    }
+    expect(JSON.stringify(input)).toBe(encoded);
   });
 
   it("replays territory-claim creation through terminal maturity", () => {
