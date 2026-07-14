@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatchHistoryDetails } from "../online/protocol";
 import type { AccountContextValue } from "../account/AccountProvider";
 import type { HistoricalReplayFrame } from "../game/engine";
-import { MatchHistoryReplayPage } from "./MatchHistoryReplayPage";
+import { defendedKingPreviewForFrame, MatchHistoryReplayPage } from "./MatchHistoryReplayPage";
 
 const mocks = vi.hoisted(() => ({
   account: { current: null as AccountContextValue | null },
@@ -42,6 +42,8 @@ vi.mock("../ui/components", () => ({
 
 function state(phase: "placement" | "playing" | "gameOver", territory = false): HistoricalReplayFrame["state"] {
   return {
+    rulesVersion: 2,
+    seed: 0,
     phase,
     currentPlayer: "Black",
     movesThisTurn: 0,
@@ -197,6 +199,76 @@ async function renderSuccessfulReplay(): Promise<void> {
 }
 
 describe("match history replay page", () => {
+  it("exposes the recorded semantic defended-King route to the replay board", () => {
+    const selectedRoute = {
+      id: "counterClockwise" as const,
+      path: [
+        [6, 4],
+        [6, 3],
+      ] as Array<readonly [number, number]>,
+      jumpedSquares: [[5, 3]] as Array<readonly [number, number]>,
+      turnSquares: [[6, 4]] as Array<readonly [number, number]>,
+      landingPosition: [6, 3] as const,
+    };
+    const action = {
+      kind: "capture" as const,
+      player: "Black" as const,
+      start: [5, 2] as const,
+      end: [5, 4] as const,
+      cost: 2,
+      capture: true,
+      endsTurn: true,
+      defendedKing: {
+        attackerId: "5,2",
+        kingId: "5,4",
+        attackerOrigin: [5, 2] as const,
+        kingPosition: [5, 4] as const,
+        attackDirection: [0, 1] as const,
+        bounceDirection: [0, -1] as const,
+        attackPath: [
+          [5, 3],
+          [5, 4],
+        ] as Array<readonly [number, number]>,
+        bouncePath: selectedRoute.path,
+        landingPosition: selectedRoute.landingPosition,
+        routes: [selectedRoute],
+        selectedRouteId: selectedRoute.id,
+        pathDefenderId: "5,3",
+        eligibleDefenderIds: ["5,3"],
+        triggersTransform: false,
+        actionCost: 2,
+        endsTurn: true,
+      },
+    };
+    const frame: HistoricalReplayFrame = {
+      sequenceNumber: 7,
+      command: { type: "SubmitAction", start: [5, 2], end: [5, 4], routeId: selectedRoute.id },
+      state: state("playing"),
+      terminal: null,
+      events: [
+        {
+          type: "ActionApplied",
+          action,
+          transition: {
+            action,
+            events: [{ kind: "defended_king", data: { defender: [5, 3] } }],
+            victory: null,
+            specialControl: null,
+            endsTurn: true,
+            nextMovesThisTurn: 0,
+            nextKingMoved: false,
+          },
+        },
+      ],
+    };
+
+    expect(defendedKingPreviewForFrame(frame)).toMatchObject({
+      selectedRouteId: "counterClockwise",
+      routes: [selectedRoute],
+      defenders: [[5, 3]],
+    });
+  });
+
   beforeEach(() => {
     mocks.account.current = account();
     mocks.replay.mockReturnValue({ ok: true, frames: replayFrames() });

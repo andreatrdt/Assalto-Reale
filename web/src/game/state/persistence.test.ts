@@ -212,6 +212,7 @@ describe("persistence round-trip across match phases", () => {
     setScenario(defendedKingScenario());
     s().activateSquare([5, 1]);
     s().activateSquare([5, 3]);
+    s().activateSquare([5, 3]);
     expect(s().phase.phase).toBe("defenderSelection");
 
     expect(exportDisturbImport()).toBe(true);
@@ -382,7 +383,7 @@ describe("save validation rejects malformed data atomically", () => {
 
   const mutations: Array<[string, (v: Record<string, unknown>) => void]> = [
     ["missing schema", (v) => delete v.schema],
-    ["future schema", (v) => (v.schema = 3)],
+    ["future schema", (v) => (v.schema = 4)],
     ["invalid phase name", (v) => (v.phase = { phase: "wormhole" })],
     ["unknown piece type", (v) => ((v.board as { grid: unknown[][] }).grid[0][0] = { player: "Black", type: "Dragon" })],
     ["invalid player colour", (v) => (v.currentPlayer = "Green")],
@@ -493,6 +494,7 @@ describe("AI restoration does not double-act or stall", () => {
   it("restores an AI-owned Defended-King decision and resolves it once", () => {
     setScenario(defendedKingScenario(), { aiEnabled: true, aiPlayer: "White" });
     s().activateSquare([5, 1]);
+    s().activateSquare([5, 3]);
     s().activateSquare([5, 3]);
     expect(s().pendingDefendedKing?.owner).toBe("White");
 

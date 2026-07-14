@@ -103,10 +103,14 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
             <p>A King is defended while at least one friendly Defense Pawn occupies an adjacent square.</p>
             <p>
               When an Attack Pawn attacks a defended King, one eligible Defense Pawn is sacrificed, the King survives and the attacking pawn
-              bounces directly backward along the attack line. The bounce travels up to five squares and stops before the board edge or an
-              occupied square.
+              is deflected up to five traversed squares opposite the incoming attack. It jumps a contiguous obstacle when a landing is
+              reachable; otherwise it routes clockwise or counter-clockwise around it and resumes the original direction.
             </p>
-            <p>If several defenders are eligible, the defending player chooses which one is sacrificed. The attack then ends the turn.</p>
+            <p>
+              An Attack Pawn may target a King through one adjacent Defense Pawn directly between them; that path defender is automatically
+              sacrificed and cannot be captured first as a bypass. Without a path defender, the defending player still chooses among
+              multiple eligible defenders. The attack then ends the turn.
+            </p>
           </RuleSection>
 
           <RuleSection id="territory" title="Special Squares and territory">
@@ -124,6 +128,10 @@ export function RulesPage({ route, navigate }: RulesPageProps) {
             <p>
               Transform is enabled in every newly started public match. After the configured movement-round threshold, a Transform Square
               can appear on the board.
+            </p>
+            <p>
+              After a transformation, the next legal Transform Square is chosen at the greatest Chebyshev distance from the old square, then
+              farthest from the transformed pawn, with remaining ties resolved by the match's deterministic seeded generator.
             </p>
             <p>A pawn that lands on it may change into a different pawn type. Kings cannot transform.</p>
           </RuleSection>

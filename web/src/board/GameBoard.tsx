@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import type { BoardState, Piece, Vec2 } from "../game/engine";
-import { adjacentDefendersForKing, hasPos } from "../game/engine";
+import type { BoardState, DeflectionRoute, DeflectionRouteId, Piece, Vec2 } from "../game/engine";
+import { adjacentDefendersForKing, getPiece, hasPos } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { useUiSettings } from "../ui/uiSettings";
 import { squareDelta, type BoardMotionEvent } from "./boardMotion";
@@ -16,6 +16,9 @@ export interface DefendedKingBoardPreview {
   bouncePath: Vec2[];
   landingPosition: Vec2;
   triggersTransform: boolean;
+  routes?: DeflectionRoute[];
+  selectedRouteId?: DeflectionRouteId;
+  pathDefenderId?: string | null;
 }
 
 interface GameBoardProps {
@@ -153,8 +156,42 @@ function MotionOverlay({ motion, board, cell }: { motion: BoardMotionEvent; boar
 
   if (motion.kind === "transform") {
     const origin = squareOrigin(motion.at, cell);
+    const oldSquare = motion.oldSquare ? squareOrigin(motion.oldSquare, cell) : null;
+    const newSquare = motion.newSquare ? squareOrigin(motion.newSquare, cell) : null;
     return (
       <g className="boardMotionLayer" data-motion-layer="transform" aria-hidden="true">
+        {oldSquare && (
+          <rect
+            x={oldSquare.x + cell * 0.08}
+            y={oldSquare.y + cell * 0.08}
+            width={cell * 0.84}
+            height={cell * 0.84}
+            rx={cell * 0.14}
+            className={`motionTransformOld${reducedClass}`}
+            style={durationStyle(motion)}
+          />
+        )}
+        {oldSquare && newSquare && (
+          <line
+            x1={oldSquare.x + cell / 2}
+            y1={oldSquare.y + cell / 2}
+            x2={newSquare.x + cell / 2}
+            y2={newSquare.y + cell / 2}
+            className={`motionTransformTrail${reducedClass}`}
+            style={durationStyle(motion)}
+          />
+        )}
+        {newSquare && (
+          <rect
+            x={newSquare.x + cell * 0.08}
+            y={newSquare.y + cell * 0.08}
+            width={cell * 0.84}
+            height={cell * 0.84}
+            rx={cell * 0.14}
+            className={`motionTransformNew${reducedClass}`}
+            style={durationStyle(motion)}
+          />
+        )}
         <rect
           x={origin.x + cell * 0.1}
           y={origin.y + cell * 0.1}
@@ -176,17 +213,16 @@ function MotionOverlay({ motion, board, cell }: { motion: BoardMotionEvent; boar
     );
   }
 
-  const source = squareOrigin(motion.from, cell);
   const king = squareOrigin(motion.king, cell);
   const sacrifice = squareOrigin(motion.sacrifice, cell);
-  const attackDelta = squareDelta(motion.from, motion.king, cell, board.config.rows, board.config.cols);
-  const landingDelta = squareDelta(motion.from, motion.landing, cell, board.config.rows, board.config.cols);
-  const attackerStyle = durationStyle(motion, {
-    "--motion-attack-dx": `${attackDelta.x}px`,
-    "--motion-attack-dy": `${attackDelta.y}px`,
-    "--motion-landing-dx": `${landingDelta.x}px`,
-    "--motion-landing-dy": `${landingDelta.y}px`,
-  });
+  const authoritativeRoute = [motion.from, motion.king, ...motion.route];
+  const routePath = authoritativeRoute
+    .map((pos, index) => {
+      const origin = squareOrigin(pos, cell);
+      return `${index === 0 ? "M" : "L"} ${origin.x} ${origin.y}`;
+    })
+    .join(" ");
+  const landingOrigin = squareOrigin(motion.landing, cell);
 
   return (
     <g className="boardMotionLayer" data-motion-layer="defendedKing" aria-hidden="true">
@@ -204,8 +240,14 @@ function MotionOverlay({ motion, board, cell }: { motion: BoardMotionEvent; boar
           <MotionPiece piece={motion.sacrificedPiece} cell={cell} />
         </g>
       </g>
-      <g transform={`translate(${source.x} ${source.y})`}>
-        <g className={`motionSprite motionDefendedTravel${reducedClass}`} style={attackerStyle}>
+      <g
+        transform={motion.reducedMotion ? `translate(${landingOrigin.x} ${landingOrigin.y})` : undefined}
+        data-route={motion.route.map((pos) => pos.join(",")).join(" ")}
+        data-jumps={motion.jumpedSquares.map((pos) => pos.join(",")).join(" ")}
+        data-turns={motion.turnSquares.map((pos) => pos.join(",")).join(" ")}
+      >
+        {!motion.reducedMotion && <animateMotion dur={`${motion.durationMs}ms`} path={routePath} fill="freeze" />}
+        <g className={`motionSprite motionDefendedRoute${reducedClass}`} style={durationStyle(motion)}>
           <MotionPiece piece={motion.piece} cell={cell} />
         </g>
       </g>
@@ -232,11 +274,13 @@ export function GameBoard({
   onSquareActivate,
 }: GameBoardProps) {
   const pendingDefendedKing = useGameStore((state) => state.pendingDefendedKing);
+  const projectedDefendedKing = useGameStore((state) => state.projectedDefendedKing);
   const reducedMotion = useUiSettings((state) => state.reducedMotion);
   const { motion, isAnimating } = useBoardMotion(reducedMotion);
   const hiddenPieces = hiddenPieceKeys(motion);
   const activeDefendedKingPreview =
     defendedKingPreview ??
+    (projectedDefendedKing ? { ...projectedDefendedKing.preview, defenders: projectedDefendedKing.defenders } : null) ??
     (pendingDefendedKing
       ? {
           ...pendingDefendedKing.preview,
@@ -248,9 +292,18 @@ export function GameBoard({
   const attackPreviewPath = activeDefendedKingPreview
     ? previewPath(activeDefendedKingPreview.attackerOrigin, activeDefendedKingPreview.attackPath, activeDefendedKingPreview.kingPosition)
     : [];
-  const bouncePreviewPath = activeDefendedKingPreview
-    ? previewPath(activeDefendedKingPreview.kingPosition, activeDefendedKingPreview.bouncePath, activeDefendedKingPreview.landingPosition)
+  const previewRoutes = activeDefendedKingPreview
+    ? (activeDefendedKingPreview.routes ?? [
+        {
+          id: "primary" as const,
+          path: activeDefendedKingPreview.bouncePath,
+          jumpedSquares: [],
+          turnSquares: [],
+          landingPosition: activeDefendedKingPreview.landingPosition,
+        },
+      ])
     : [];
+  const attackerPiece = activeDefendedKingPreview ? getPiece(board, activeDefendedKingPreview.attackerOrigin) : null;
 
   return (
     <div className={`boardFrame${isAnimating ? " isAnimating" : ""}`}>
@@ -264,6 +317,13 @@ export function GameBoard({
         data-animation-id={motion?.id ?? ""}
         data-animation-type={motion?.kind ?? ""}
       >
+        {activeDefendedKingPreview && (
+          <desc>
+            Defended King projection. The selected route has {activeDefendedKingPreview.bouncePath.length} traversed squares and lands on
+            row {activeDefendedKingPreview.landingPosition[0] + 1}, column {activeDefendedKingPreview.landingPosition[1] + 1}. Click the
+            King again to commit.
+          </desc>
+        )}
         <defs>
           <marker id="attackPreviewArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
             <path d="M0,0 L0,6 L6,3 Z" className="attackPreviewArrow" />
@@ -391,11 +451,43 @@ export function GameBoard({
               points={pathPoints(attackPreviewPath, cell)}
               markerEnd="url(#attackPreviewArrow)"
             />
-            <polyline
-              className="previewPath previewBouncePath"
-              points={pathPoints(bouncePreviewPath, cell)}
-              markerEnd="url(#bouncePreviewArrow)"
-            />
+            {previewRoutes.map((route) => {
+              const selectedRoute = route.id === (activeDefendedKingPreview.selectedRouteId ?? previewRoutes[0]?.id);
+              const routed = previewPath(activeDefendedKingPreview.kingPosition, route.path, route.landingPosition);
+              return (
+                <g key={`preview-route-${route.id}`} className={`previewRoute${selectedRoute ? " selected" : " unselected"}`}>
+                  <polyline
+                    className="previewPath previewBouncePath"
+                    points={pathPoints(routed, cell)}
+                    markerEnd="url(#bouncePreviewArrow)"
+                  />
+                  {route.path.map(([row, col], index) => (
+                    <g key={`${route.id}-step-${row}-${col}-${index}`} className="previewRouteStep">
+                      <circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * 0.105} />
+                      <text x={col * cell + cell / 2} y={row * cell + cell * 0.555} textAnchor="middle">
+                        {index + 1}
+                      </text>
+                    </g>
+                  ))}
+                  {route.jumpedSquares.map(([row, col], index) => (
+                    <path
+                      key={`${route.id}-jump-${row}-${col}-${index}`}
+                      className="previewJumpArc"
+                      d={`M ${col * cell + cell * 0.18} ${row * cell + cell * 0.56} Q ${col * cell + cell / 2} ${row * cell + cell * 0.06} ${col * cell + cell * 0.82} ${row * cell + cell * 0.56}`}
+                    />
+                  ))}
+                  {route.turnSquares.map(([row, col], index) => (
+                    <circle
+                      key={`${route.id}-turn-${index}`}
+                      className="previewTurn"
+                      cx={col * cell + cell / 2}
+                      cy={row * cell + cell / 2}
+                      r={cell * 0.2}
+                    />
+                  ))}
+                </g>
+              );
+            })}
 
             <rect
               x={activeDefendedKingPreview.attackerOrigin[1] * cell + cell * 0.12}
@@ -434,18 +526,24 @@ export function GameBoard({
                 cy={activeDefendedKingPreview.landingPosition[0] * cell + cell / 2}
                 r={cell * 0.1}
               />
+              {attackerPiece && (
+                <svg
+                  className="previewGhostAttacker"
+                  x={activeDefendedKingPreview.landingPosition[1] * cell + cell * 0.16}
+                  y={activeDefendedKingPreview.landingPosition[0] * cell + cell * 0.1}
+                  width={cell * 0.68}
+                  height={cell * 0.78}
+                  viewBox="0 0 100 100"
+                >
+                  <PieceGlyph piece={attackerPiece} />
+                </svg>
+              )}
             </g>
           </g>
         )}
 
         {motion && <MotionOverlay key={motion.id} motion={motion} board={board} cell={cell} />}
       </svg>
-
-      {motion?.kind === "defendedKing" && (
-        <p className="boardMotionMessage" role="status" aria-live="polite">
-          The King was defended. A Defense Pawn was sacrificed.
-        </p>
-      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloneBoard, createBoard, createPiece, setPiece, type BoardState } from "../src/game/engine";
+import { cloneBoard, createBoard, createPiece, setPiece, type BoardState, type Vec2 } from "../src/game/engine";
 import { deriveBoardMotion, motionDuration, orientedPosition, squareDelta, type BoardMotionSnapshot } from "../src/board/boardMotion";
 
 function snapshot(board: BoardState, overrides: Partial<BoardMotionSnapshot> = {}): BoardMotionSnapshot {
@@ -147,6 +147,71 @@ describe("deriveBoardMotion", () => {
       deriveBoardMotion(snapshot(before), snapshot(after, { lastAction: "Black attacked a defended King; Attack Pawn bounced to B7." }))
         .event,
     ).toMatchObject({ kind: "defendedKing", king: [5, 4], sacrifice: [4, 4], landing: [5, 1] });
+  });
+
+  it("animates the exact authoritative route when alternatives share a landing", () => {
+    const before = createBoard();
+    setPiece(before, [5, 2], createPiece("AttackPawn", "Black"));
+    setPiece(before, [5, 4], createPiece("King", "White"));
+    setPiece(before, [4, 4], createPiece("DefensePawn", "White"));
+    const after = cloneBoard(before);
+    setPiece(after, [5, 2], null);
+    setPiece(after, [4, 4], null);
+    setPiece(after, [5, 0], createPiece("AttackPawn", "Black"));
+
+    const clockwise = {
+      id: "clockwise" as const,
+      path: [
+        [4, 4],
+        [4, 3],
+        [5, 3],
+        [5, 2],
+        [5, 0],
+      ] as Vec2[],
+      jumpedSquares: [] as Vec2[],
+      turnSquares: [[4, 4]] as Vec2[],
+      landingPosition: [5, 0] as const,
+    };
+    const counterClockwise = {
+      id: "counterClockwise" as const,
+      path: [
+        [6, 4],
+        [6, 3],
+        [5, 3],
+        [5, 2],
+        [5, 0],
+      ] as Vec2[],
+      jumpedSquares: [[5, 1]] as Vec2[],
+      turnSquares: [[6, 4]] as Vec2[],
+      landingPosition: [5, 0] as const,
+    };
+
+    const result = deriveBoardMotion(
+      snapshot(before, { rulesVersion: 2 }),
+      snapshot(after, {
+        rulesVersion: 2,
+        lastAction: "Black attacked a defended King; Attack Pawn bounced to A7.",
+        resolvedDefendedKing: {
+          action: {
+            start: [5, 2],
+            end: [5, 4],
+            defendedKing: {
+              landingPosition: [5, 0],
+              selectedRouteId: "counterClockwise",
+              routes: [clockwise, counterClockwise],
+            },
+          },
+          defenders: [[4, 4]],
+        },
+      }),
+    );
+
+    expect(result.event).toMatchObject({
+      kind: "defendedKing",
+      route: counterClockwise.path,
+      jumpedSquares: counterClockwise.jumpedSquares,
+      turnSquares: counterClockwise.turnSquares,
+    });
   });
 
   it("cancels transient work for undo and restored-state transitions", () => {

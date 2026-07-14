@@ -1,13 +1,12 @@
 import { applyCommand, cloneMatchState, createMatch } from "./match.js";
 import type { GameCommand, MatchEvent, MatchState, PlacementMode } from "./matchTypes.js";
 import type { PawnType, Player, Vec2 } from "./types.js";
-
-export const GAME_RULES_VERSION = 1 as const;
-export const REPLAY_SCHEMA_VERSION = 1 as const;
+import { GAME_RULES_VERSION, REPLAY_SCHEMA_VERSION } from "./versions.js";
+export { GAME_RULES_VERSION, REPLAY_SCHEMA_VERSION } from "./versions.js";
 
 export type HistoricalCommandV1 =
   | { type: "PlacePiece"; position: Vec2 }
-  | { type: "SubmitAction"; start: Vec2; end: Vec2 }
+  | { type: "SubmitAction"; start: Vec2; end: Vec2; routeId?: import("./types.js").DeflectionRouteId }
   | { type: "ChooseDefender"; position: Vec2 }
   | { type: "CancelDefendedKing" }
   | { type: "ChooseTransform"; newType: PawnType }
@@ -56,14 +55,14 @@ function expectedActor(state: MatchState, command: HistoricalCommandV1): Player 
 
 /** Reconstruct a schema-v1 replay exclusively through the versioned game-core API. */
 export function replayHistoricalMatch(input: HistoricalReplayInput): HistoricalReplayResult {
-  if (input.rulesVersion !== GAME_RULES_VERSION) {
+  if (input.rulesVersion !== 1 && input.rulesVersion !== GAME_RULES_VERSION) {
     return {
       ok: false,
       code: "unsupported_rules_version",
-      message: `Replay requires rules version ${input.rulesVersion}; this client supports ${GAME_RULES_VERSION}.`,
+      message: `Replay requires unsupported rules version ${input.rulesVersion}; this client supports 1-${GAME_RULES_VERSION}.`,
     };
   }
-  if (input.replaySchemaVersion !== REPLAY_SCHEMA_VERSION) {
+  if (input.replaySchemaVersion !== 1 && input.replaySchemaVersion !== REPLAY_SCHEMA_VERSION) {
     return {
       ok: false,
       code: "unsupported_replay_schema",
@@ -75,13 +74,14 @@ export function replayHistoricalMatch(input: HistoricalReplayInput): HistoricalR
     placementMode: input.placementMode,
     transformEnabled: input.transformEnabled,
     seed: input.seed,
+    rulesVersion: input.rulesVersion as 1 | 2,
   });
   const frames: HistoricalReplayFrame[] = [{ sequenceNumber: 0, command: null, state: cloneMatchState(state), events: [], terminal: null }];
 
   for (let index = 0; index < input.events.length; index += 1) {
     const event = input.events[index]!;
     const expectedSequence = index + 1;
-    if (event.sequenceNumber !== expectedSequence || event.payload.schemaVersion !== REPLAY_SCHEMA_VERSION) {
+    if (event.sequenceNumber !== expectedSequence || event.payload.schemaVersion !== input.replaySchemaVersion) {
       return {
         ok: false,
         code: "invalid_replay",
@@ -119,7 +119,7 @@ export function replayHistoricalMatch(input: HistoricalReplayInput): HistoricalR
       return {
         ok: false,
         code: "invalid_replay",
-        message: `Replay event ${expectedSequence} is not legal under rules version ${GAME_RULES_VERSION}: ${result.error.message}`,
+        message: `Replay event ${expectedSequence} is not legal under rules version ${input.rulesVersion}: ${result.error.message}`,
       };
     }
     state = result.state;

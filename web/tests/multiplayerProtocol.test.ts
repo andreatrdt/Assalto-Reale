@@ -152,7 +152,7 @@ describe("multiplayer protocol", () => {
     (malformed.command as { end: unknown }).end = [-1, 6];
     expect(validateClientMessage(malformed).ok).toBe(false);
 
-    const unsupported = { ...createEnvelope({ type: "PassTurn" }), protocolVersion: 2 };
+    const unsupported = { ...createEnvelope({ type: "PassTurn" }), protocolVersion: 99 };
     const result = validateClientMessage(unsupported);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("unsupported_protocol_version");
@@ -186,6 +186,8 @@ describe("multiplayer protocol", () => {
         attackerOrigin: [5, 1],
         kingPosition: [5, 3],
         landingPosition: [5, 5],
+        routes: [{ id: "primary", path: [[5, 5]], jumpedSquares: [], turnSquares: [], landingPosition: [5, 5] }],
+        pathDefender: null,
       },
     });
     expect(validateServerMessage(defended).ok).toBe(true);

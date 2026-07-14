@@ -669,6 +669,7 @@ export function createRematchAggregate(
     placementMode: "Manual",
     transformEnabled: config.transformEnabled,
     seed: ids.seed,
+    rulesVersion: previous.state.rulesVersion,
   });
   // Swap: the previous White player becomes Black and vice versa.
   const members: MatchMembers = {

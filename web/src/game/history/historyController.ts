@@ -42,6 +42,8 @@ export function restoreHistoryPatch(previous: HistoryEntry, remainingHistory: Hi
     timeLeft: { ...previous.timeLeft },
     pendingTransform: previous.pendingTransform,
     pendingDefendedKing: previous.pendingDefendedKing,
+    projectedDefendedKing: null,
+    resolvedDefendedKing: null,
     clockRunningFor: null,
     clockLastSyncMs: null,
     selected: null,

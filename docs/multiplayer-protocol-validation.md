@@ -1,4 +1,4 @@
-# Multiplayer protocol v1 validation
+# Multiplayer protocol v2 validation
 
 Phase B.7 defines the transport-independent protocol contract only. It does not introduce a server, database, authentication provider or network transport.
 
@@ -9,6 +9,7 @@ The protocol is accepted only when all repository gates remain green and the fol
 - runtime rejection of malformed envelopes, commands and events;
 - compile-time compatibility between wire game commands and game-core commands;
 - explicit Defended King and Transform decision messages;
+- semantic Defended-King route selection with server-recomputed validation;
 - optimistic match-version checks;
 - ordered aggregate event streams;
 - authentication credentials excluded from actor payloads;

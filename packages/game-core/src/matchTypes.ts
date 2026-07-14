@@ -39,6 +39,8 @@ export interface PendingDefendedKing {
 export type PendingDecision = { kind: "defendedKing"; value: PendingDefendedKing } | { kind: "transform"; value: PendingTransform };
 
 export interface MatchState {
+  rulesVersion: 1 | 2;
+  seed: number;
   board: BoardState;
   phase: MatchPhase;
   currentPlayer: Player;
@@ -57,11 +59,12 @@ export interface CreateMatchOptions {
   placementMode: PlacementMode;
   transformEnabled?: boolean;
   seed: number;
+  rulesVersion?: 1 | 2;
 }
 
 export type GameCommand =
   | { type: "PlacePiece"; position: Vec2 }
-  | { type: "SubmitAction"; start: Vec2; end: Vec2 }
+  | { type: "SubmitAction"; start: Vec2; end: Vec2; routeId?: import("./types.js").DeflectionRouteId }
   | { type: "ChooseDefender"; position: Vec2 }
   | { type: "CancelDefendedKing" }
   | { type: "ChooseTransform"; newType: PawnType }
@@ -99,6 +102,8 @@ export type CommandResult =
 
 export interface MatchSnapshot {
   schema: 1;
+  rulesVersion?: 1 | 2;
+  seed?: number;
   board: PythonBoardSnapshot;
   phase: MatchPhase;
   currentPlayer: Player;

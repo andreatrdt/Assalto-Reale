@@ -1,7 +1,7 @@
 // Persistence extracted from the store: save construction, strict validation of
 // untrusted saves, localStorage availability, and the pure restore patch. These
 // functions never touch the store; the store owns read/write and set/get. Schema
-// 1 and 2 are both accepted; malformed or unknown-schema saves are rejected
+// Schemas 1-3 are accepted; malformed or unknown-schema saves are rejected
 // atomically; generated squares are restored verbatim (no reroll); terminal-game
 // messages are preserved.
 import { fromPythonSnapshot, toPythonSnapshot, type Player } from "../engine";
@@ -69,9 +69,24 @@ function isValidPendingOwner(value: unknown): boolean {
   return value == null || (isRecord(value) && isPlayer(value.owner));
 }
 
+function isValidProjectedDefendedKing(value: unknown): boolean {
+  if (value == null) return true;
+  if (!isRecord(value) || !isRecord(value.preview) || !Array.isArray(value.defenders)) return false;
+  const preview = value.preview;
+  return (
+    Array.isArray(preview.attackerOrigin) &&
+    Array.isArray(preview.kingPosition) &&
+    Array.isArray(preview.attackPath) &&
+    Array.isArray(preview.bouncePath) &&
+    Array.isArray(preview.routes) &&
+    ["primary", "clockwise", "counterClockwise"].includes(String(preview.selectedRouteId))
+  );
+}
+
 export function validateSavedGame(value: unknown): SavedGame | null {
   if (!isRecord(value)) return null;
-  if (value.schema !== 1 && value.schema !== 2) return null;
+  if (value.schema !== 1 && value.schema !== 2 && value.schema !== 3) return null;
+  if (value.schema === 3 && ((value.rulesVersion !== 1 && value.rulesVersion !== 2) || !Number.isInteger(value.seed))) return null;
   if (!isRecord(value.phase) || typeof value.phase.phase !== "string" || !VALID_PHASES.has(value.phase.phase)) return null;
   if (!isValidBoardSnapshot(value.board)) return null;
   if (!isPlayer(value.currentPlayer) || !isPlayer(value.aiPlayer)) return null;
@@ -84,6 +99,7 @@ export function validateSavedGame(value: unknown): SavedGame | null {
   if (typeof value.aiEnabled !== "boolean" || typeof value.hasActiveMatch !== "boolean") return null;
   if (!isValidTimeLeft(value.timeLeft)) return null;
   if (!isValidPendingOwner(value.pendingDefendedKing) || !isValidPendingOwner(value.pendingTransform)) return null;
+  if (value.schema === 3 && !isValidProjectedDefendedKing(value.projectedDefendedKing)) return null;
   return value as unknown as SavedGame;
 }
 
@@ -101,7 +117,9 @@ export function localStorageAvailable(): boolean {
 
 export function savedGameFromState(state: GameState): SavedGame {
   return {
-    schema: 2,
+    schema: 3,
+    rulesVersion: state.rulesVersion,
+    seed: state.seed,
     appVersion: "web-v1",
     savedAt: new Date().toISOString(),
     board: toPythonSnapshot(state.board),
@@ -123,6 +141,7 @@ export function savedGameFromState(state: GameState): SavedGame {
     pendingTransform: state.pendingTransform,
     pendingDefendedKing: state.pendingDefendedKing,
     history: state.history,
+    projectedDefendedKing: state.projectedDefendedKing,
   };
 }
 
@@ -132,6 +151,8 @@ export function savedGameFromState(state: GameState): SavedGame {
  */
 export function buildRestorePatch(saved: SavedGame, message = "Game loaded."): StatePatch {
   return {
+    rulesVersion: saved.schema === 3 ? (saved.rulesVersion ?? 2) : 1,
+    seed: saved.schema === 3 ? (saved.seed ?? 0) : 0,
     board: fromPythonSnapshot(saved.board),
     phase: saved.phase,
     currentPlayer: saved.currentPlayer,
@@ -153,8 +174,10 @@ export function buildRestorePatch(saved: SavedGame, message = "Game loaded."): S
     clockLastSyncMs: null,
     selected: null,
     legalTargets: [],
-    pendingTransform: saved.schema === 2 ? (saved.pendingTransform ?? null) : null,
-    pendingDefendedKing: saved.schema === 2 ? (saved.pendingDefendedKing ?? null) : null,
-    history: saved.schema === 2 ? (saved.history ?? []) : [],
+    pendingTransform: saved.schema >= 2 ? (saved.pendingTransform ?? null) : null,
+    pendingDefendedKing: saved.schema >= 2 ? (saved.pendingDefendedKing ?? null) : null,
+    projectedDefendedKing: saved.schema === 3 ? (saved.projectedDefendedKing ?? null) : null,
+    resolvedDefendedKing: null,
+    history: saved.schema >= 2 ? (saved.history ?? []) : [],
   };
 }

@@ -264,6 +264,24 @@ describe("immutable history replay", () => {
         resolved.events.some((event) => event.type === "ActionApplied" && event.transition.events.some((item) => item.kind === "bounce")),
       ).toBe(true);
       expect(resolved.state.board.capturedPieces.White.DefensePawn).toBe(1);
+      const applied = resolved.events.find((event) => event.type === "ActionApplied");
+      expect(applied?.type === "ActionApplied" ? applied.transition.events[0]?.data.route_id : null).toBe("primary");
+    }
+  });
+
+  it("keeps schema-v1 rules-v1 replays readable without reinterpretation", () => {
+    const replay = replayHistoricalMatch({
+      rulesVersion: 1,
+      replaySchemaVersion: 1,
+      seed: 4,
+      placementMode: "QuickBalanced",
+      transformEnabled: false,
+      events: [{ sequenceNumber: 1, actorSide: "Black", payload: { schemaVersion: 1, command: { type: "PassTurn" } } }],
+    });
+    expect(replay.ok).toBe(true);
+    if (replay.ok) {
+      expect(replay.frames[0]?.state.rulesVersion).toBe(1);
+      expect(replay.frames.at(-1)?.state.currentPlayer).toBe("White");
     }
   });
 

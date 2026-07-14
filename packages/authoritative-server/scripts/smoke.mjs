@@ -24,7 +24,7 @@ const handler = new CommandHandler({
 
 const events = await handler.handle({
   protocol: "assalto-reale",
-  protocolVersion: 1,
+  protocolVersion: 2,
   messageType: "command",
   commandId: "cmd_smoke001",
   sentAt: "2026-01-01T00:00:00.000Z",

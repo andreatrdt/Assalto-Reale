@@ -37,6 +37,16 @@ export interface VictoryResult {
   loser?: Player | null;
 }
 
+export type DeflectionRouteId = "primary" | "clockwise" | "counterClockwise";
+
+export interface DeflectionRoute {
+  id: DeflectionRouteId;
+  path: Vec2[];
+  jumpedSquares: Vec2[];
+  turnSquares: Vec2[];
+  landingPosition: Vec2;
+}
+
 export interface DefendedKingPreview {
   attackerId: PieceId;
   kingId: PieceId;
@@ -47,6 +57,9 @@ export interface DefendedKingPreview {
   attackPath: Vec2[];
   bouncePath: Vec2[];
   landingPosition: Vec2;
+  routes: DeflectionRoute[];
+  selectedRouteId: DeflectionRouteId;
+  pathDefenderId: PieceId | null;
   eligibleDefenderIds: PieceId[];
   triggersTransform: boolean;
   actionCost: number;
@@ -67,6 +80,7 @@ export interface Action {
   targetPieceType?: PieceType;
   defendedKing?: DefendedKingPreview | null;
   selectedDefender?: Vec2 | null;
+  selectedRouteId?: DeflectionRouteId | null;
   endsTurn: boolean;
   error?: string | null;
 }

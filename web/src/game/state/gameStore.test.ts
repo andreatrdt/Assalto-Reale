@@ -136,14 +136,15 @@ describe("game store wiring", () => {
     expect(loaded.message).toBe("Game loaded.");
   });
 
-  it("exports schema-2 saves and imports them with validation", () => {
+  it("exports schema-3 versioned saves and imports them with validation", () => {
     useGameStore.getState().startManualPlacement({ seed: 99 });
     useGameStore.getState().activateSquare([5, 2]);
     const exported = useGameStore.getState().exportSaveJson();
     expect(exported).toBeTruthy();
 
     const parsed = JSON.parse(exported ?? "{}");
-    expect(parsed.schema).toBe(2);
+    expect(parsed.schema).toBe(3);
+    expect(parsed.rulesVersion).toBe(2);
     expect(parsed.history).toHaveLength(1);
 
     startPlayingMatch({ setupSeed: 11 });
@@ -314,6 +315,9 @@ describe("game store wiring", () => {
     useGameStore.getState().activateSquare([5, 1]);
     useGameStore.getState().activateSquare([5, 3]);
 
+    expect(useGameStore.getState().projectedDefendedKing).not.toBeNull();
+    useGameStore.getState().activateSquare([5, 3]);
+
     const preview = useGameStore.getState();
     expect(preview.phase.phase).toBe("defenderSelection");
     expect(preview.pendingDefendedKing?.owner).toBe("White");
@@ -354,6 +358,7 @@ describe("game store wiring", () => {
     });
 
     useGameStore.getState().activateSquare([5, 1]);
+    useGameStore.getState().activateSquare([5, 3]);
     useGameStore.getState().activateSquare([5, 3]);
     expect(useGameStore.getState().pendingDefendedKing?.owner).toBe("White");
 

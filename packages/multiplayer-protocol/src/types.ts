@@ -1,5 +1,5 @@
 export const PROTOCOL_NAME = "assalto-reale" as const;
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 
 export type ProtocolName = typeof PROTOCOL_NAME;
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
@@ -9,7 +9,8 @@ export type PlacementMode = "Manual" | "QuickBalanced";
 export type Coordinate = [number, number];
 
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue =
+  JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
 export interface CanonicalMatchSnapshot extends JsonObject {
@@ -39,13 +40,21 @@ export interface OnlineMatchConfig {
   timeControl: TimeControl;
 }
 
-export const MATCH_REPLAY_SCHEMA_VERSION = 1 as const;
-export const MATCH_RULES_VERSION = 1 as const;
+export const MATCH_REPLAY_SCHEMA_VERSION = 2 as const;
+export const MATCH_RULES_VERSION = 2 as const;
+export type DeflectionRouteId = "primary" | "clockwise" | "counterClockwise";
 
 export type HistoricalGameCommand = Extract<
   ClientCommand,
   {
-    type: "PlacePiece" | "SubmitAction" | "ChooseDefender" | "CancelDefendedKing" | "ChooseTransform" | "PassTurn" | "Resign";
+    type:
+      | "PlacePiece"
+      | "SubmitAction"
+      | "ChooseDefender"
+      | "CancelDefendedKing"
+      | "ChooseTransform"
+      | "PassTurn"
+      | "Resign";
   }
 >;
 
@@ -67,7 +76,7 @@ export interface MatchHistoryReplayEvent {
   matchVersionBefore: number;
   matchVersionAfter: number;
   payload: {
-    schemaVersion: typeof MATCH_REPLAY_SCHEMA_VERSION;
+    schemaVersion: number;
     command: HistoricalGameCommand;
   };
 }
@@ -168,7 +177,8 @@ export interface MatchHistoryDetails {
 export type MatchLifecycleStatus = "awaitingOpponent" | "active" | "ended";
 
 export type PostGamePresenceStatus = "present" | "grace" | "absent";
-export type PostGamePresenceReason = "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired";
+export type PostGamePresenceReason =
+  "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired";
 
 /** Durable, side-addressed post-game state. Grace deadlines remain server-only. */
 export interface PostGameSnapshot {
@@ -180,7 +190,12 @@ export type ClientCommand =
   | { type: "CreateMatch"; config: OnlineMatchConfig }
   | { type: "JoinMatch"; inviteCode: string }
   | { type: "PlacePiece"; position: Coordinate }
-  | { type: "SubmitAction"; start: Coordinate; end: Coordinate }
+  | {
+      type: "SubmitAction";
+      start: Coordinate;
+      end: Coordinate;
+      routeId?: DeflectionRouteId;
+    }
   | { type: "ChooseDefender"; position: Coordinate }
   | { type: "CancelDefendedKing" }
   | { type: "ChooseTransform"; newType: PawnType }
@@ -191,7 +206,9 @@ export type ClientCommand =
   | { type: "LeavePostGame" }
   | { type: "RequestSync"; lastSeenMatchVersion: number | null };
 
-export interface ClientCommandEnvelope<C extends ClientCommand = ClientCommand> {
+export interface ClientCommandEnvelope<
+  C extends ClientCommand = ClientCommand,
+> {
   protocol: ProtocolName;
   protocolVersion: ProtocolVersion;
   messageType: "command";
@@ -211,6 +228,14 @@ export type PendingDecisionWire =
       attackerOrigin: Coordinate;
       kingPosition: Coordinate;
       landingPosition: Coordinate;
+      routes: Array<{
+        id: DeflectionRouteId;
+        path: Coordinate[];
+        jumpedSquares: Coordinate[];
+        turnSquares: Coordinate[];
+        landingPosition: Coordinate;
+      }>;
+      pathDefender: Coordinate | null;
     }
   | {
       kind: "transform";
@@ -220,7 +245,8 @@ export type PendingDecisionWire =
       options: PawnType[];
     };
 
-export type MatchEndReason = "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
+export type MatchEndReason =
+  "king_capture" | "territory" | "timeout" | "resignation" | "abandonment";
 
 export type CommandRejectionCode =
   | "invalid_message"
@@ -329,9 +355,15 @@ export interface ServerEventEnvelope<E extends ServerEvent = ServerEvent> {
 }
 
 export interface ProtocolValidationError {
-  code: "invalid_json" | "invalid_envelope" | "unsupported_protocol_version" | "invalid_command" | "invalid_event";
+  code:
+    | "invalid_json"
+    | "invalid_envelope"
+    | "unsupported_protocol_version"
+    | "invalid_command"
+    | "invalid_event";
   path: string;
   message: string;
 }
 
-export type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: ProtocolValidationError };
+export type ValidationResult<T> =
+  { ok: true; value: T } | { ok: false; error: ProtocolValidationError };

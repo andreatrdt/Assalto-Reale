@@ -9,6 +9,24 @@ const PIECE_TYPES = new Set<PieceType>(["King", "AttackPawn", "DefensePawn", "Co
 const PAWN_TYPES = new Set<PawnType>(["AttackPawn", "DefensePawn", "ConquestPawn"]);
 const PHASES = new Set<MatchState["phase"]>(["placement", "playing", "defenderSelection", "transformSelection", "gameOver"]);
 
+function normalizeLegacyPreview(preview: DefendedKingPreview): DefendedKingPreview {
+  if (Array.isArray(preview.routes)) return preview;
+  return {
+    ...preview,
+    routes: [
+      {
+        id: "primary",
+        path: preview.bouncePath,
+        jumpedSquares: [],
+        turnSquares: [],
+        landingPosition: preview.landingPosition,
+      },
+    ],
+    selectedRouteId: "primary",
+    pathDefenderId: null,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -73,6 +91,20 @@ function isPreview(value: unknown, rows: number, cols: number): value is Defende
     Array.isArray(value.bouncePath) &&
     value.bouncePath.every((pos) => isVec2(pos, rows, cols)) &&
     isVec2(value.landingPosition, rows, cols) &&
+    (value.routes === undefined ||
+      (Array.isArray(value.routes) &&
+        value.routes.every(
+          (route) =>
+            isRecord(route) &&
+            ["primary", "clockwise", "counterClockwise"].includes(String(route.id)) &&
+            Array.isArray(route.path) &&
+            route.path.every((pos) => isVec2(pos, rows, cols)) &&
+            Array.isArray(route.jumpedSquares) &&
+            route.jumpedSquares.every((pos) => isVec2(pos, rows, cols)) &&
+            Array.isArray(route.turnSquares) &&
+            route.turnSquares.every((pos) => isVec2(pos, rows, cols)) &&
+            isVec2(route.landingPosition, rows, cols),
+        ))) &&
     Array.isArray(value.eligibleDefenderIds) &&
     value.eligibleDefenderIds.every((id) => typeof id === "string") &&
     typeof value.triggersTransform === "boolean" &&
@@ -180,6 +212,8 @@ export function toMatchSnapshot(state: MatchState): MatchSnapshot {
   const cloned = cloneMatchState(state);
   return {
     schema: 1,
+    rulesVersion: cloned.rulesVersion,
+    seed: cloned.seed,
     board: toPythonSnapshot(cloned.board),
     phase: cloned.phase,
     currentPlayer: cloned.currentPlayer,
@@ -204,6 +238,8 @@ export function validateState(value: unknown): value is MatchSnapshot {
   const rows = value.board.config.rows;
   const cols = value.board.config.cols;
   if (
+    (value.rulesVersion !== undefined && value.rulesVersion !== 1 && value.rulesVersion !== 2) ||
+    (value.seed !== undefined && !Number.isInteger(value.seed)) ||
     typeof value.phase !== "string" ||
     !PHASES.has(value.phase as MatchState["phase"]) ||
     !isPlayer(value.currentPlayer) ||
@@ -243,6 +279,8 @@ export function deserializeState(raw: string): MatchState | null {
     const parsed: unknown = JSON.parse(raw);
     if (!validateState(parsed)) return null;
     return {
+      rulesVersion: parsed.rulesVersion ?? 1,
+      seed: parsed.seed ?? 0,
       board: fromPythonSnapshot(parsed.board),
       phase: parsed.phase,
       currentPlayer: parsed.currentPlayer,
@@ -252,7 +290,18 @@ export function deserializeState(raw: string): MatchState | null {
       placementCursor: parsed.placementCursor,
       currentPlacement: parsed.currentPlacement ? { ...parsed.currentPlacement } : null,
       piecesLeft: clonePiecesLeft(parsed.piecesLeft),
-      pendingDefendedKing: parsed.pendingDefendedKing,
+      pendingDefendedKing: parsed.pendingDefendedKing
+        ? {
+            ...parsed.pendingDefendedKing,
+            preview: normalizeLegacyPreview(parsed.pendingDefendedKing.preview),
+            action: {
+              ...parsed.pendingDefendedKing.action,
+              defendedKing: parsed.pendingDefendedKing.action.defendedKing
+                ? normalizeLegacyPreview(parsed.pendingDefendedKing.action.defendedKing)
+                : parsed.pendingDefendedKing.action.defendedKing,
+            },
+          }
+        : null,
       pendingTransform: parsed.pendingTransform,
       victory: parsed.victory,
     };

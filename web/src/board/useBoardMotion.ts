@@ -7,6 +7,8 @@ type DefendedKingContext = NonNullable<BoardMotionSnapshot["pendingDefendedKing"
 
 export function toBoardMotionSnapshot(state: StoreState): BoardMotionSnapshot {
   return {
+    rulesVersion: state.rulesVersion,
+    movesThisTurn: state.movesThisTurn,
     board: state.board,
     phase: state.phase.phase,
     lastAction: state.lastAction,
@@ -18,6 +20,12 @@ export function toBoardMotionSnapshot(state: StoreState): BoardMotionSnapshot {
       ? {
           action: state.pendingDefendedKing.action as DefendedKingContext["action"],
           defenders: state.pendingDefendedKing.defenders,
+        }
+      : null,
+    resolvedDefendedKing: state.resolvedDefendedKing
+      ? {
+          action: state.resolvedDefendedKing.action as DefendedKingContext["action"],
+          defenders: state.resolvedDefendedKing.defenders,
         }
       : null,
   };

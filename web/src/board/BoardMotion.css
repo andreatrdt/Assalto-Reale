@@ -93,6 +93,76 @@
   transform-origin: center;
 }
 
+.motionTransformOld {
+  fill: rgb(70 105 139 / 0.2);
+  stroke: #466a8b;
+  stroke-width: 7;
+  animation: transform-square-collapse var(--motion-duration) ease-in forwards;
+}
+
+.motionTransformNew {
+  fill: rgb(70 105 139 / 0.16);
+  stroke: #466a8b;
+  stroke-width: 7;
+  animation: transform-square-materialize var(--motion-duration) ease-out forwards;
+}
+
+.motionTransformTrail {
+  fill: none;
+  stroke: #7196b5;
+  stroke-dasharray: 10 12;
+  stroke-linecap: round;
+  stroke-width: 6;
+  animation: transform-square-trail var(--motion-duration) ease-out forwards;
+}
+
+@keyframes transform-square-collapse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+  45%,
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+    transform-origin: center;
+  }
+}
+
+@keyframes transform-square-materialize {
+  0%,
+  48% {
+    opacity: 0;
+    transform: scale(0.35);
+    transform-origin: center;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    transform-origin: center;
+  }
+}
+
+@keyframes transform-square-trail {
+  0%,
+  35% {
+    opacity: 0;
+    stroke-dashoffset: 80;
+  }
+  65% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+.motionDefendedRoute {
+  filter: drop-shadow(0 3px 5px rgb(31 69 64 / 0.4));
+}
+
 @keyframes boardMotionTransformSquare {
   0% {
     opacity: 0;
@@ -280,6 +350,13 @@ html[data-board-contrast="high"] .motionDefendedKingTarget {
 
 .motionTransformTo.isReduced {
   animation-name: boardMotionReducedAppear;
+}
+
+.motionTransformOld.isReduced,
+.motionTransformNew.isReduced,
+.motionTransformTrail.isReduced,
+.motionDefendedRoute.isReduced {
+  animation: none;
 }
 
 @keyframes boardMotionReducedTravel {

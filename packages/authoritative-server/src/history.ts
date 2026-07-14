@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import {
-  GAME_RULES_VERSION,
   REPLAY_SCHEMA_VERSION,
   replayHistoricalMatch,
   serializeState,
@@ -211,7 +210,10 @@ export function createStoredHistoryEvent(input: {
     matchVersionBefore: input.previous.version,
     matchVersionAfter: input.next.version,
     payload: {
-      schemaVersion: MATCH_REPLAY_SCHEMA_VERSION,
+      schemaVersion:
+        input.previous.state.rulesVersion === 1
+          ? 1
+          : MATCH_REPLAY_SCHEMA_VERSION,
       command: input.command,
       facts: delta,
     },
@@ -283,8 +285,9 @@ function replayIsComplete(
     );
   }
   const replay = replayHistoricalMatch({
-    rulesVersion: GAME_RULES_VERSION,
-    replaySchemaVersion: REPLAY_SCHEMA_VERSION,
+    rulesVersion: aggregate.state.rulesVersion,
+    replaySchemaVersion:
+      aggregate.state.rulesVersion === 1 ? 1 : REPLAY_SCHEMA_VERSION,
     seed: aggregate.seed,
     placementMode: aggregate.config.placementMode,
     transformEnabled: aggregate.config.transformEnabled,
@@ -346,9 +349,10 @@ export function buildImmutableMatchHistory(
     rated: false as const,
     predecessorMatchId: aggregate.predecessorMatchId,
     finalMatchVersion: aggregate.version,
-    rulesVersion: GAME_RULES_VERSION,
+    rulesVersion: aggregate.state.rulesVersion,
     protocolVersion: PROTOCOL_VERSION,
-    replaySchemaVersion: REPLAY_SCHEMA_VERSION,
+    replaySchemaVersion:
+      aggregate.state.rulesVersion === 1 ? 1 : REPLAY_SCHEMA_VERSION,
     replayAvailable: replayIsComplete(aggregate, events),
     seed: aggregate.seed,
     config: aggregate.config,

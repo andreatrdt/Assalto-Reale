@@ -1,5 +1,5 @@
 import { applyAction, buildAction } from "./actions.js";
-import { cloneBoard, getPiece, hasPos } from "./board.js";
+import { cloneBoard, getPiece, hasPos, pieceIdAt } from "./board.js";
 import { PAWN_TYPES } from "./config.js";
 import { adjacentDefendersForKing } from "./defendedKing.js";
 import {
@@ -41,6 +41,13 @@ function clonePreview(preview: NonNullable<Action["defendedKing"]>): NonNullable
     attackPath: preview.attackPath.map(cloneVec),
     bouncePath: preview.bouncePath.map(cloneVec),
     landingPosition: cloneVec(preview.landingPosition),
+    routes: preview.routes.map((route) => ({
+      ...route,
+      path: route.path.map(cloneVec),
+      jumpedSquares: route.jumpedSquares.map(cloneVec),
+      turnSquares: route.turnSquares.map(cloneVec),
+      landingPosition: cloneVec(route.landingPosition),
+    })),
     eligibleDefenderIds: [...preview.eligibleDefenderIds],
   };
 }
@@ -51,6 +58,7 @@ function cloneAction(action: Action): Action {
     start: action.start ? cloneVec(action.start) : undefined,
     end: action.end ? cloneVec(action.end) : undefined,
     selectedDefender: action.selectedDefender ? cloneVec(action.selectedDefender) : action.selectedDefender,
+    selectedRouteId: action.selectedRouteId,
     defendedKing: action.defendedKing ? clonePreview(action.defendedKing) : action.defendedKing,
   };
 }
@@ -108,8 +116,10 @@ function success(
 }
 
 export function createMatch(options: CreateMatchOptions): MatchState {
+  const common = { rulesVersion: options.rulesVersion ?? 2, seed: options.seed } as const;
   if (options.placementMode === "QuickBalanced") {
     return {
+      ...common,
       board: createQuickBalancedBoard(options.transformEnabled ?? false, options.seed),
       phase: "playing",
       currentPlayer: "Black",
@@ -127,6 +137,7 @@ export function createMatch(options: CreateMatchOptions): MatchState {
 
   const currentPlacement = PLACEMENT_QUEUE[0] ?? null;
   return {
+    ...common,
     board: createBaseBoard(options.transformEnabled ?? false, options.seed),
     phase: "placement",
     currentPlayer: currentPlacement?.player ?? "Black",
@@ -168,6 +179,7 @@ export function getLegalActions(state: MatchState): Action[] {
           const action = buildAction(state.board, start, end, {
             movesThisTurn: state.movesThisTurn,
             kingMoved: state.kingMoved,
+            rulesVersion: state.rulesVersion,
           });
           if (!action.error && action.player === state.currentPlayer) {
             actions.push(action);
@@ -264,6 +276,7 @@ function commitAction(state: MatchState, command: GameCommand, action: Action): 
   const { board, result } = applyAction(state.board, action, {
     movesThisTurn: state.movesThisTurn,
     kingMoved: state.kingMoved,
+    rulesVersion: state.rulesVersion,
   });
   if (result.error) {
     return failure(state, command, "illegal_action", result.error);
@@ -366,10 +379,24 @@ function submitAction(state: MatchState, command: Extract<GameCommand, { type: "
   const action = buildAction(state.board, command.start, command.end, {
     movesThisTurn: state.movesThisTurn,
     kingMoved: state.kingMoved,
+    selectedRouteId: command.routeId,
+    rulesVersion: state.rulesVersion,
   });
   if (action.error) return failure(state, command, "illegal_action", action.error);
   if (action.player !== state.currentPlayer) {
     return failure(state, command, "wrong_player", "The action does not belong to the current player.");
+  }
+
+  if (action.defendedKing && action.defendedKing.routes.length > 1 && !command.routeId) {
+    return failure(state, command, "invalid_decision", "Select one of the authoritative deflection routes.");
+  }
+
+  if (action.defendedKing?.pathDefenderId && !action.selectedDefender) {
+    const defender = adjacentDefendersForKing(state.board, command.end, opponent(action.player as Player)).find(
+      (pos) => pieceIdAt(state.board, pos) === action.defendedKing?.pathDefenderId,
+    );
+    if (!defender) return failure(state, command, "invalid_decision", "The path defender is no longer available.");
+    return commitAction(state, command, { ...action, selectedDefender: defender });
   }
 
   if (action.defendedKing && !action.selectedDefender) {
@@ -428,7 +455,13 @@ function chooseTransform(state: MatchState, command: Extract<GameCommand, { type
     return failure(state, command, "invalid_decision", "A pawn must transform into a different pawn type.");
   }
 
-  const { board, result } = transformPiece(state.board, state.pendingTransform.pos, command.newType, state.turnCounter + 1);
+  const { board, result } = transformPiece(
+    state.board,
+    state.pendingTransform.pos,
+    command.newType,
+    state.rulesVersion === 1 ? state.turnCounter + 1 : state.seed ^ Math.imul(state.turnCounter + 1, 0x9e3779b1),
+    state.rulesVersion,
+  );
   if (result.error) return failure(state, command, "invalid_decision", result.error);
 
   let currentPlayer = state.currentPlayer;

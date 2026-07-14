@@ -19,6 +19,8 @@ const MATCH_PHASES = new Set<MatchPhase>(["placement", "playing", "defenderSelec
 export function toCoreMatchState(state: GameState): MatchState {
   const phase = MATCH_PHASES.has(state.phase.phase as MatchPhase) ? (state.phase.phase as MatchPhase) : "playing";
   return {
+    rulesVersion: state.rulesVersion,
+    seed: state.seed,
     board: state.board,
     phase,
     currentPlayer: state.currentPlayer,
@@ -99,6 +101,7 @@ function successPatch(
     pendingDefendedKing: after.pendingDefendedKing,
     pendingTransform: after.pendingTransform,
     phase: phaseAfterCommand(before, command, result),
+    resolvedDefendedKing: null,
   };
 
   if (shouldPushHistory(command, result)) {
@@ -132,6 +135,14 @@ function successPatch(
       patch.legalTargets = [];
       if (result.action) {
         patch.lastAction = describeAction(result.action, result.action.defendedKing?.landingPosition ?? result.action.end ?? [0, 0]);
+        if (result.action.defendedKing) {
+          const defended = result.transition?.events.find((event) => event.kind === "defended_king");
+          const defender = defended?.data.defender;
+          patch.resolvedDefendedKing = {
+            action: result.action,
+            defenders: Array.isArray(defender) && defender.length === 2 ? [defender as unknown as Vec2] : [],
+          };
+        }
       }
       patch.message = outcomeMessage(result);
       return patch;
@@ -147,7 +158,7 @@ function successPatch(
     case "CancelDefendedKing": {
       const start = before.pendingDefendedKing?.action.start ?? null;
       patch.selected = start;
-      patch.legalTargets = start ? actionTargets(before.board, start, before.movesThisTurn, before.kingMoved) : [];
+      patch.legalTargets = start ? actionTargets(before.board, start, before.movesThisTurn, before.kingMoved, before.rulesVersion) : [];
       patch.message = "Defended-King attack cancelled.";
       return patch;
     }
@@ -196,8 +207,14 @@ export function runStoreCommand(
   };
 }
 
-export function runStoreSubmittedAction(state: GameState, start: Vec2, end: Vec2, autoResolveDefenderFor?: Player): StoreCommandResult {
-  const command: GameCommand = { type: "SubmitAction", start, end };
+export function runStoreSubmittedAction(
+  state: GameState,
+  start: Vec2,
+  end: Vec2,
+  autoResolveDefenderFor?: Player,
+  routeId?: import("../engine").DeflectionRouteId,
+): StoreCommandResult {
+  const command: GameCommand = { type: "SubmitAction", start, end, routeId };
   const submitted = applyCommand(toCoreMatchState(state), command);
   if (!submitted.ok || !autoResolveDefenderFor || submitted.state.pendingDefendedKing?.owner !== autoResolveDefenderFor) {
     if (!submitted.ok) {
@@ -241,6 +258,8 @@ export function storePatchFromCoreMatch(
   previousPhase: GamePhase,
 ): Pick<
   GameState,
+  | "rulesVersion"
+  | "seed"
   | "phase"
   | "board"
   | "currentPlayer"
@@ -255,8 +274,11 @@ export function storePatchFromCoreMatch(
   | "history"
   | "pendingTransform"
   | "pendingDefendedKing"
+  | "resolvedDefendedKing"
 > {
   return {
+    rulesVersion: match.rulesVersion,
+    seed: match.seed,
     phase: { phase: match.phase, previousPhase },
     board: match.board,
     currentPlayer: match.currentPlayer,
@@ -271,5 +293,6 @@ export function storePatchFromCoreMatch(
     history: [],
     pendingTransform: match.pendingTransform,
     pendingDefendedKing: match.pendingDefendedKing,
+    resolvedDefendedKing: null,
   };
 }
