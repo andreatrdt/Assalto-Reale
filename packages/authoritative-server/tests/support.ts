@@ -235,7 +235,12 @@ export function seedMatch(
     successorMatchId: options.successorMatchId ?? null,
     predecessorMatchId: options.predecessorMatchId ?? null,
     historyEventSequence: options.historyEventSequence ?? 0,
-    historyCaptureStartedAtVersion: options.historyCaptureStartedAtVersion ?? 1,
+    // Handcrafted seeded states do not have a reconstructable event stream by
+    // default. Tests that exercise complete replay capture opt in explicitly.
+    historyCaptureStartedAtVersion:
+      options.historyCaptureStartedAtVersion === undefined
+        ? null
+        : options.historyCaptureStartedAtVersion,
     postGame:
       options.postGame ??
       (options.status === "ended"

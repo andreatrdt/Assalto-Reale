@@ -25,6 +25,9 @@ async function createJoinedMatch() {
 describe("immutable match history", () => {
   it("keeps an out-of-turn resignation replayable", async () => {
     const test = await createJoinedMatch();
+    expect(
+      test.store.matches.get(test.matchId)?.historyCaptureStartedAtVersion,
+    ).toBe(1);
     await test.handler.handle(
       message(
         { type: "Resign" },
@@ -42,6 +45,26 @@ describe("immutable match history", () => {
       replayAvailable: true,
       totalEvents: 1,
     });
+  });
+
+  it("fails finalization when a newly captured replay has an event-count gap", async () => {
+    const test = await createJoinedMatch();
+    test.store.matches.get(test.matchId)!.historyEventSequence = 1;
+
+    await expect(
+      test.handler.handle(
+        message(
+          { type: "Resign" },
+          {
+            commandId: "cmd_history_sequence_gap",
+            playerId: BOB,
+            matchId: test.matchId,
+            expectedMatchVersion: 2,
+          },
+        ),
+      ),
+    ).rejects.toThrow("Captured replay event count mismatch");
+    expect(test.store.histories.has(test.matchId)).toBe(false);
   });
 
   it("finalizes compact replay and player statistics exactly once with the terminal command", async () => {
@@ -179,6 +202,31 @@ describe("immutable match history", () => {
       checksum,
     );
     expect(test.store.histories.has(successor)).toBe(false);
+
+    await test.handler.handle(
+      message(
+        { type: "Resign" },
+        {
+          commandId: "cmd_lineage_successor_resign",
+          playerId: ALICE,
+          matchId: successor,
+          expectedMatchVersion: 1,
+        },
+      ),
+    );
+    expect(test.store.histories.size).toBe(2);
+    expect(test.store.histories.get(successor)).toMatchObject({
+      matchId: successor,
+      predecessorMatchId: test.matchId,
+      replayAvailable: true,
+      totalEvents: 1,
+    });
+    expect(test.store.histories.get(successor)!.integrityChecksum).not.toBe(
+      checksum,
+    );
+    expect(test.store.histories.get(test.matchId)!.integrityChecksum).toBe(
+      checksum,
+    );
   });
 
   it("marks a capture that began before replay capture as preserved but not replayable", async () => {
