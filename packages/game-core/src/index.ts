@@ -9,6 +9,7 @@ export * from "./territory.js";
 export * from "./transform.js";
 export * from "./types.js";
 export * from "./victory.js";
+export * from "./versions.js";
 
 // Canonical match command API (createMatch / applyCommand / getLegalActions /
 // advanceTurn / checkVictory / resolveDefendedKing / resolveTransform) plus its

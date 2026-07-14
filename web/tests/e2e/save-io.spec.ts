@@ -32,7 +32,7 @@ test.describe("save import/export via the UI", () => {
     expect(download.suggestedFilename()).toMatch(/^assalto-reale-saved-match-.*\.json$/);
     const json = JSON.parse(readFileSync(await download.path(), "utf8"));
     expect(json.board).toBeTruthy();
-    expect([1, 2]).toContain(json.schema);
+    expect([1, 2, 3]).toContain(json.schema);
   });
 
   test("a UI-exported save re-imports through the file input and loads the match", async ({ page }) => {

@@ -1,5 +1,5 @@
 import { PAWN_TYPES } from "./config.js";
-import { cheb, cloneBoard, getPiece, inBounds, samePos, setPiece } from "./board.js";
+import { cheb, cloneBoard, direction, getPiece, inBounds, pieceIdAt, samePos, setPiece } from "./board.js";
 import { adjacentDefendersForKing, getDefendedKingPreviewFromPositions, intermediateClear } from "./defendedKing.js";
 import { evaluateVictory } from "./victory.js";
 import { getSpecialControl, updateControl } from "./territory.js";
@@ -86,7 +86,13 @@ export function buildAction(
   board: BoardState,
   start: Vec2,
   end: Vec2,
-  options: { movesThisTurn?: number; kingMoved?: boolean; selectedDefender?: Vec2 | null } = {},
+  options: {
+    movesThisTurn?: number;
+    kingMoved?: boolean;
+    selectedDefender?: Vec2 | null;
+    selectedRouteId?: import("./types.js").DeflectionRouteId | null;
+    rulesVersion?: 1 | 2;
+  } = {},
 ): Action {
   const movesThisTurn = options.movesThisTurn ?? 0;
   const kingMoved = options.kingMoved ?? false;
@@ -117,7 +123,21 @@ export function buildAction(
   if (target.player === mover.player) {
     return invalid(start, end, mover.player, "destination has a friendly piece");
   }
-  const [ok, cost, reason] = captureGeometry(board, mover, start, end, target, movesThisTurn);
+  if (options.rulesVersion === 2 && mover.type === "AttackPawn" && target.type === "DefensePawn") {
+    const dir = direction(start, end);
+    const kingPosition: Vec2 = [end[0] + dir[0], end[1] + dir[1]];
+    const protectedAttack = getDefendedKingPreviewFromPositions(board, start, kingPosition, movesThisTurn, 2, options.selectedRouteId);
+    if (protectedAttack?.pathDefenderId === pieceIdAt(board, end)) {
+      return invalid(start, end, mover.player, "the path defender may only be resolved through the defended-King attack");
+    }
+  }
+  const precomputedDefendedKing =
+    mover.type === "AttackPawn" && target.type === "King"
+      ? getDefendedKingPreviewFromPositions(board, start, end, movesThisTurn, options.rulesVersion ?? 1, options.selectedRouteId)
+      : null;
+  const [ok, cost, reason] = precomputedDefendedKing
+    ? ([true, precomputedDefendedKing.actionCost, ""] as const)
+    : captureGeometry(board, mover, start, end, target, movesThisTurn);
   if (!ok) {
     return invalid(start, end, mover.player, reason);
   }
@@ -129,11 +149,14 @@ export function buildAction(
   let capturedPlayer = target.player;
   let endsTurn = movesThisTurn + cost >= 2 || target.type === "King";
   if (mover.type === "AttackPawn" && target.type === "King") {
-    defendedKing = getDefendedKingPreviewFromPositions(board, start, end, movesThisTurn);
+    defendedKing = precomputedDefendedKing;
     if (defendedKing) {
       capturedPieceType = "DefensePawn";
       capturedPlayer = target.player;
       endsTurn = true;
+      if (options.selectedRouteId && !defendedKing.routes.some((route) => route.id === options.selectedRouteId)) {
+        return invalid(start, end, mover.player, "selected deflection route is not eligible");
+      }
       if (
         options.selectedDefender &&
         !adjacentDefendersForKing(board, end, target.player).some((pos) => samePos(pos, options.selectedDefender!))
@@ -154,6 +177,7 @@ export function buildAction(
     targetPieceType: target.type,
     defendedKing,
     selectedDefender: options.selectedDefender ?? null,
+    selectedRouteId: defendedKing?.selectedRouteId ?? options.selectedRouteId ?? null,
     endsTurn,
   };
 }
@@ -161,7 +185,7 @@ export function buildAction(
 export function applyAction(
   source: BoardState,
   action: Action,
-  options: { movesThisTurn?: number; kingMoved?: boolean; validate?: boolean } = {},
+  options: { movesThisTurn?: number; kingMoved?: boolean; validate?: boolean; rulesVersion?: 1 | 2 } = {},
 ): { board: BoardState; result: TransitionResult } {
   const board = cloneBoard(source);
   if (action.kind === "pass") {
@@ -201,6 +225,8 @@ export function applyAction(
           movesThisTurn,
           kingMoved: options.kingMoved ?? false,
           selectedDefender: action.selectedDefender,
+          selectedRouteId: action.selectedRouteId,
+          rulesVersion: options.rulesVersion,
         });
   if (checked.error) {
     return {
@@ -242,7 +268,10 @@ export function applyAction(
   let landing = end;
   if (checked.defendedKing) {
     const defenders = adjacentDefendersForKing(board, end, target?.player ?? "");
-    const defenderPos = checked.selectedDefender ?? defenders[0];
+    const pathDefender = checked.defendedKing.pathDefenderId
+      ? defenders.find((pos) => pieceIdAt(board, pos) === checked.defendedKing!.pathDefenderId)
+      : null;
+    const defenderPos = pathDefender ?? checked.selectedDefender ?? defenders[0];
     const defenderPiece = getPiece(board, defenderPos);
     if (!defenderPiece || defenderPiece.type !== "DefensePawn") {
       return {
@@ -264,10 +293,24 @@ export function applyAction(
     landing = checked.defendedKing.landingPosition;
     setPiece(board, landing, mover);
     board.capturedPieces[defenderPiece.player].DefensePawn += 1;
+    const defendedKingData: Record<string, unknown> = { king: end, defender: defenderPos, landing };
+    const bounceData: Record<string, unknown> = { path: checked.defendedKing.bouncePath, landing };
+    if (options.rulesVersion === 2) {
+      const selectedRoute = checked.defendedKing.routes.find((route) => route.id === checked.defendedKing!.selectedRouteId);
+      Object.assign(defendedKingData, {
+        path_defender: checked.defendedKing.pathDefenderId,
+        attack_path: checked.defendedKing.attackPath,
+        route_id: checked.defendedKing.selectedRouteId,
+        route: checked.defendedKing.bouncePath,
+        jumped_squares: selectedRoute?.jumpedSquares ?? [],
+        turn_squares: selectedRoute?.turnSquares ?? [],
+      });
+      bounceData.route_id = checked.defendedKing.selectedRouteId;
+    }
     events.push(
-      { kind: "defended_king", data: { king: end, defender: defenderPos, landing } },
+      { kind: "defended_king", data: defendedKingData },
       { kind: "capture", data: { captured_player: defenderPiece.player, captured_piece_type: "DefensePawn", at: defenderPos } },
-      { kind: "bounce", data: { path: checked.defendedKing.bouncePath, landing } },
+      { kind: "bounce", data: bounceData },
     );
   } else {
     setPiece(board, start, null);

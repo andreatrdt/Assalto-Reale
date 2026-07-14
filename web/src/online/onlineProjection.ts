@@ -3,12 +3,14 @@ import { initialTimeLeft } from "../game/clocks/clockController";
 import { storePatchFromCoreMatch } from "../game/core/matchAdapter";
 import { DEFAULT_MATCH_CONFIG } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
+import type { ResolvedDefendedKing } from "../game/state/storeTypes";
 import type { CanonicalMatchSnapshot } from "./protocol";
 
 export interface OnlineSnapshotOptions {
   message: string;
   side: Player | null;
   ended?: boolean;
+  resolvedDefendedKing?: ResolvedDefendedKing | null;
 }
 
 export function applyOnlineSnapshot(snapshot: CanonicalMatchSnapshot, options: OnlineSnapshotOptions): boolean {
@@ -39,6 +41,7 @@ export function applyOnlineSnapshot(snapshot: CanonicalMatchSnapshot, options: O
     timeLeft: initialTimeLeft(0),
     clockRunningFor: null,
     clockLastSyncMs: null,
+    resolvedDefendedKing: options.resolvedDefendedKing ?? null,
     lastAction: options.message,
     message: options.message,
   });
@@ -52,6 +55,8 @@ export function clearOnlineProjection(): void {
     legalTargets: [],
     history: [],
     pendingDefendedKing: null,
+    projectedDefendedKing: null,
+    resolvedDefendedKing: null,
     pendingTransform: null,
     clockRunningFor: null,
     clockLastSyncMs: null,

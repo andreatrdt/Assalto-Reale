@@ -121,7 +121,7 @@ export function message(
 ): unknown {
   return {
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "command",
     commandId: options.commandId,
     sentAt: "2026-01-01T00:00:00.000Z",
@@ -148,6 +148,8 @@ export function playingState(
   overrides: Partial<MatchState> = {},
 ): MatchState {
   return {
+    rulesVersion: 2,
+    seed: 0,
     board,
     phase: "playing",
     currentPlayer: "Black",

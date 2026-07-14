@@ -7,6 +7,8 @@ import { useGameStore } from "./gameStore";
 // asserts the public surface only, not private helper/module names.
 
 const STATE_FIELDS = [
+  "rulesVersion",
+  "seed",
   "phase",
   "board",
   "currentPlayer",
@@ -23,6 +25,8 @@ const STATE_FIELDS = [
   "history",
   "pendingTransform",
   "pendingDefendedKing",
+  "projectedDefendedKing",
+  "resolvedDefendedKing",
   "aiEnabled",
   "aiPlayer",
   "hasActiveMatch",

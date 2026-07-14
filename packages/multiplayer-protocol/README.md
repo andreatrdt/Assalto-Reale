@@ -18,7 +18,7 @@ It does not implement networking, authentication, persistence, clocks or game ru
 ```ts
 const message: ClientCommandEnvelope = {
   protocol: "assalto-reale",
-  protocolVersion: 1,
+  protocolVersion: 2,
   messageType: "command",
   commandId: "cmd_01HZY8R7V8",
   sentAt: new Date().toISOString(),

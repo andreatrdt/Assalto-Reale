@@ -100,7 +100,7 @@ export function commandMessage(
 ): string {
   return JSON.stringify({
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "command",
     commandId: options.commandId,
     sentAt: new Date().toISOString(),

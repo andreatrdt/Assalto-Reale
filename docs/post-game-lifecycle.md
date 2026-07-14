@@ -61,10 +61,10 @@ change.
 
 ## Protocol and compatibility
 
-Protocol v1 adds the `LeavePostGame` command, `PostGamePresenceChanged` event,
-`postGame` snapshots, and `post_game_unavailable` rejection. Snapshot fields are
-optional so stored v1 receipts remain readable. These are additive v1 changes;
-the envelope version does not change.
+Protocol v1 introduced the `LeavePostGame` command, `PostGamePresenceChanged`
+event, `postGame` snapshots, and `post_game_unavailable` rejection. Protocol v2
+retains those semantics unchanged. Snapshot fields remain optional so stored v1
+receipts remain readable.
 
 Migration 4 adds `authoritative_matches.post_game_presence JSONB`. Existing ended
 matches are backfilled with both members absent, so an upgrade cannot expose an

@@ -4,7 +4,7 @@ import { routeFromPathname } from "../app/routes";
 import { ConfirmDialog } from "../ui/components";
 import { GamePage, PlacementPanel } from "./GamePage";
 import { HomePage } from "./HomePage";
-import { LoadPage } from "./LoadPage";
+import { LoadPage, readSaveSummary } from "./LoadPage";
 import { RulesPage } from "./RulesPage";
 import { SettingsPage } from "./SettingsPage";
 import { SetupPage } from "./SetupPage";
@@ -12,6 +12,25 @@ import { SetupPage } from "./SetupPage";
 const navigate = () => undefined;
 
 describe("route presentation", () => {
+  it("recognizes the current schema-3 save on the Load page", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () =>
+          JSON.stringify({
+            schema: 3,
+            board: { grid: [] },
+            savedAt: "2026-07-14T00:00:00.000Z",
+            phase: { phase: "playing" },
+            currentPlayer: "Black",
+            turnCounter: 4,
+            matchConfig: { opponent: "Human", placementMode: "Manual", transformEnabled: true },
+          }),
+      },
+    });
+    expect(readSaveSummary()).toMatchObject({ valid: true, schema: 3, phase: "playing" });
+    vi.unstubAllGlobals();
+  });
+
   it("normalizes unknown routes to Home", () => {
     expect(routeFromPathname("/missing")).toBe("/");
     expect(routeFromPathname("/setup")).toBe("/setup");

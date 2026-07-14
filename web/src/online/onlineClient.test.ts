@@ -57,7 +57,7 @@ const CREDENTIALS = {
 function rejection(commandId = "command_server01"): ServerEventEnvelope {
   return {
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "event",
     eventId: "event_server0001",
     emittedAt: "2026-07-10T18:00:00.000Z",

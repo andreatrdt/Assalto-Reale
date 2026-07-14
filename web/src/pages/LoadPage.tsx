@@ -226,7 +226,7 @@ function formatPhase(phase: string | null): string {
   return labels[phase] ?? phase;
 }
 
-function readSaveSummary(): SaveSummary | null {
+export function readSaveSummary(): SaveSummary | null {
   if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(SAVE_KEY);
   if (!raw) return null;
@@ -237,7 +237,7 @@ function readSaveSummary(): SaveSummary | null {
     const opponent = config?.opponent === "Computer" ? "Human vs Computer" : "Human vs Human";
     const placement = config?.placementMode === "Manual" ? "Manual placement" : "Unknown setup";
     const transform = config?.transformEnabled === false ? "Transform off" : "Transform on";
-    const valid = (schema === 1 || schema === 2) && Boolean(parsed.board);
+    const valid = (schema === 1 || schema === 2 || schema === 3) && Boolean(parsed.board);
     const issue =
       schema === 1
         ? "This save was created by an older version. It can still be loaded, but some in-progress choices or undo history may be unavailable."

@@ -128,7 +128,7 @@ function eventEnvelope(event: ServerEventEnvelope["event"], overrides: Partial<S
   sequence += 1;
   return {
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "event",
     eventId: `event_${String(sequence).padStart(8, "0")}`,
     emittedAt: "2026-07-10T18:00:00.000Z",
@@ -320,6 +320,7 @@ describe("online match store", () => {
       expect(applyOnlineSnapshot).toHaveBeenLastCalledWith(SNAPSHOT, {
         message,
         side: "Black",
+        resolvedDefendedKing: null,
       });
     }
 
@@ -333,6 +334,8 @@ describe("online match store", () => {
           attackerOrigin: [1, 1],
           kingPosition: [1, 2],
           landingPosition: [1, 4],
+          routes: [{ id: "primary", path: [[1, 4]], jumpedSquares: [], turnSquares: [], landingPosition: [1, 4] }],
+          pathDefender: null,
         },
       }),
     );

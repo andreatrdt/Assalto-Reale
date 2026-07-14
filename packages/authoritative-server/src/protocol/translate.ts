@@ -57,7 +57,12 @@ export function toCoreCommand(command: ProtocolGameCommand): GameCommand {
     case "PlacePiece":
       return { type: "PlacePiece", position: command.position };
     case "SubmitAction":
-      return { type: "SubmitAction", start: command.start, end: command.end };
+      return {
+        type: "SubmitAction",
+        start: command.start,
+        end: command.end,
+        routeId: command.routeId,
+      };
     case "ChooseDefender":
       return { type: "ChooseDefender", position: command.position };
     case "CancelDefendedKing":
@@ -109,6 +114,14 @@ export function pendingDecisionToWire(
       attackerOrigin: coordinate(value.preview.attackerOrigin),
       kingPosition: coordinate(value.preview.kingPosition),
       landingPosition: coordinate(value.preview.landingPosition),
+      routes: value.preview.routes.map((route) => ({
+        id: route.id,
+        path: route.path.map(coordinate),
+        jumpedSquares: route.jumpedSquares.map(coordinate),
+        turnSquares: route.turnSquares.map(coordinate),
+        landingPosition: coordinate(route.landingPosition),
+      })),
+      pathDefender: null,
     };
   }
   const { value } = decision;

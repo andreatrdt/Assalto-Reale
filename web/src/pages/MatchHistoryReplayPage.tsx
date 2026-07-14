@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MatchHistoryDetails } from "../online/protocol";
 import { useAccount } from "../account/AccountProvider";
 import type { AppRoute } from "../app/routes";
-import { GameBoard } from "../board/GameBoard";
+import { GameBoard, type DefendedKingBoardPreview } from "../board/GameBoard";
 import { replayHistoricalMatch, type HistoricalReplayFrame } from "../game/engine";
 import { GameButton, PageHeader, PageShell, Panel, StatusBadge } from "../ui/components";
 import "../styles/account.css";
@@ -25,6 +25,20 @@ export interface ReplayMilestones {
 
 function hasTransitionEvent(frame: HistoricalReplayFrame, kind: string): boolean {
   return frame.events.some((event) => event.type === "ActionApplied" && event.transition.events.some((item) => item.kind === kind));
+}
+
+export function defendedKingPreviewForFrame(frame: HistoricalReplayFrame): DefendedKingBoardPreview | null {
+  const applied = frame.events.find((event) => event.type === "ActionApplied" && event.action.defendedKing);
+  if (!applied || applied.type !== "ActionApplied" || !applied.action.defendedKing) return null;
+  const defended = applied.transition.events.find((event) => event.kind === "defended_king");
+  const defender = defended?.data.defender;
+  return {
+    ...applied.action.defendedKing,
+    defenders:
+      Array.isArray(defender) && defender.length === 2 && defender.every((coordinate) => typeof coordinate === "number")
+        ? [defender as unknown as readonly [number, number]]
+        : [],
+  };
 }
 
 export function findReplayMilestones(frames: HistoricalReplayFrame[]): ReplayMilestones {
@@ -87,6 +101,7 @@ export function MatchHistoryReplayPage({ route, navigate }: MatchHistoryReplayPa
 
   const frames = useMemo(() => (replay?.ok ? replay.frames : []), [replay]);
   const frame = frames[frameIndex] ?? frames[0];
+  const defendedKingPreview = frame ? defendedKingPreviewForFrame(frame) : null;
   const replayError = replay && !replay.ok ? replay.message : null;
   const finalFrameIndex = Math.max(0, frames.length - 1);
   const milestones = useMemo(() => findReplayMilestones(frames), [frames]);
@@ -157,7 +172,7 @@ export function MatchHistoryReplayPage({ route, navigate }: MatchHistoryReplayPa
             <p className="accountIdentity">Integrity: {details.integrityChecksum.slice(0, 16)}...</p>
           </Panel>
           <div className="replayBoard" aria-label="Historical game board">
-            <GameBoard board={frame.state.board} />
+            <GameBoard board={frame.state.board} defendedKingPreview={defendedKingPreview} />
           </div>
           <Panel className="replayControls">
             <div>

@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import type { PawnType, Player, Vec2 } from "../game/engine";
+import type { Action, PawnType, Player, Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
+import type { ResolvedDefendedKing } from "../game/state/storeTypes";
 import { OnlineClient, type OnlineConnectionStatus } from "./onlineClient";
 import { configuredWebSocketUrl } from "./onlineIdentity";
 import { clearPendingIntent, loadPendingIntent, newCommandId, savePendingIntent, type PendingLifecycleIntent } from "./onlineIntent";
@@ -12,6 +13,7 @@ import type {
   PostGamePresenceStatus,
   PostGameSnapshot,
   ServerEventEnvelope,
+  DeflectionRouteId,
 } from "./protocol";
 
 const MATCH_STORAGE_KEY = "assalto:online-match";
@@ -82,7 +84,7 @@ export interface OnlineMatchActions {
   respondToRematch: (accept: boolean) => boolean;
   leavePostGame: () => Promise<boolean>;
   sendPlacement: (position: Vec2) => boolean;
-  sendAction: (start: Vec2, end: Vec2) => boolean;
+  sendAction: (start: Vec2, end: Vec2, routeId?: DeflectionRouteId) => boolean;
   chooseDefender: (position: Vec2) => boolean;
   cancelDefendedKing: () => boolean;
   chooseTransform: (newType: PawnType) => boolean;
@@ -278,6 +280,29 @@ function describeDomainEvents(events: JsonObject[]): string {
   }
 }
 
+function resolvedDefendedKing(events: JsonObject[]): ResolvedDefendedKing | null {
+  const applied = [...events].reverse().find((event) => event.type === "ActionApplied");
+  const action = applied?.action;
+  const transition = applied?.transition;
+  if (!action || typeof action !== "object" || Array.isArray(action) || !("defendedKing" in action) || !action.defendedKing) return null;
+  const transitionEvents =
+    transition && typeof transition === "object" && !Array.isArray(transition) && "events" in transition && Array.isArray(transition.events)
+      ? transition.events
+      : [];
+  const defended = transitionEvents.find(
+    (event) => event && typeof event === "object" && !Array.isArray(event) && event.kind === "defended_king",
+  );
+  const data = defended && typeof defended === "object" && !Array.isArray(defended) && "data" in defended ? defended.data : null;
+  const defender = data && typeof data === "object" && !Array.isArray(data) && "defender" in data ? data.defender : null;
+  return {
+    action: action as unknown as Action,
+    defenders:
+      Array.isArray(defender) && defender.length === 2 && defender.every((value) => typeof value === "number")
+        ? [defender as unknown as Vec2]
+        : [],
+  };
+}
+
 function createClient(
   set: (patch: Partial<OnlineMatchStore> | ((state: OnlineMatchStore) => Partial<OnlineMatchStore>)) => void,
   get: () => OnlineMatchStore,
@@ -413,6 +438,7 @@ function handleEnvelope(
       applyOnlineSnapshot(envelope.event.snapshot, {
         message,
         side: state.side,
+        resolvedDefendedKing: resolvedDefendedKing(envelope.event.domainEvents),
       });
       break;
     case "MatchSnapshot": {
@@ -930,7 +956,7 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     },
 
     sendPlacement: (position) => send({ type: "PlacePiece", position: [position[0], position[1]] }),
-    sendAction: (start, end) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]] }),
+    sendAction: (start, end, routeId) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]], routeId }),
     chooseDefender: (position) => send({ type: "ChooseDefender", position: [position[0], position[1]] }),
     cancelDefendedKing: () => send({ type: "CancelDefendedKing" }),
     chooseTransform: (newType) => send({ type: "ChooseTransform", newType }),

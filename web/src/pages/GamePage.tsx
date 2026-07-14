@@ -26,6 +26,7 @@ export function GamePage({ navigate }: GamePageProps) {
   const piecesLeft = useGameStore((state) => state.piecesLeft);
   const pendingTransform = useGameStore((state) => state.pendingTransform);
   const pendingDefendedKing = useGameStore((state) => state.pendingDefendedKing);
+  const projectedDefendedKing = useGameStore((state) => state.projectedDefendedKing);
   const aiEnabled = useGameStore((state) => state.aiEnabled);
   const aiPlayer = useGameStore((state) => state.aiPlayer);
   const matchConfig = useGameStore((state) => state.matchConfig);
@@ -33,12 +34,26 @@ export function GamePage({ navigate }: GamePageProps) {
   const lastAction = useGameStore((state) => state.lastAction);
   const message = useGameStore((state) => state.message);
   const activateSquare = useGameStore((state) => state.activateSquare);
-  const cancelDefenderSelection = useGameStore((state) => state.cancelDefenderSelection);
   const chooseTransform = useGameStore((state) => state.chooseTransform);
   const passTurn = useGameStore((state) => state.passTurn);
   const undo = useGameStore((state) => state.undo);
   const saveGame = useGameStore((state) => state.saveGame);
   const loadGame = useGameStore((state) => state.loadGame);
+
+  useEffect(() => {
+    if (!projectedDefendedKing) return;
+    const cancelPreview = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      useGameStore.setState({
+        projectedDefendedKing: null,
+        selected: null,
+        legalTargets: [],
+        message: "Defended King preview cancelled.",
+      });
+    };
+    window.addEventListener("keydown", cancelPreview);
+    return () => window.removeEventListener("keydown", cancelPreview);
+  }, [projectedDefendedKing]);
   const startClock = useGameStore((state) => state.startClock);
   const stopClock = useGameStore((state) => state.stopClock);
   const tickClock = useGameStore((state) => state.tickClock);
@@ -256,8 +271,6 @@ export function GamePage({ navigate }: GamePageProps) {
               disabled={aiEnabled && currentPlacement.player === aiPlayer}
               online={isOnline}
             />
-          ) : phase === "defenderSelection" && pendingDefendedKing ? (
-            <DefendedKingPanel pendingDefendedKing={pendingDefendedKing} message={activeMessage} cancel={cancelDefenderSelection} />
           ) : phase === "transformSelection" && pendingTransform ? (
             <TransformPanel pendingTransform={pendingTransform} message={activeMessage} chooseTransform={chooseTransform} />
           ) : phase === "gameOver" ? (
@@ -470,82 +483,6 @@ export function PlacementPanel({
           </GameButton>
         </div>
       )}
-    </div>
-  );
-}
-
-export function DefendedKingPanel({
-  pendingDefendedKing,
-  message,
-  cancel,
-}: {
-  pendingDefendedKing: NonNullable<ReturnType<typeof useGameStore.getState>["pendingDefendedKing"]>;
-  message: string;
-  cancel: () => void;
-}) {
-  const attackingPlayer = pendingDefendedKing.action.player;
-  const defendingPlayer = pendingDefendedKing.owner;
-  const defenderText = formatPath(pendingDefendedKing.defenders);
-  const needsChoice = pendingDefendedKing.defenders.length > 1;
-
-  return (
-    <div className="matchPanel">
-      <StatusBadge tone="gold" icon="shield">
-        Defended King
-      </StatusBadge>
-      <p className="statusLine">{message}</p>
-      <dl className="hudList">
-        <div>
-          <dt>Attacking pawn</dt>
-          <dd>
-            {attackingPlayer} at {squareName(pendingDefendedKing.preview.attackerOrigin)}
-          </dd>
-        </div>
-        <div>
-          <dt>Attacked King</dt>
-          <dd>
-            {defendingPlayer} King at {squareName(pendingDefendedKing.preview.kingPosition)}
-          </dd>
-        </div>
-        <div>
-          <dt>Attack path</dt>
-          <dd>{formatPath(pendingDefendedKing.preview.attackPath)}</dd>
-        </div>
-        <div>
-          <dt>Bounce path</dt>
-          <dd>{formatPath(pendingDefendedKing.preview.bouncePath)}</dd>
-        </div>
-        <div>
-          <dt>Landing</dt>
-          <dd>{squareName(pendingDefendedKing.preview.landingPosition)}</dd>
-        </div>
-        <div>
-          <dt>Defenders</dt>
-          <dd>{defenderText}</dd>
-        </div>
-        <div>
-          <dt>Decision</dt>
-          <dd>{needsChoice ? `${defendingPlayer} chooses one highlighted defender` : `Confirm highlighted defender ${defenderText}`}</dd>
-        </div>
-        <div>
-          <dt>Cost</dt>
-          <dd>{pendingDefendedKing.preview.actionCost} AP</dd>
-        </div>
-        <div>
-          <dt>Transform</dt>
-          <dd>{pendingDefendedKing.preview.triggersTransform ? "Triggered on landing" : "Not triggered"}</dd>
-        </div>
-        <div>
-          <dt>Turn result</dt>
-          <dd>{pendingDefendedKing.preview.endsTurn ? "Ends turn" : "Continues turn"}</dd>
-        </div>
-      </dl>
-      <StatusBadge tone="info" icon="warning">
-        Choose the defender by selecting a highlighted square on the board.
-      </StatusBadge>
-      <GameButton variant="ghost" onClick={cancel}>
-        Cancel Attack
-      </GameButton>
     </div>
   );
 }
@@ -786,14 +723,6 @@ function pieceLabel(pieceType: string): string {
 
 function withArticle(label: string): string {
   return `${/^[AEIOU]/i.test(label) ? "an" : "a"} ${label}`;
-}
-
-function squareName(pos: Vec2): string {
-  return `${String.fromCharCode("A".charCodeAt(0) + pos[1])}${12 - pos[0]}`;
-}
-
-function formatPath(path: Vec2[]): string {
-  return path.length > 0 ? path.map(squareName).join(" -> ") : "None";
 }
 
 function describeMatchMode(config: NonNullable<ReturnType<typeof useGameStore.getState>["matchConfig"]>): string {

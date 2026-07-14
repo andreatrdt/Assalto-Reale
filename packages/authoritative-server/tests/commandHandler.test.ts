@@ -636,7 +636,7 @@ describe("authoritative command handler (C.8.1)", () => {
     const { handler, store } = harness();
     const out = await handler.handle({
       protocol: "assalto-reale",
-      protocolVersion: 1,
+      protocolVersion: 2,
       messageType: "command",
       commandId: "cmd_bad00001",
       sentAt: "nope",

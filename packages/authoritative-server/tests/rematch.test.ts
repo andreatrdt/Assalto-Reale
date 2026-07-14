@@ -4,6 +4,10 @@ import type {
   ServerEventEnvelope,
 } from "@assalto-reale/multiplayer-protocol";
 import {
+  CURRENT_GAME_RULES_VERSION,
+  replayHistoricalMatch,
+} from "@assalto-reale/game-core";
+import {
   ALICE,
   BOB,
   boardWith,
@@ -52,9 +56,9 @@ function eventFor<T extends ServerEvent["type"]>(
 }
 
 /** Seed a completed match (ALICE = Black, BOB = White) ready for a rematch. */
-function endedMatch(): ReturnType<typeof harness> {
+function endedMatch(rulesVersion: 1 | 2 = 2): ReturnType<typeof harness> {
   const h = harness();
-  seedMatch(h.store, playingState(TERMINAL_BOARD), {
+  seedMatch(h.store, playingState(TERMINAL_BOARD, { rulesVersion }), {
     matchId: "match_done0001",
     inviteCode: "DONE0001",
     version: 5,
@@ -69,6 +73,91 @@ function endedMatch(): ReturnType<typeof harness> {
 const MATCH = "match_done0001";
 
 describe("authoritative rematch lifecycle", () => {
+  it.each([1, 2] as const)(
+    "creates a rules-v2 rematch from a rules-v%s completed match without changing its predecessor",
+    async (rulesVersion) => {
+      const { handler, store } = endedMatch(rulesVersion);
+      await handler.handle(
+        message(
+          { type: "OfferRematch" },
+          {
+            commandId: `cmd_offer_rules${rulesVersion}`,
+            playerId: ALICE,
+            matchId: MATCH,
+          },
+        ),
+      );
+      const created = await handler.handle(
+        message(
+          { type: "RespondToRematch", accept: true },
+          {
+            commandId: `cmd_accept_rules${rulesVersion}`,
+            playerId: BOB,
+            matchId: MATCH,
+          },
+        ),
+      );
+      const successorId = eventFor(created, "RematchCreated", BOB).newMatchId;
+      const predecessor = store.matches.get(MATCH)!;
+      const successor = store.matches.get(successorId)!;
+
+      expect(successor.state.rulesVersion).toBe(CURRENT_GAME_RULES_VERSION);
+      expect(successor.predecessorMatchId).toBe(MATCH);
+      expect(predecessor.successorMatchId).toBe(successorId);
+      expect(predecessor.state.rulesVersion).toBe(rulesVersion);
+    },
+  );
+
+  it("keeps an original rules-v1 replay unchanged and deterministic after rematch creation", async () => {
+    const replayInput = {
+      rulesVersion: 1,
+      replaySchemaVersion: 1,
+      seed: 73,
+      placementMode: "Manual" as const,
+      transformEnabled: true,
+      events: [
+        {
+          sequenceNumber: 1,
+          actorSide: "White" as const,
+          payload: {
+            schemaVersion: 1,
+            command: { type: "Resign" as const },
+          },
+        },
+      ],
+    };
+    const encodedBefore = JSON.stringify(replayInput);
+    const first = replayHistoricalMatch(replayInput);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.frames[0]?.state.rulesVersion).toBe(1);
+
+    const { handler, store } = endedMatch(1);
+    await handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_offer_v1_replay", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const created = await handler.handle(
+      message(
+        { type: "RespondToRematch", accept: true },
+        { commandId: "cmd_accept_v1_replay", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const successorId = eventFor(created, "RematchCreated", BOB).newMatchId;
+    const second = replayHistoricalMatch(replayInput);
+
+    expect(JSON.stringify(replayInput)).toBe(encodedBefore);
+    expect(second).toEqual(first);
+    expect(store.matches.get(MATCH)?.state.rulesVersion).toBe(1);
+    expect(store.matches.get(MATCH)?.successorMatchId).toBe(successorId);
+    expect(store.matches.get(successorId)?.predecessorMatchId).toBe(MATCH);
+    expect(store.matches.get(successorId)?.state.rulesVersion).toBe(
+      CURRENT_GAME_RULES_VERSION,
+    );
+  });
+
   it("rejects a rematch request for a match that has not ended", async () => {
     const { handler, store } = harness();
     seedMatch(store, playingState(TERMINAL_BOARD), {

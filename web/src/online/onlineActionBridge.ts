@@ -1,4 +1,4 @@
-import { getPiece, hasPos, type PawnType, type Vec2 } from "../game/engine";
+import { buildAction, getPiece, hasPos, type PawnType, type Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import type { GameActions } from "../game/state/storeTypes";
 import { actionTargets, describePiece } from "../game/turn/turnHelpers";
@@ -42,30 +42,19 @@ function rememberLocalActions(): BridgedActions {
 function blockReason(): string | null {
   const online = useOnlineMatchStore.getState();
   const game = useGameStore.getState();
-  if (online.connectionStatus !== "connected") {
-    return "Reconnecting to the online match…";
-  }
+  if (online.connectionStatus !== "connected") return "Reconnecting to the online match…";
   if (online.waitingForOpponent) return "Waiting for your opponent to join.";
-  if (online.pendingCommandId) {
-    return "Waiting for the server to confirm your action.";
-  }
+  if (online.pendingCommandId) return "Waiting for the server to confirm your action.";
   if (!online.side) return "Your online side has not been assigned yet.";
-  if (online.completed || game.phase.phase === "gameOver") {
-    return "This online match is complete.";
-  }
-
-  if (game.phase.phase === "placement" && game.currentPlacement?.player !== online.side) {
-    return "It is your opponent's placement.";
-  }
+  if (online.completed || game.phase.phase === "gameOver") return "This online match is complete.";
+  if (game.phase.phase === "placement" && game.currentPlacement?.player !== online.side) return "It is your opponent's placement.";
   if (game.phase.phase === "defenderSelection" && game.pendingDefendedKing?.owner !== online.side) {
     return "Your opponent must choose the defender.";
   }
   if (game.phase.phase === "transformSelection" && game.pendingTransform?.owner !== online.side) {
     return "Your opponent must choose the Transform.";
   }
-  if (game.phase.phase === "playing" && game.currentPlayer !== online.side) {
-    return "It is your opponent's turn.";
-  }
+  if (game.phase.phase === "playing" && game.currentPlayer !== online.side) return "It is your opponent's turn.";
   return null;
 }
 
@@ -76,97 +65,112 @@ function requireAction(): boolean {
   return false;
 }
 
-function activateSquare(pos: Vec2): void {
-  if (!requireAction()) return;
+function activateProjectedRoute(pos: Vec2): boolean {
   const online = useOnlineMatchStore.getState();
   const game = useGameStore.getState();
+  if (!game.projectedDefendedKing) return false;
+  const projected = game.projectedDefendedKing.preview;
+  if (hasPos([projected.attackerOrigin], pos)) {
+    useGameStore.setState({ projectedDefendedKing: null, selected: null, legalTargets: [], message: "Defended King preview cancelled." });
+    return true;
+  }
+  const piece = getPiece(game.board, pos);
+  if (piece?.player === online.side) {
+    useGameStore.setState({
+      projectedDefendedKing: null,
+      selected: pos,
+      legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved, game.rulesVersion),
+      message: `${piece.player} ${describePiece(piece.type)} selected.`,
+    });
+    return true;
+  }
+  if (hasPos([projected.kingPosition], pos)) {
+    useGameStore.setState({ selected: null, legalTargets: [], projectedDefendedKing: null, message: "Confirming defended-King attack…" });
+    online.sendAction(projected.attackerOrigin, projected.kingPosition, projected.selectedRouteId);
+    return true;
+  }
+  const route = projected.routes.find((candidate) => hasPos(candidate.path, pos) || hasPos([candidate.landingPosition], pos));
+  if (route) {
+    useGameStore.setState({
+      projectedDefendedKing: {
+        ...game.projectedDefendedKing,
+        preview: { ...projected, selectedRouteId: route.id, bouncePath: route.path, landingPosition: route.landingPosition },
+      },
+      message: "Route selected. Click the King to commit.",
+    });
+    return true;
+  }
+  useGameStore.setState({ projectedDefendedKing: null, selected: null, legalTargets: [], message: "Defended King preview cancelled." });
+  return true;
+}
 
+function activateSquare(pos: Vec2): void {
+  if (!requireAction()) return;
+  if (activateProjectedRoute(pos)) return;
+  const online = useOnlineMatchStore.getState();
+  const game = useGameStore.getState();
   if (game.phase.phase === "placement") {
-    if (online.sendPlacement(pos)) {
-      useGameStore.setState({
-        message: "Confirming placement with the server…",
-      });
-    }
+    if (online.sendPlacement(pos)) useGameStore.setState({ message: "Confirming placement with the server…" });
     return;
   }
   if (game.phase.phase === "defenderSelection") {
-    if (online.chooseDefender(pos)) {
-      useGameStore.setState({
-        message: "Confirming defender with the server…",
-      });
-    }
+    if (online.chooseDefender(pos)) useGameStore.setState({ message: "Confirming defender with the server…" });
     return;
   }
   if (game.phase.phase !== "playing" || !online.side) return;
-
   const piece = getPiece(game.board, pos);
-  if (!game.selected) {
+  if (!game.selected || piece?.player === online.side) {
     if (piece?.player === online.side) {
       useGameStore.setState({
         selected: pos,
-        legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved),
+        legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved, game.rulesVersion),
         message: `${piece.player} ${describePiece(piece.type)} selected.`,
       });
     }
     return;
   }
-
-  if (piece?.player === online.side) {
-    useGameStore.setState({
-      selected: pos,
-      legalTargets: actionTargets(game.board, pos, game.movesThisTurn, game.kingMoved),
-      message: `${piece.player} ${describePiece(piece.type)} selected.`,
-    });
-    return;
-  }
-
   if (!hasPos(game.legalTargets, pos)) {
+    useGameStore.setState({ selected: null, legalTargets: [], message: "Selection cancelled." });
+    return;
+  }
+  const start = game.selected;
+  const action = buildAction(game.board, start, pos, {
+    movesThisTurn: game.movesThisTurn,
+    kingMoved: game.kingMoved,
+    rulesVersion: game.rulesVersion,
+  });
+  if (action.defendedKing) {
     useGameStore.setState({
-      selected: null,
-      legalTargets: [],
-      message: "Selection cancelled.",
+      projectedDefendedKing: {
+        preview: action.defendedKing,
+        defenders: action.defendedKing.pathDefenderId ? action.defendedKing.attackPath.slice(0, -1) : [],
+      },
+      message: "Projected defended-King outcome. Select a route if offered, then click the King again.",
     });
     return;
   }
-
-  const start = game.selected;
-  useGameStore.setState({
-    selected: null,
-    legalTargets: [],
-    message: "Confirming move with the server…",
-  });
+  useGameStore.setState({ selected: null, legalTargets: [], message: "Confirming move with the server…" });
   online.sendAction(start, pos);
 }
 
 function cancelDefenderSelection(): void {
-  if (!requireAction()) return;
-  if (useOnlineMatchStore.getState().cancelDefendedKing()) {
-    useGameStore.setState({
-      message: "Cancelling the attack with the server…",
-    });
+  if (requireAction() && useOnlineMatchStore.getState().cancelDefendedKing()) {
+    useGameStore.setState({ message: "Cancelling the attack with the server…" });
   }
 }
 
 function chooseTransform(newType: PawnType): void {
-  if (!requireAction()) return;
-  if (useOnlineMatchStore.getState().chooseTransform(newType)) {
-    useGameStore.setState({
-      message: "Confirming Transform with the server…",
-    });
+  if (requireAction() && useOnlineMatchStore.getState().chooseTransform(newType)) {
+    useGameStore.setState({ message: "Confirming Transform with the server…" });
   }
 }
 
 function passTurn(): void {
-  if (!requireAction()) return;
-  if (useOnlineMatchStore.getState().passTurn()) {
-    useGameStore.setState({ message: "Passing turn with the server…" });
-  }
+  if (requireAction() && useOnlineMatchStore.getState().passTurn()) useGameStore.setState({ message: "Passing turn with the server…" });
 }
 
 function onlineOnlyMessage(): void {
-  useGameStore.setState({
-    message: "This action is unavailable during an online match.",
-  });
+  useGameStore.setState({ message: "This action is unavailable during an online match." });
 }
 
 export function installOnlineGameActionBridge(): void {

@@ -1,4 +1,4 @@
-# Assalto Reale multiplayer protocol v1
+# Assalto Reale multiplayer protocol v2
 
 ## Status
 
@@ -23,7 +23,7 @@ The protocol is implemented by `packages/multiplayer-protocol`. It defines JSON 
 
 ```text
 protocol        = "assalto-reale"
-protocolVersion = 1
+protocolVersion = 2
 ```
 
 Unknown protocol names or versions are rejected before command dispatch.
@@ -33,7 +33,7 @@ Unknown protocol names or versions are rejected before command dispatch.
 ```ts
 interface ClientCommandEnvelope {
   protocol: "assalto-reale";
-  protocolVersion: 1;
+  protocolVersion: 2;
   messageType: "command";
   commandId: string;
   sentAt: string;
@@ -127,7 +127,7 @@ Phase C.9 launches invite-based **untimed** matches first. The clock variant is 
 ```ts
 interface ServerEventEnvelope {
   protocol: "assalto-reale";
-  protocolVersion: 1;
+  protocolVersion: 2;
   messageType: "event";
   eventId: string;
   emittedAt: string;
@@ -306,7 +306,9 @@ The client never determines legality, captures, Transform results, territory, vi
 
 ## Protocol evolution
 
-Compatible v1 changes may add optional fields or new command/event variants when old clients can safely ignore them. Breaking field semantics, required fields or ordering rules require `protocolVersion = 2`.
+Protocol v2 adds semantic Defended-King route identifiers to `SubmitAction`, full route options to pending-decision snapshots, and rules/seed metadata to canonical snapshots. The server recomputes routes and never accepts client-supplied landing coordinates. Historical v1 replay payloads remain readable, but live v1 command envelopes fail clearly as unsupported instead of being silently reinterpreted.
+
+Compatible v2 changes may add optional fields or new command/event variants when old clients can safely ignore them. Breaking field semantics, required fields or ordering rules require `protocolVersion = 3`.
 
 The server advertises supported versions during connection setup. A client using an unsupported version receives `unsupported_protocol_version` and must not continue the match session.
 

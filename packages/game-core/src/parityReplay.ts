@@ -40,6 +40,8 @@ export function normalizePythonPreview(preview: Record<string, unknown> | null |
   if (!preview) {
     return null;
   }
+  const bouncePath = preview.bounce_path as Vec2[];
+  const landingPosition = preview.landing_position as Vec2;
   return {
     attackerId: preview.attacker_id as string,
     kingId: preview.king_id as string,
@@ -48,8 +50,11 @@ export function normalizePythonPreview(preview: Record<string, unknown> | null |
     attackDirection: preview.attack_direction as Vec2,
     bounceDirection: preview.bounce_direction as Vec2,
     attackPath: preview.attack_path as Vec2[],
-    bouncePath: preview.bounce_path as Vec2[],
-    landingPosition: preview.landing_position as Vec2,
+    bouncePath,
+    landingPosition,
+    routes: [{ id: "primary", path: bouncePath, jumpedSquares: [], turnSquares: [], landingPosition }],
+    selectedRouteId: "primary",
+    pathDefenderId: null,
     eligibleDefenderIds: preview.eligible_defender_ids as string[],
     triggersTransform: preview.triggers_transform as boolean,
     actionCost: preview.action_cost as number,

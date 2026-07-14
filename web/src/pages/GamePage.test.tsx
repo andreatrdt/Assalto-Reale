@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { BoardState } from "../game/engine";
 import { GameBoard } from "../board/GameBoard";
-import { CapturedPieces, DefendedKingPanel, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
+import { CapturedPieces, GameStatus, MatchPanel, TransformPanel, VictoryPanel } from "./GamePage";
 
 const noop = () => undefined;
 
@@ -97,45 +97,6 @@ describe("GameStatus", () => {
 });
 
 describe("Game decision and control panels", () => {
-  it("preserves the full defended-King preview and cancel control", () => {
-    const pendingDefendedKing = {
-      owner: "White",
-      action: { player: "Black" },
-      defenders: [[3, 3]],
-      preview: {
-        attackerOrigin: [5, 3],
-        kingPosition: [4, 3],
-        attackPath: [
-          [5, 3],
-          [4, 3],
-        ],
-        bouncePath: [
-          [6, 3],
-          [7, 3],
-        ],
-        landingPosition: [7, 3],
-        actionCost: 2,
-        triggersTransform: false,
-        endsTurn: true,
-        eligibleDefenderIds: [],
-      },
-    } as unknown as Parameters<typeof DefendedKingPanel>[0]["pendingDefendedKing"];
-
-    const html = renderToStaticMarkup(
-      <DefendedKingPanel pendingDefendedKing={pendingDefendedKing} message="White: choose a defender." cancel={noop} />,
-    );
-
-    expect(html).toContain("Attacking pawn");
-    expect(html).toContain("Attacked King");
-    expect(html).toContain("Attack path");
-    expect(html).toContain("Bounce path");
-    expect(html).toContain("Landing");
-    expect(html).toContain("Defenders");
-    expect(html).toContain("2 AP");
-    expect(html).toContain("Ends turn");
-    expect(html).toContain("Cancel Attack");
-  });
-
   it("offers the transform replacement choices for the current pawn", () => {
     const pendingTransform = {
       player: "Black",
@@ -245,6 +206,9 @@ describe("Game decision and control panels", () => {
     expect(html).toContain("previewKing");
     expect(html.match(/previewDefender/g)).toHaveLength(2);
     expect(html).toContain("previewLanding triggersTransform");
+    expect(html).not.toContain("dialog");
+    expect(html).not.toContain("Cancel Attack");
+    expect(html).not.toContain("matchPanel");
   });
 
   it("shows victory winner and controls", () => {

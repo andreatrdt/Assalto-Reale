@@ -18,7 +18,11 @@ function pawnEntries(board: BoardState): Array<{ pos: Vec2; piece: Piece }> {
   return entries;
 }
 
-export function generateTransformSquare(board: BoardState, seed?: number): boolean {
+export function generateTransformSquare(
+  board: BoardState,
+  seed?: number,
+  options: { rulesVersion?: 1 | 2; previousSquare?: Vec2 | null; transformedPawn?: Vec2 | null } = {},
+): boolean {
   board.transformSquares = [];
   const pawns = pawnEntries(board);
   const candidates: Vec2[] = [];
@@ -41,7 +45,16 @@ export function generateTransformSquare(board: BoardState, seed?: number): boole
     }
   }
 
-  const sorted = sortPositions(candidates);
+  let finalists = candidates;
+  if (options.rulesVersion === 2 && options.previousSquare) {
+    const maximumFromPrevious = Math.max(...finalists.map((candidate) => cheb(candidate, options.previousSquare!)));
+    finalists = finalists.filter((candidate) => cheb(candidate, options.previousSquare!) === maximumFromPrevious);
+    if (options.transformedPawn && finalists.length > 1) {
+      const maximumFromPawn = Math.max(...finalists.map((candidate) => cheb(candidate, options.transformedPawn!)));
+      finalists = finalists.filter((candidate) => cheb(candidate, options.transformedPawn!) === maximumFromPawn);
+    }
+  }
+  const sorted = sortPositions(finalists);
   if (sorted.length === 0) {
     return false;
   }
@@ -66,6 +79,7 @@ export function transformPiece(
   pos: Vec2,
   newType: PawnType,
   seed?: number,
+  rulesVersion: 1 | 2 = 1,
 ): { board: BoardState; result: TransitionResult } {
   const board = cloneBoard(source);
   const action = { kind: "transform" as const, player: "" as const, start: pos, end: pos, cost: 0, capture: false, endsTurn: true };
@@ -168,7 +182,7 @@ export function transformPiece(
   const oldSquare = board.transformSquares[0] ?? null;
   setPiece(board, pos, { player: piece.player, type: newType });
   updateControl(board);
-  const relocated = generateTransformSquare(board, seed);
+  const relocated = generateTransformSquare(board, seed, { rulesVersion, previousSquare: oldSquare, transformedPawn: pos });
   const newSquare = board.transformSquares[0] ?? null;
   updateControl(board);
 

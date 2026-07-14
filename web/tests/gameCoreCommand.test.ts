@@ -17,6 +17,8 @@ import {
 
 function playingState(board: BoardState, overrides: Partial<MatchState> = {}): MatchState {
   return {
+    rulesVersion: 2,
+    seed: 0,
     board,
     phase: "playing",
     currentPlayer: "Black",

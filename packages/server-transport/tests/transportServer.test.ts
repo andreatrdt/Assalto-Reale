@@ -416,7 +416,7 @@ function privateRejection(
   const commandId = `command_order0${sequence}`;
   return {
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "event",
     eventId: `event_order000${sequence}`,
     emittedAt: "2026-01-01T00:00:00.000Z",
@@ -445,7 +445,7 @@ function presenceEnvelope(
 ): ServerEventEnvelope {
   return {
     protocol: "assalto-reale",
-    protocolVersion: 1,
+    protocolVersion: 2,
     messageType: "event",
     eventId: `event_presence${String(sequence).padStart(4, "0")}`,
     emittedAt: new Date().toISOString(),

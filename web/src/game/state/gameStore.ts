@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { chooseDeterministicAction } from "../ai/search";
-import { chooseQuickPlacementSquare, getPiece, hasPos, type Player, type Vec2 } from "../engine";
+import { buildAction, chooseQuickPlacementSquare, getPiece, hasPos, type DeflectionRouteId, type Player, type Vec2 } from "../engine";
 import { DEFAULT_MATCH_CONFIG, resolveMatchConfig } from "../setup/matchConfig";
 import { computeClockPatch, initialTimeLeft, monotonicNow } from "../clocks/clockController";
 import { restoreHistoryPatch } from "../history/historyController";
@@ -40,9 +40,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     return result.ok;
   }
 
-  function applySubmittedAction(start: Vec2, end: Vec2, autoResolveDefenderFor?: Player): boolean {
-    const { result, patch } = runStoreSubmittedAction(get(), start, end, autoResolveDefenderFor);
-    set(patch.phase?.phase === "gameOver" ? { ...patch, hasActiveMatch: false } : patch);
+  function applySubmittedAction(start: Vec2, end: Vec2, autoResolveDefenderFor?: Player, routeId?: DeflectionRouteId): boolean {
+    const { result, patch } = runStoreSubmittedAction(get(), start, end, autoResolveDefenderFor, routeId);
+    const withProjectionCleared = { ...patch, projectedDefendedKing: null };
+    set(patch.phase?.phase === "gameOver" ? { ...withProjectionCleared, hasActiveMatch: false } : withProjectionCleared);
     return result.ok;
   }
 
@@ -53,6 +54,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   });
 
   return {
+    rulesVersion: initialMatch.rulesVersion,
+    seed: initialMatch.seed,
     phase: { phase: "home" },
     board: initialMatch.board,
     currentPlayer: initialMatch.currentPlayer,
@@ -69,6 +72,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     history: [],
     pendingTransform: null,
     pendingDefendedKing: null,
+    projectedDefendedKing: null,
+    resolvedDefendedKing: null,
     aiEnabled: false,
     aiPlayer: "White",
     hasActiveMatch: false,
@@ -147,6 +152,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         legalTargets: [],
         pendingTransform: null,
         pendingDefendedKing: null,
+        projectedDefendedKing: null,
+        resolvedDefendedKing: null,
         clockRunningFor: null,
         clockLastSyncMs: null,
         hasActiveMatch: completed ? false : get().hasActiveMatch,
@@ -156,6 +163,45 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     activateSquare: (pos) => {
       const state = get();
+      if (state.projectedDefendedKing) {
+        const projected = state.projectedDefendedKing.preview;
+        if (hasPos([projected.attackerOrigin], pos)) {
+          set({ projectedDefendedKing: null, selected: null, legalTargets: [], message: "Defended King preview cancelled." });
+          return;
+        }
+        const projectedPiece = getPiece(state.board, pos);
+        if (projectedPiece?.player === state.currentPlayer) {
+          set({
+            projectedDefendedKing: null,
+            selected: pos,
+            legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved, state.rulesVersion),
+            message: `${projectedPiece.player} ${describePiece(projectedPiece.type)} selected.`,
+          });
+          return;
+        }
+        if (hasPos([projected.kingPosition], pos)) {
+          applySubmittedAction(projected.attackerOrigin, projected.kingPosition, undefined, projected.selectedRouteId);
+          return;
+        }
+        const chosenRoute = projected.routes.find((route) => hasPos(route.path, pos) || hasPos([route.landingPosition], pos));
+        if (chosenRoute) {
+          set({
+            projectedDefendedKing: {
+              ...state.projectedDefendedKing,
+              preview: {
+                ...projected,
+                selectedRouteId: chosenRoute.id,
+                bouncePath: chosenRoute.path,
+                landingPosition: chosenRoute.landingPosition,
+              },
+            },
+            message: `${chosenRoute.id === "primary" ? "Primary" : chosenRoute.id === "clockwise" ? "Clockwise" : "Counter-clockwise"} route selected. Click the King to commit.`,
+          });
+          return;
+        }
+        set({ projectedDefendedKing: null, selected: null, legalTargets: [], message: "Defended King preview cancelled." });
+        return;
+      }
       if (state.phase.phase === "defenderSelection") {
         state.chooseDefender(pos);
         return;
@@ -180,7 +226,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (piece?.player === state.currentPlayer) {
           set({
             selected: pos,
-            legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
+            legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved, state.rulesVersion),
             message: `${piece.player} ${describePiece(piece.type)} selected.`,
           });
         }
@@ -189,13 +235,28 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (piece?.player === state.currentPlayer) {
         set({
           selected: pos,
-          legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved),
+          legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved, state.rulesVersion),
           message: `${piece.player} ${describePiece(piece.type)} selected.`,
         });
         return;
       }
       if (!hasPos(state.legalTargets, pos)) {
         set({ selected: null, legalTargets: [], message: "Selection cancelled." });
+        return;
+      }
+      const projectedAction = buildAction(state.board, state.selected, pos, {
+        movesThisTurn: state.movesThisTurn,
+        kingMoved: state.kingMoved,
+        rulesVersion: state.rulesVersion,
+      });
+      if (projectedAction.defendedKing) {
+        const defenders = projectedAction.defendedKing.pathDefenderId
+          ? projectedAction.defendedKing.attackPath.slice(0, -1)
+          : (state.pendingDefendedKing?.defenders ?? []);
+        set({
+          projectedDefendedKing: { preview: projectedAction.defendedKing, defenders },
+          message: "Projected defended-King outcome. Click a route if offered, then click the King again to commit.",
+        });
         return;
       }
       applySubmittedAction(state.selected, pos);
@@ -239,13 +300,13 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       if (state.currentPlayer !== state.aiPlayer || state.phase.phase !== "playing") return;
-      const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved);
+      const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved, state.rulesVersion);
       if (action.kind === "pass") {
         state.passTurn();
         return;
       }
       if (!action.start || !action.end) return;
-      applySubmittedAction(action.start, action.end, state.aiPlayer);
+      applySubmittedAction(action.start, action.end, state.aiPlayer, action.selectedRouteId ?? undefined);
     },
 
     startClock: (now) => {

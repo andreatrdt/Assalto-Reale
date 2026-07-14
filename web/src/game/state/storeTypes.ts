@@ -1,6 +1,8 @@
 import type { PhaseState } from "../../app/phases";
 import type {
   BoardState,
+  Action,
+  DefendedKingPreview,
   PawnType,
   PendingDefendedKing as CorePendingDefendedKing,
   PendingPlacement,
@@ -16,6 +18,15 @@ export type PiecesLeft = CorePiecesLeft;
 export type PlacementItem = PendingPlacement;
 export type PendingTransform = CorePendingTransform;
 export type PendingDefendedKing = CorePendingDefendedKing;
+export interface ProjectedDefendedKing {
+  preview: DefendedKingPreview;
+  defenders: Vec2[];
+}
+
+export interface ResolvedDefendedKing {
+  action: Action;
+  defenders: Vec2[];
+}
 
 export interface HistoryEntry {
   board: BoardState;
@@ -35,7 +46,9 @@ export interface HistoryEntry {
 }
 
 export interface SavedGame {
-  schema: 1 | 2;
+  schema: 1 | 2 | 3;
+  rulesVersion?: 1 | 2;
+  seed?: number;
   appVersion?: string;
   savedAt?: string;
   board: PythonBoardSnapshot;
@@ -57,9 +70,12 @@ export interface SavedGame {
   pendingTransform?: PendingTransform | null;
   pendingDefendedKing?: PendingDefendedKing | null;
   history?: HistoryEntry[];
+  projectedDefendedKing?: ProjectedDefendedKing | null;
 }
 
 export interface GameState {
+  rulesVersion: 1 | 2;
+  seed: number;
   phase: PhaseState;
   board: BoardState;
   currentPlayer: Player;
@@ -76,6 +92,8 @@ export interface GameState {
   history: HistoryEntry[];
   pendingTransform: PendingTransform | null;
   pendingDefendedKing: PendingDefendedKing | null;
+  projectedDefendedKing: ProjectedDefendedKing | null;
+  resolvedDefendedKing: ResolvedDefendedKing | null;
   aiEnabled: boolean;
   aiPlayer: Player;
   hasActiveMatch: boolean;

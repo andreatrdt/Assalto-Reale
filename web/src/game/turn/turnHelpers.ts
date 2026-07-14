@@ -6,13 +6,13 @@ export function describePiece(pieceType: PieceType): string {
   return pieceType.replace("Pawn", " Pawn");
 }
 
-export function actionTargets(board: BoardState, pos: Vec2, movesThisTurn: number, kingMoved: boolean): Vec2[] {
+export function actionTargets(board: BoardState, pos: Vec2, movesThisTurn: number, kingMoved: boolean, rulesVersion: 1 | 2 = 2): Vec2[] {
   const targets: Vec2[] = [];
   for (let dr = -2; dr <= 2; dr += 1) {
     for (let dc = -2; dc <= 2; dc += 1) {
       if (dr === 0 && dc === 0) continue;
       const end: Vec2 = [pos[0] + dr, pos[1] + dc];
-      const action = buildAction(board, pos, end, { movesThisTurn, kingMoved });
+      const action = buildAction(board, pos, end, { movesThisTurn, kingMoved, rulesVersion });
       if (!action.error) {
         targets.push(end);
       }

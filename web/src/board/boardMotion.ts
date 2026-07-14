@@ -1,4 +1,4 @@
-import type { BoardState, Piece, Vec2 } from "../game/engine";
+import { getDefendedKingPreviewFromPositions, type BoardState, type Piece, type Vec2 } from "../game/engine";
 
 export type BoardMotionKind = "move" | "capture" | "place" | "defendedKing" | "transform";
 
@@ -8,6 +8,9 @@ interface DefendedKingSnapshot {
     end?: Vec2;
     defendedKing?: {
       landingPosition: Vec2;
+      bouncePath?: Vec2[];
+      selectedRouteId?: "primary" | "clockwise" | "counterClockwise";
+      routes?: Array<{ id: string; path: Vec2[]; jumpedSquares: Vec2[]; turnSquares: Vec2[]; landingPosition: Vec2 }>;
     };
   };
   defenders: Vec2[];
@@ -19,6 +22,8 @@ interface TransformSnapshot {
 }
 
 export interface BoardMotionSnapshot {
+  rulesVersion?: 1 | 2;
+  movesThisTurn?: number;
   board: BoardState;
   phase: string;
   lastAction: string;
@@ -27,6 +32,7 @@ export interface BoardMotionSnapshot {
   historyLength: number;
   pendingTransform: TransformSnapshot | null;
   pendingDefendedKing: DefendedKingSnapshot | null;
+  resolvedDefendedKing?: DefendedKingSnapshot | null;
 }
 
 interface MotionBase {
@@ -62,6 +68,9 @@ export interface DefendedKingMotion extends MotionBase {
   king: Vec2;
   sacrifice: Vec2;
   landing: Vec2;
+  route: Vec2[];
+  jumpedSquares: Vec2[];
+  turnSquares: Vec2[];
 }
 
 export interface TransformMotion extends MotionBase {
@@ -69,6 +78,8 @@ export interface TransformMotion extends MotionBase {
   fromPiece: Piece;
   toPiece: Piece;
   at: Vec2;
+  oldSquare: Vec2 | null;
+  newSquare: Vec2 | null;
 }
 
 export type BoardMotionDraft = MoveMotion | CaptureMotion | PlaceMotion | DefendedKingMotion | TransformMotion;
@@ -191,20 +202,25 @@ function deriveTransform(previous: BoardMotionSnapshot, next: BoardMotionSnapsho
     fromPiece: change.before,
     toPiece: change.after,
     at: copyPos(change.pos),
+    oldSquare: previous.board.transformSquares[0] ? copyPos(previous.board.transformSquares[0]) : null,
+    newSquare: next.board.transformSquares[0] ? copyPos(next.board.transformSquares[0]) : null,
   };
 }
 
 function deriveDefendedKing(previous: BoardMotionSnapshot, next: BoardMotionSnapshot, changes: PieceChange[]): DefendedKingMotion | null {
   const context = previous.pendingDefendedKing;
+  const resolved = next.resolvedDefendedKing;
   const describedAsDefended = next.lastAction.toLowerCase().includes("attacked a defended king");
-  if (!context && !describedAsDefended) return null;
+  if (!context && !resolved && !describedAsDefended) return null;
 
   const additions = changes.filter((change) => change.after !== null);
   const removals = changes.filter((change) => change.before !== null);
-  const landing = context?.action.defendedKing?.landingPosition ?? additions[0]?.pos ?? null;
+  const landing =
+    resolved?.action.defendedKing?.landingPosition ?? context?.action.defendedKing?.landingPosition ?? additions[0]?.pos ?? null;
   const landingPiece = pieceAt(next.board, landing);
 
   const from =
+    resolved?.action.start ??
     context?.action.start ??
     removals.find((change) => change.before && landingPiece && samePiece(change.before, landingPiece))?.pos ??
     null;
@@ -212,14 +228,27 @@ function deriveDefendedKing(previous: BoardMotionSnapshot, next: BoardMotionSnap
   if (!from || !landing || !attacker) return null;
 
   const sacrifice =
+    resolved?.defenders.find((pos) => pieceAt(previous.board, pos) && !pieceAt(next.board, pos)) ??
     context?.defenders.find((pos) => pieceAt(previous.board, pos) && !pieceAt(next.board, pos)) ??
     removals.find((change) => !samePosition(change.pos, from) && change.before?.type === "DefensePawn")?.pos ??
     null;
   const sacrificedPiece = pieceAt(previous.board, sacrifice);
   if (!sacrifice || !sacrificedPiece) return null;
 
-  const king = context?.action.end ?? findKing(previous.board, sacrificedPiece.player);
+  const king = resolved?.action.end ?? context?.action.end ?? findKing(previous.board, sacrificedPiece.player);
   if (!king) return null;
+
+  const contextPreview = resolved?.action.defendedKing ?? context?.action.defendedKing;
+  const recomputed = getDefendedKingPreviewFromPositions(
+    previous.board,
+    from,
+    king,
+    previous.movesThisTurn ?? 0,
+    previous.rulesVersion ?? 2,
+  );
+  const resolvedRoute =
+    contextPreview?.routes?.find((route) => route.id === contextPreview.selectedRouteId) ??
+    recomputed?.routes.find((route) => samePosition(route.landingPosition, landing));
 
   return {
     kind: "defendedKing",
@@ -229,6 +258,9 @@ function deriveDefendedKing(previous: BoardMotionSnapshot, next: BoardMotionSnap
     king: copyPos(king),
     sacrifice: copyPos(sacrifice),
     landing: copyPos(landing),
+    route: (resolvedRoute?.path ?? contextPreview?.bouncePath ?? [landing]).map(copyPos),
+    jumpedSquares: (resolvedRoute?.jumpedSquares ?? []).map(copyPos),
+    turnSquares: (resolvedRoute?.turnSquares ?? []).map(copyPos),
   };
 }
 
