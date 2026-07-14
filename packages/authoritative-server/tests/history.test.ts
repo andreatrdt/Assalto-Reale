@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { applyGameCommand } from "../src/domain/matchAggregate.js";
+import { createStoredHistoryEvent } from "../src/history.js";
 import { ALICE, BOB, ONLINE_CONFIG, harness, message } from "./support.js";
 
 async function createJoinedMatch() {
@@ -138,6 +140,51 @@ describe("immutable match history", () => {
     );
     expect(test.store.histories.size).toBe(1);
     expect(test.store.historyEvents.get(test.matchId)).toHaveLength(1);
+    expect(test.store.statistics.get("user_alice")?.gamesPlayed).toBe(1);
+    expect(test.store.statistics.get("user_bob")?.gamesPlayed).toBe(1);
+  });
+
+  it("succeeds exactly once when a missing accepted event is repaired before retry", async () => {
+    const test = await createJoinedMatch();
+    const previous = test.store.matches.get(test.matchId)!;
+    const progressed = applyGameCommand(previous, "Black", {
+      type: "PassTurn",
+    });
+    if (!progressed.ok) throw new Error(progressed.message);
+    // Model a persistence fault in which the authoritative transition survived
+    // but its ordered replay event did not. Finalization must fail atomically.
+    test.store.matches.set(test.matchId, progressed.aggregate);
+    const terminal = message(
+      { type: "Resign" },
+      {
+        commandId: "cmd_history_repaired_stream",
+        playerId: BOB,
+        matchId: test.matchId,
+        expectedMatchVersion: 3,
+      },
+    );
+
+    await expect(test.handler.handle(terminal)).rejects.toThrow(
+      "Captured replay event count mismatch",
+    );
+    expect(test.store.histories.has(test.matchId)).toBe(false);
+    expect(test.store.statistics.size).toBe(0);
+    expect(test.store.receipts.has("cmd_history_repaired_stream")).toBe(false);
+
+    test.store.historyEvents.set(test.matchId, [
+      createStoredHistoryEvent({
+        previous,
+        next: progressed.aggregate,
+        actorPlayerId: ALICE,
+        actorSide: "Black",
+        command: { type: "PassTurn" },
+        occurredAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+    ]);
+    const completed = await test.handler.handle(terminal);
+    await expect(test.handler.handle(terminal)).resolves.toEqual(completed);
+    expect(test.store.histories.size).toBe(1);
+    expect(test.store.historyEvents.get(test.matchId)).toHaveLength(2);
     expect(test.store.statistics.get("user_alice")?.gamesPlayed).toBe(1);
     expect(test.store.statistics.get("user_bob")?.gamesPlayed).toBe(1);
   });
