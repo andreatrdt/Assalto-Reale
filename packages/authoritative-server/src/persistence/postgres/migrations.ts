@@ -445,6 +445,21 @@ BEFORE INSERT ON match_history_events
 FOR EACH ROW EXECUTE FUNCTION reject_late_match_history_event();
 `,
   },
+  {
+    version: 6,
+    name: "add_optional_transform_history_events",
+    sql: `
+ALTER TABLE match_history_events
+  DROP CONSTRAINT match_history_events_event_type_check;
+
+ALTER TABLE match_history_events
+  ADD CONSTRAINT match_history_events_event_type_check CHECK (event_type IN (
+    'place_piece', 'submit_action', 'choose_defender', 'cancel_defended_king',
+    'activate_transform', 'choose_transform', 'decline_transform',
+    'pass_turn', 'resignation', 'timeout'
+  ));
+`,
+  },
 ] as const;
 
 function checksum(sql: string): string {

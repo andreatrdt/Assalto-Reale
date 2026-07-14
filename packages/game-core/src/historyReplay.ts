@@ -9,7 +9,9 @@ export type HistoricalCommandV1 =
   | { type: "SubmitAction"; start: Vec2; end: Vec2; routeId?: import("./types.js").DeflectionRouteId }
   | { type: "ChooseDefender"; position: Vec2 }
   | { type: "CancelDefendedKing" }
+  | { type: "ActivateTransform"; position: Vec2 }
   | { type: "ChooseTransform"; newType: PawnType }
+  | { type: "DeclineTransform" }
   | { type: "PassTurn" }
   | { type: "Resign" };
 
@@ -47,7 +49,7 @@ function expectedActor(state: MatchState, command: HistoricalCommandV1): Player 
   if (command.type === "ChooseDefender" || command.type === "CancelDefendedKing") {
     return state.pendingDefendedKing?.owner ?? state.currentPlayer;
   }
-  if (command.type === "ChooseTransform") {
+  if (command.type === "ChooseTransform" || command.type === "DeclineTransform") {
     return state.pendingTransform?.owner ?? state.currentPlayer;
   }
   return state.currentPlayer;

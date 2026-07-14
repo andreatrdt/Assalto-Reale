@@ -245,6 +245,27 @@ describe("persistence round-trip across match phases", () => {
     expect(after.currentPlayer).toBe("White");
   });
 
+  it("derives later-turn Transform eligibility after save and load", () => {
+    setScenario(transformScenario(), { movesThisTurn: 1 });
+    s().activateSquare([5, 5]);
+    s().activateSquare([5, 6]);
+    expect(s().currentPlayer).toBe("White");
+    expect(s().pendingTransform).toBeNull();
+    expect(s().board.transformSquares).toEqual([[5, 6]]);
+    s().passTurn();
+    expect(s().currentPlayer).toBe("Black");
+
+    expect(exportDisturbImport()).toBe(true);
+    expect(s().pendingTransform).toBeNull();
+    s().activateSquare([5, 6]);
+    s().activateSquare([5, 6]);
+    expect(s().phase.phase).toBe("transformSelection");
+    s().chooseTransform("DefensePawn");
+    expect(getPiece(s().board, [5, 6])?.type).toBe("DefensePawn");
+    expect(s().movesThisTurn).toBe(1);
+    expect(s().currentPlayer).toBe("Black");
+  });
+
   it("restores an active territory claim and matures it to victory", () => {
     setScenario(territoryScenario());
     s().passTurn();

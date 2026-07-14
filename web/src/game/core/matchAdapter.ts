@@ -59,15 +59,25 @@ function phaseAfterCommand(before: GameState, command: GameCommand, result: Extr
       return { phase: "playing", previousPhase: "defenderSelection" };
     case "CancelDefendedKing":
       return { phase: "playing", previousPhase: "defenderSelection" };
+    case "ActivateTransform":
+      return { phase: "transformSelection", previousPhase: "playing" };
     case "ChooseTransform":
       return { phase: phase as "playing" | "gameOver", previousPhase: "transformSelection" };
+    case "DeclineTransform":
+      return { phase: "playing", previousPhase: "transformSelection" };
     case "PassTurn":
       return phase === "gameOver" ? { phase, previousPhase: "playing" } : before.phase;
   }
 }
 
 function shouldPushHistory(command: GameCommand, result: Extract<CommandResult, { ok: true }>): boolean {
-  if (command.type === "PlacePiece" || command.type === "ChooseDefender" || command.type === "PassTurn") return true;
+  if (
+    command.type === "PlacePiece" ||
+    command.type === "ChooseDefender" ||
+    command.type === "ChooseTransform" ||
+    command.type === "PassTurn"
+  )
+    return true;
   return command.type === "SubmitAction" && result.transition !== undefined;
 }
 
@@ -162,6 +172,11 @@ function successPatch(
       patch.message = "Defended-King attack cancelled.";
       return patch;
     }
+    case "ActivateTransform":
+      patch.selected = command.position;
+      patch.legalTargets = [];
+      patch.message = "Choose a new pawn type on the board, or ignore the Transform Square.";
+      return patch;
     case "ChooseTransform": {
       const pending = before.pendingTransform;
       if (pending) {
@@ -170,6 +185,13 @@ function successPatch(
       patch.message = outcomeMessage(result);
       return patch;
     }
+    case "DeclineTransform":
+      patch.selected = before.pendingTransform?.pos ?? null;
+      patch.legalTargets = patch.selected
+        ? actionTargets(after.board, patch.selected, after.movesThisTurn, after.kingMoved, after.rulesVersion)
+        : [];
+      patch.message = "Transform ignored. Continue using the remaining actions.";
+      return patch;
     case "PassTurn":
       patch.selected = null;
       patch.legalTargets = [];

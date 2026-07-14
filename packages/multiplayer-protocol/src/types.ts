@@ -52,7 +52,9 @@ export type HistoricalGameCommand = Extract<
       | "SubmitAction"
       | "ChooseDefender"
       | "CancelDefendedKing"
+      | "ActivateTransform"
       | "ChooseTransform"
+      | "DeclineTransform"
       | "PassTurn"
       | "Resign";
   }
@@ -63,7 +65,9 @@ export type MatchHistoryEventType =
   | "submit_action"
   | "choose_defender"
   | "cancel_defended_king"
+  | "activate_transform"
   | "choose_transform"
+  | "decline_transform"
   | "pass_turn"
   | "resignation"
   | "timeout";
@@ -198,7 +202,9 @@ export type ClientCommand =
     }
   | { type: "ChooseDefender"; position: Coordinate }
   | { type: "CancelDefendedKing" }
+  | { type: "ActivateTransform"; position: Coordinate }
   | { type: "ChooseTransform"; newType: PawnType }
+  | { type: "DeclineTransform" }
   | { type: "PassTurn" }
   | { type: "Resign" }
   | { type: "OfferRematch" }

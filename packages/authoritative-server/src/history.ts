@@ -151,8 +151,12 @@ function replayEventType(
       return "choose_defender";
     case "CancelDefendedKing":
       return "cancel_defended_king";
+    case "ActivateTransform":
+      return "activate_transform";
     case "ChooseTransform":
       return "choose_transform";
+    case "DeclineTransform":
+      return "decline_transform";
     case "PassTurn":
       return "pass_turn";
     case "Resign":

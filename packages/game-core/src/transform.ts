@@ -80,9 +80,22 @@ export function transformPiece(
   newType: PawnType,
   seed?: number,
   rulesVersion: 1 | 2 = 1,
+  actionState: { movesThisTurn?: number; kingMoved?: boolean } = {},
 ): { board: BoardState; result: TransitionResult } {
   const board = cloneBoard(source);
-  const action = { kind: "transform" as const, player: "" as const, start: pos, end: pos, cost: 0, capture: false, endsTurn: true };
+  const actionCost = rulesVersion === 2 ? 1 : 0;
+  const movesThisTurn = actionState.movesThisTurn ?? 0;
+  const spentActions = movesThisTurn + actionCost;
+  const endsTurn = rulesVersion === 1 || spentActions >= 2;
+  const action = {
+    kind: "transform" as const,
+    player: "" as const,
+    start: pos,
+    end: pos,
+    cost: actionCost,
+    capture: false,
+    endsTurn,
+  };
   if (!inBounds(board, pos)) {
     return {
       board,
@@ -208,9 +221,9 @@ export function transformPiece(
       events,
       victory: evaluateVictory(board, { lastActor: piece.player }),
       specialControl: getSpecialControl(board),
-      endsTurn: true,
-      nextMovesThisTurn: 0,
-      nextKingMoved: false,
+      endsTurn,
+      nextMovesThisTurn: endsTurn ? 0 : spentActions,
+      nextKingMoved: endsTurn ? false : (actionState.kingMoved ?? false),
     },
   };
 }
