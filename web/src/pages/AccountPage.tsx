@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { useAccount } from "../account/AccountProvider";
 import { useOnlineMatchStore } from "../online/onlineStore";
@@ -12,6 +13,17 @@ interface AccountPageProps {
 export function AccountPage({ route, navigate }: AccountPageProps) {
   const account = useAccount();
   const resumeAccountMatch = useOnlineMatchStore((state) => state.resumeAccountMatch);
+  const [historyResultFilter, setHistoryResultFilter] = useState<"all" | "win" | "loss" | "draw">("all");
+  const [historySideFilter, setHistorySideFilter] = useState<"all" | "Black" | "White">("all");
+  const visibleHistory = useMemo(
+    () =>
+      account.history.filter(
+        (match) =>
+          (historyResultFilter === "all" || match.result === historyResultFilter) &&
+          (historySideFilter === "all" || match.side === historySideFilter),
+      ),
+    [account.history, historyResultFilter, historySideFilter],
+  );
 
   async function resume(matchId: string, side: "Black" | "White") {
     if (await resumeAccountMatch(matchId, side)) navigate("/game");
@@ -135,6 +147,33 @@ export function AccountPage({ route, navigate }: AccountPageProps) {
           </section>
           <section className="accountMatches" aria-labelledby="match-history-title">
             <h2 id="match-history-title">Match History</h2>
+            <div className="accountActions" aria-label="Match history filters">
+              <label>
+                Result
+                <select
+                  aria-label="History result"
+                  value={historyResultFilter}
+                  onChange={(event) => setHistoryResultFilter(event.currentTarget.value as typeof historyResultFilter)}
+                >
+                  <option value="all">All results</option>
+                  <option value="win">Victories</option>
+                  <option value="loss">Defeats</option>
+                  <option value="draw">Draws</option>
+                </select>
+              </label>
+              <label>
+                Side
+                <select
+                  aria-label="History side"
+                  value={historySideFilter}
+                  onChange={(event) => setHistorySideFilter(event.currentTarget.value as typeof historySideFilter)}
+                >
+                  <option value="all">Both sides</option>
+                  <option value="Black">Black</option>
+                  <option value="White">White</option>
+                </select>
+              </label>
+            </div>
             {account.historyError ? (
               <Panel>
                 <p role="alert">{account.historyError}</p>
@@ -148,8 +187,12 @@ export function AccountPage({ route, navigate }: AccountPageProps) {
               <Panel>
                 <p>No completed online matches yet.</p>
               </Panel>
+            ) : visibleHistory.length === 0 ? (
+              <Panel>
+                <p>No completed matches match these filters.</p>
+              </Panel>
             ) : (
-              account.history.map((match) => (
+              visibleHistory.map((match) => (
                 <Panel key={match.matchId} className="accountMatch accountHistoryMatch">
                   <div>
                     <strong>

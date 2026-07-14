@@ -90,6 +90,11 @@ describe("immutable history migration contract", () => {
       "match_history_events_no_update_or_delete",
     );
     expect(migration?.sql).toContain("replay_available");
+    expect(migration?.sql).toContain(
+      "history_capture_started_at_version INTEGER",
+    );
+    expect(migration?.sql).toContain("replay_available, seed");
+    expect(migration?.sql).toContain("FALSE,");
     expect(migration?.sql).toContain("WHERE match.status = 'ended'");
   });
 });

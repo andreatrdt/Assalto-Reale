@@ -260,17 +260,28 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+function canonicalState(state: MatchState): string {
+  return stable(JSON.parse(serializeState(state)) as unknown);
+}
+
 function replayIsComplete(
   aggregate: MatchAggregate,
   events: StoredHistoryEvent[],
 ): boolean {
-  if (
-    aggregate.historyCaptureStartedAtVersion !== 1 ||
-    events.length !== aggregate.historyEventSequence
-  )
-    return false;
-  if (!events.every((event, index) => event.sequenceNumber === index + 1))
-    return false;
+  if (aggregate.historyCaptureStartedAtVersion !== 1) return false;
+  if (events.length !== aggregate.historyEventSequence) {
+    throw new Error(
+      `Captured replay event count mismatch for ${aggregate.matchId}: expected ${aggregate.historyEventSequence}, received ${events.length}.`,
+    );
+  }
+  const sequenceGap = events.findIndex(
+    (event, index) => event.sequenceNumber !== index + 1,
+  );
+  if (sequenceGap >= 0) {
+    throw new Error(
+      `Captured replay sequence mismatch for ${aggregate.matchId} at event ${sequenceGap + 1}.`,
+    );
+  }
   const replay = replayHistoricalMatch({
     rulesVersion: GAME_RULES_VERSION,
     replaySchemaVersion: REPLAY_SCHEMA_VERSION,
@@ -279,12 +290,21 @@ function replayIsComplete(
     transformEnabled: aggregate.config.transformEnabled,
     events,
   });
-  if (!replay.ok) return false;
+  if (!replay.ok) {
+    throw new Error(
+      `Captured replay for ${aggregate.matchId} is invalid: ${replay.message}`,
+    );
+  }
   const finalFrame = replay.frames.at(-1);
-  return Boolean(
-    finalFrame &&
-    serializeState(finalFrame.state) === serializeState(aggregate.state),
-  );
+  if (
+    !finalFrame ||
+    canonicalState(finalFrame.state) !== canonicalState(aggregate.state)
+  ) {
+    throw new Error(
+      `Captured replay final state mismatch for ${aggregate.matchId}.`,
+    );
+  }
+  return true;
 }
 
 export function buildImmutableMatchHistory(

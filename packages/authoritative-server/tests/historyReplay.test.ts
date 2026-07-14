@@ -27,6 +27,22 @@ const base = {
 };
 
 describe("versioned game-core history replay", () => {
+  it("accepts resignation from the participant who is not currently moving", () => {
+    const replay = replayHistoricalMatch({
+      ...base,
+      events: [event(1, "White", { type: "Resign" })],
+    });
+
+    expect(replay.ok).toBe(true);
+    if (replay.ok) {
+      expect(replay.frames.at(-1)?.terminal).toEqual({
+        winner: "Black",
+        loser: "White",
+        reason: "resignation",
+      });
+    }
+  });
+
   it("reconstructs accepted commands and exposes deterministic frames", () => {
     const first = replayHistoricalMatch({
       ...base,
