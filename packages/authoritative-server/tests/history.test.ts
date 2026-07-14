@@ -23,6 +23,27 @@ async function createJoinedMatch() {
 }
 
 describe("immutable match history", () => {
+  it("keeps an out-of-turn resignation replayable", async () => {
+    const test = await createJoinedMatch();
+    await test.handler.handle(
+      message(
+        { type: "Resign" },
+        {
+          commandId: "cmd_history_out_of_turn_resign",
+          playerId: BOB,
+          matchId: test.matchId,
+          expectedMatchVersion: 2,
+        },
+      ),
+    );
+
+    expect(test.store.histories.get(test.matchId)).toMatchObject({
+      winnerSide: "Black",
+      replayAvailable: true,
+      totalEvents: 1,
+    });
+  });
+
   it("finalizes compact replay and player statistics exactly once with the terminal command", async () => {
     const test = await createJoinedMatch();
     await test.handler.handle(

@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { routeFromPathname } from "../app/routes";
 import { ConfirmDialog } from "../ui/components";
 import { GamePage, PlacementPanel } from "./GamePage";
@@ -15,6 +15,12 @@ describe("route presentation", () => {
   it("normalizes unknown routes to Home", () => {
     expect(routeFromPathname("/missing")).toBe("/");
     expect(routeFromPathname("/setup")).toBe("/setup");
+  });
+
+  it("recognizes a direct replay route under the GitHub Pages base path", () => {
+    vi.stubEnv("BASE_URL", "/Assalto-Reale/");
+    expect(routeFromPathname("/Assalto-Reale/account/history/match_direct99")).toBe("/account/history/match_direct99");
+    vi.unstubAllEnvs();
   });
 
   it("renders the streamlined non-game routes with the shared shell", () => {
