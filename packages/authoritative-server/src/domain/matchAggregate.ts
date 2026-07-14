@@ -89,7 +89,10 @@ export type OperationOutcome =
       snapshot: CanonicalMatchSnapshot | null;
     };
 
-export function memberSide(aggregate: MatchAggregate, playerId: string): PlayerSide | null {
+export function memberSide(
+  aggregate: MatchAggregate,
+  playerId: string,
+): PlayerSide | null {
   if (aggregate.members.Black === playerId) return "Black";
   if (aggregate.members.White === playerId) return "White";
   return null;
@@ -110,8 +113,12 @@ function cloneAggregate(aggregate: MatchAggregate): MatchAggregate {
 }
 
 /** Deterministic side for a "Random" preference, derived from the server seed. */
-function resolvePreferredSide(config: OnlineMatchConfig, seed: number): PlayerSide {
-  if (config.preferredSide === "Black" || config.preferredSide === "White") return config.preferredSide;
+function resolvePreferredSide(
+  config: OnlineMatchConfig,
+  seed: number,
+): PlayerSide {
+  if (config.preferredSide === "Black" || config.preferredSide === "White")
+    return config.preferredSide;
   return (seed >>> 0) % 2 === 0 ? "Black" : "White";
 }
 
@@ -169,13 +176,29 @@ export function createMatchAggregate(input: CreateMatchInput): {
   return { aggregate, emissions };
 }
 
-export function joinMatchAggregate(aggregate: MatchAggregate, joinerPlayerId: string): OperationOutcome {
+export function joinMatchAggregate(
+  aggregate: MatchAggregate,
+  joinerPlayerId: string,
+): OperationOutcome {
   if (memberSide(aggregate, joinerPlayerId)) {
-    return reject(aggregate, "match_full", "This player is already a member of the match.");
+    return reject(
+      aggregate,
+      "match_full",
+      "This player is already a member of the match.",
+    );
   }
-  const openSide: PlayerSide | null = aggregate.members.Black === null ? "Black" : aggregate.members.White === null ? "White" : null;
+  const openSide: PlayerSide | null =
+    aggregate.members.Black === null
+      ? "Black"
+      : aggregate.members.White === null
+        ? "White"
+        : null;
   if (!openSide) {
-    return reject(aggregate, "match_full", "The match already has two players.");
+    return reject(
+      aggregate,
+      "match_full",
+      "The match already has two players.",
+    );
   }
 
   const next = cloneAggregate(aggregate);
@@ -204,8 +227,14 @@ export function joinMatchAggregate(aggregate: MatchAggregate, joinerPlayerId: st
 }
 
 /** The side that must own the actor for a given game command in the current state. */
-function requiredActorSide(state: MatchState, command: ProtocolGameCommand): PlayerSide {
-  if (command.type === "ChooseDefender" || command.type === "CancelDefendedKing") {
+function requiredActorSide(
+  state: MatchState,
+  command: ProtocolGameCommand,
+): PlayerSide {
+  if (
+    command.type === "ChooseDefender" ||
+    command.type === "CancelDefendedKing"
+  ) {
     return state.pendingDefendedKing?.owner ?? state.currentPlayer;
   }
   if (command.type === "ChooseTransform") {
@@ -214,18 +243,30 @@ function requiredActorSide(state: MatchState, command: ProtocolGameCommand): Pla
   return state.currentPlayer;
 }
 
-export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSide, command: ProtocolGameCommand): OperationOutcome {
+export function applyGameCommand(
+  aggregate: MatchAggregate,
+  actorSide: PlayerSide,
+  command: ProtocolGameCommand,
+): OperationOutcome {
   if (aggregate.status === "ended" || aggregate.state.phase === "gameOver") {
     return reject(aggregate, "match_ended", "The match has already ended.");
   }
   if (actorSide !== requiredActorSide(aggregate.state, command)) {
-    return reject(aggregate, "not_your_turn", "It is not this player's turn to act.");
+    return reject(
+      aggregate,
+      "not_your_turn",
+      "It is not this player's turn to act.",
+    );
   }
 
   const coreCommand: GameCommand = toCoreCommand(command);
   const result = applyCommand(aggregate.state, coreCommand);
   if (!result.ok) {
-    return reject(aggregate, rejectionForCoreError(result.error.code), result.error.message);
+    return reject(
+      aggregate,
+      rejectionForCoreError(result.error.code),
+      result.error.message,
+    );
   }
 
   const next = cloneAggregate(aggregate);
@@ -239,7 +280,10 @@ export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSid
 
   const snapshot = snapshotOf(next.state);
   const emissions: Emission[] = [];
-  const emit = (event: ServerEvent, recipient: Emission["recipient"] = "all"): void => {
+  const emit = (
+    event: ServerEvent,
+    recipient: Emission["recipient"] = "all",
+  ): void => {
     next.streamSequence += 1;
     emissions.push({
       event,
@@ -263,14 +307,22 @@ export function applyGameCommand(aggregate: MatchAggregate, actorSide: PlayerSid
         decision: pendingDecisionToWire(event.decision),
       });
     } else if (event.type === "MatchEnded") {
-      emit({ type: "MatchEnded", ...victoryToEnd(event.victory), snapshot, postGame: postGameSnapshotOf(next) ?? undefined });
+      emit({
+        type: "MatchEnded",
+        ...victoryToEnd(event.victory),
+        snapshot,
+        postGame: postGameSnapshotOf(next) ?? undefined,
+      });
     }
   }
 
   return { ok: true, aggregate: next, emissions };
 }
 
-export function resignAggregate(aggregate: MatchAggregate, actorSide: PlayerSide): OperationOutcome {
+export function resignAggregate(
+  aggregate: MatchAggregate,
+  actorSide: PlayerSide,
+): OperationOutcome {
   if (aggregate.status === "ended" || aggregate.state.phase === "gameOver") {
     return reject(aggregate, "match_ended", "The match has already ended.");
   }
@@ -304,7 +356,10 @@ export function resignAggregate(aggregate: MatchAggregate, actorSide: PlayerSide
 }
 
 /** The opponent of a member, or null if the given player is not a member. */
-export function otherMember(aggregate: MatchAggregate, playerId: string): string | null {
+export function otherMember(
+  aggregate: MatchAggregate,
+  playerId: string,
+): string | null {
   if (aggregate.members.Black === playerId) return aggregate.members.White;
   if (aggregate.members.White === playerId) return aggregate.members.Black;
   return null;
@@ -314,8 +369,14 @@ const PLAYER_SIDES: PlayerSide[] = ["Black", "White"];
 
 function initialPostGameState(members: MatchMembers): PostGameState {
   return {
-    Black: { presence: members.Black ? "present" : "absent", graceExpiresAt: null },
-    White: { presence: members.White ? "present" : "absent", graceExpiresAt: null },
+    Black: {
+      presence: members.Black ? "present" : "absent",
+      graceExpiresAt: null,
+    },
+    White: {
+      presence: members.White ? "present" : "absent",
+      graceExpiresAt: null,
+    },
   };
 }
 
@@ -332,7 +393,9 @@ function durablePostGameState(aggregate: MatchAggregate): PostGameState {
       };
 }
 
-export function postGameSnapshotOf(aggregate: MatchAggregate): PostGameSnapshot | null {
+export function postGameSnapshotOf(
+  aggregate: MatchAggregate,
+): PostGameSnapshot | null {
   if (!isTerminalMatch(aggregate)) return null;
   const postGame = durablePostGameState(aggregate);
   return {
@@ -340,7 +403,9 @@ export function postGameSnapshotOf(aggregate: MatchAggregate): PostGameSnapshot 
       Black: postGame.Black.presence,
       White: postGame.White.presence,
     },
-    rematchOfferedBy: aggregate.rematchOfferedBy ? memberSide(aggregate, aggregate.rematchOfferedBy) : null,
+    rematchOfferedBy: aggregate.rematchOfferedBy
+      ? memberSide(aggregate, aggregate.rematchOfferedBy)
+      : null,
   };
 }
 
@@ -357,7 +422,10 @@ interface PresenceChange {
   reason: PostGamePresenceReason;
 }
 
-function applyPresenceChanges(aggregate: MatchAggregate, changes: PresenceChange[]): PostGameTransition {
+function applyPresenceChanges(
+  aggregate: MatchAggregate,
+  changes: PresenceChange[],
+): PostGameTransition {
   if (changes.length === 0) return { aggregate, emissions: [], changed: false };
   const next = cloneAggregate(aggregate);
   next.postGame = durablePostGameState(aggregate);
@@ -367,7 +435,9 @@ function applyPresenceChanges(aggregate: MatchAggregate, changes: PresenceChange
       graceExpiresAt: change.graceExpiresAt,
     };
   }
-  const offerCancelled = changes.some((change) => change.presence === "absent") && next.rematchOfferedBy !== null;
+  const offerCancelled =
+    changes.some((change) => change.presence === "absent") &&
+    next.rematchOfferedBy !== null;
   if (offerCancelled) next.rematchOfferedBy = null;
   next.version += 1;
   const postGame = postGameSnapshotOf(next)!;
@@ -396,52 +466,96 @@ export function isPostGameRematchAvailable(aggregate: MatchAggregate): boolean {
   return PLAYER_SIDES.every((side) => postGame[side].presence !== "absent");
 }
 
-export function postGameGraceExpiry(aggregate: MatchAggregate, playerId: string): string | null {
+export function postGameGraceExpiry(
+  aggregate: MatchAggregate,
+  playerId: string,
+): string | null {
   const side = memberSide(aggregate, playerId);
-  return side && aggregate.postGame?.[side].presence === "grace" ? aggregate.postGame[side].graceExpiresAt : null;
+  return side && aggregate.postGame?.[side].presence === "grace"
+    ? aggregate.postGame[side].graceExpiresAt
+    : null;
 }
 
-export function withPostGameDeparture(aggregate: MatchAggregate, playerId: string): PostGameTransition {
+export function withPostGameDeparture(
+  aggregate: MatchAggregate,
+  playerId: string,
+): PostGameTransition {
   const side = memberSide(aggregate, playerId);
   if (!side || !isTerminalMatch(aggregate) || aggregate.successorMatchId) {
     return { aggregate, emissions: [], changed: false };
   }
   const current = durablePostGameState(aggregate)[side];
-  if (current.presence === "absent") return { aggregate, emissions: [], changed: false };
-  return applyPresenceChanges(aggregate, [{ side, presence: "absent", graceExpiresAt: null, reason: "left" }]);
-}
-
-export function withPostGameDisconnect(aggregate: MatchAggregate, playerId: string, graceExpiresAt: Date): PostGameTransition {
-  const side = memberSide(aggregate, playerId);
-  if (!side || !isTerminalMatch(aggregate) || aggregate.successorMatchId) {
+  if (current.presence === "absent")
     return { aggregate, emissions: [], changed: false };
-  }
-  const current = durablePostGameState(aggregate)[side];
-  if (current.presence !== "present") return { aggregate, emissions: [], changed: false };
   return applyPresenceChanges(aggregate, [
-    { side, presence: "grace", graceExpiresAt: graceExpiresAt.toISOString(), reason: "disconnected" },
+    { side, presence: "absent", graceExpiresAt: null, reason: "left" },
   ]);
 }
 
-export function expirePostGameGrace(aggregate: MatchAggregate, now: Date): PostGameTransition {
+export function withPostGameDisconnect(
+  aggregate: MatchAggregate,
+  playerId: string,
+  graceExpiresAt: Date,
+): PostGameTransition {
+  const side = memberSide(aggregate, playerId);
+  if (!side || !isTerminalMatch(aggregate) || aggregate.successorMatchId) {
+    return { aggregate, emissions: [], changed: false };
+  }
+  const current = durablePostGameState(aggregate)[side];
+  if (current.presence !== "present")
+    return { aggregate, emissions: [], changed: false };
+  return applyPresenceChanges(aggregate, [
+    {
+      side,
+      presence: "grace",
+      graceExpiresAt: graceExpiresAt.toISOString(),
+      reason: "disconnected",
+    },
+  ]);
+}
+
+export function expirePostGameGrace(
+  aggregate: MatchAggregate,
+  now: Date,
+): PostGameTransition {
   if (!isTerminalMatch(aggregate) || aggregate.successorMatchId) {
     return { aggregate, emissions: [], changed: false };
   }
   const postGame = durablePostGameState(aggregate);
   const changes = PLAYER_SIDES.flatMap<PresenceChange>((side) => {
     const participant = postGame[side];
-    if (participant.presence !== "grace" || !participant.graceExpiresAt || Date.parse(participant.graceExpiresAt) > now.getTime()) {
+    if (
+      participant.presence !== "grace" ||
+      !participant.graceExpiresAt ||
+      Date.parse(participant.graceExpiresAt) > now.getTime()
+    ) {
       return [];
     }
-    return [{ side, presence: "absent", graceExpiresAt: null, reason: "grace_expired" }];
+    return [
+      {
+        side,
+        presence: "absent",
+        graceExpiresAt: null,
+        reason: "grace_expired",
+      },
+    ];
   });
   return applyPresenceChanges(aggregate, changes);
 }
 
-export function withPostGameReentry(aggregate: MatchAggregate, playerId: string, now: Date): PostGameTransition {
+export function withPostGameReentry(
+  aggregate: MatchAggregate,
+  playerId: string,
+  now: Date,
+): PostGameTransition {
   const expired = expirePostGameGrace(aggregate, now);
   const side = memberSide(expired.aggregate, playerId);
-  if (!side || !isTerminalMatch(expired.aggregate) || expired.aggregate.successorMatchId) return expired;
+  if (
+    !side ||
+    !isTerminalMatch(expired.aggregate) ||
+    expired.aggregate.successorMatchId
+  )
+    return expired;
   const current = durablePostGameState(expired.aggregate)[side];
   if (current.presence === "present") return expired;
   const entered = applyPresenceChanges(expired.aggregate, [
@@ -465,7 +579,10 @@ export function isTerminalMatch(aggregate: MatchAggregate): boolean {
 }
 
 /** Record an open rematch offer and notify the opponent. */
-export function withRematchOffer(aggregate: MatchAggregate, offererPlayerId: string): { aggregate: MatchAggregate; emissions: Emission[] } {
+export function withRematchOffer(
+  aggregate: MatchAggregate,
+  offererPlayerId: string,
+): { aggregate: MatchAggregate; emissions: Emission[] } {
   const next = cloneAggregate(aggregate);
   next.rematchOfferedBy = offererPlayerId;
   next.version += 1;
@@ -532,7 +649,10 @@ export interface RematchCreation {
  * inherited. The completed match records the successor for idempotency and
  * reconnect discovery; there is at most one successor per match.
  */
-export function createRematchAggregate(previous: MatchAggregate, ids: RematchIds): RematchCreation {
+export function createRematchAggregate(
+  previous: MatchAggregate,
+  ids: RematchIds,
+): RematchCreation {
   const config: OnlineMatchConfig = {
     ...previous.config,
     placementMode: "Manual",
@@ -596,7 +716,10 @@ export function createRematchAggregate(previous: MatchAggregate, ids: RematchIds
 
 /** Announce an already-created rematch to a single player (idempotent replays,
  * reconnect discovery). Reads the successor; never mutates state. */
-export function rematchCreatedEmission(successor: MatchAggregate, recipientPlayerId: string): Emission | null {
+export function rematchCreatedEmission(
+  successor: MatchAggregate,
+  recipientPlayerId: string,
+): Emission | null {
   const side = memberSide(successor, recipientPlayerId);
   if (!side) return null;
   return {
@@ -615,7 +738,10 @@ export function rematchCreatedEmission(successor: MatchAggregate, recipientPlaye
 }
 
 /** A read-only canonical snapshot for RequestSync; never mutates the aggregate. */
-export function syncEmission(aggregate: MatchAggregate, requesterPlayerId: string): Emission {
+export function syncEmission(
+  aggregate: MatchAggregate,
+  requesterPlayerId: string,
+): Emission {
   return {
     event: {
       type: "MatchSnapshot",
@@ -629,7 +755,11 @@ export function syncEmission(aggregate: MatchAggregate, requesterPlayerId: strin
   };
 }
 
-function reject(aggregate: MatchAggregate | null, code: CommandRejectionCode, message: string): OperationOutcome {
+function reject(
+  aggregate: MatchAggregate | null,
+  code: CommandRejectionCode,
+  message: string,
+): OperationOutcome {
   return {
     ok: false,
     code,

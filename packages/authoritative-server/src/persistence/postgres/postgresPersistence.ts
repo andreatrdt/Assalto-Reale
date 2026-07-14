@@ -45,7 +45,12 @@ interface StagedMatch {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505"
+  );
 }
 
 async function selectMatch(
@@ -53,12 +58,18 @@ async function selectMatch(
   clause: string,
   value: string,
 ): Promise<MatchAggregate | null> {
-  const result = await queryable.query(`SELECT ${MATCH_COLUMNS} FROM authoritative_matches WHERE ${clause} = $1`, [value]);
+  const result = await queryable.query(
+    `SELECT ${MATCH_COLUMNS} FROM authoritative_matches WHERE ${clause} = $1`,
+    [value],
+  );
   const row = result.rows[0] as PostgresMatchRow | undefined;
   return row ? decodeMatchAggregate(row) : null;
 }
 
-async function selectReceipt(client: PoolClient, commandId: string): Promise<StoredCommandReceipt | null> {
+async function selectReceipt(
+  client: PoolClient,
+  commandId: string,
+): Promise<StoredCommandReceipt | null> {
   const result = await client.query(
     `
       SELECT command_id, player_id, match_id, payload_hash, envelopes
@@ -93,7 +104,9 @@ class PostgresTransaction implements Transaction {
     return selectMatch(this.client, "match_id", matchId);
   }
 
-  async findMatchByInviteCode(inviteCode: string): Promise<MatchAggregate | null> {
+  async findMatchByInviteCode(
+    inviteCode: string,
+  ): Promise<MatchAggregate | null> {
     return selectMatch(this.client, "invite_code", inviteCode);
   }
 
@@ -136,15 +149,26 @@ class PostgresTransaction implements Transaction {
         ON CONFLICT (command_id) DO NOTHING
         RETURNING command_id
       `,
-      [encoded.commandId, encoded.playerId, encoded.matchId, encoded.payloadHash, JSON.stringify(encoded.envelopes)],
+      [
+        encoded.commandId,
+        encoded.playerId,
+        encoded.matchId,
+        encoded.payloadHash,
+        JSON.stringify(encoded.envelopes),
+      ],
     );
     if (inserted.rowCount === 1) return;
 
     const existing = await selectReceipt(this.client, encoded.commandId);
     if (!existing) {
-      throw new Error(`PostgreSQL command receipt ${encoded.commandId} conflicted but could not be loaded.`);
+      throw new Error(
+        `PostgreSQL command receipt ${encoded.commandId} conflicted but could not be loaded.`,
+      );
     }
-    if (existing.payloadHash !== encoded.payloadHash || existing.playerId !== encoded.playerId) {
+    if (
+      existing.payloadHash !== encoded.payloadHash ||
+      existing.playerId !== encoded.playerId
+    ) {
       throw new ReceiptConflictError();
     }
     throw new CommandAlreadyProcessedError(existing);
@@ -200,7 +224,9 @@ class PostgresTransaction implements Transaction {
         );
       } catch (error) {
         if (isUniqueViolation(error)) {
-          throw new ConcurrencyConflictError("A match with this id or invite code already exists.");
+          throw new ConcurrencyConflictError(
+            "A match with this id or invite code already exists.",
+          );
         }
         throw error;
       }
@@ -237,14 +263,19 @@ class PostgresTransaction implements Transaction {
     await this.syncMemberships(encoded);
   }
 
-  private async syncMemberships(encoded: ReturnType<typeof encodeMatchAggregate>): Promise<void> {
+  private async syncMemberships(
+    encoded: ReturnType<typeof encodeMatchAggregate>,
+  ): Promise<void> {
     const members = [
       ["Black", encoded.blackPlayerId],
       ["White", encoded.whitePlayerId],
     ] as const;
     for (const [side, playerId] of members) {
       if (!playerId) {
-        await this.client.query("DELETE FROM match_memberships WHERE match_id = $1 AND side = $2", [encoded.matchId, side]);
+        await this.client.query(
+          "DELETE FROM match_memberships WHERE match_id = $1 AND side = $2",
+          [encoded.matchId, side],
+        );
         continue;
       }
       // Legacy HMAC credentials may have been issued before migration 3. The

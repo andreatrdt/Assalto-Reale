@@ -9,7 +9,11 @@ import {
   type ServerEventEnvelope,
 } from "@assalto-reale/multiplayer-protocol";
 import type { QueryResultRow } from "pg";
-import type { MatchAggregate, MatchStatus, PostGameState } from "../../domain/matchAggregate.js";
+import type {
+  MatchAggregate,
+  MatchStatus,
+  PostGameState,
+} from "../../domain/matchAggregate.js";
 import type { StoredCommandReceipt } from "../../repositories.js";
 
 export interface PostgresMatchRow extends QueryResultRow {
@@ -106,7 +110,10 @@ function endReason(value: string | null): MatchEndReason | null {
   return value;
 }
 
-function postGameState(value: unknown, status: MatchStatus): PostGameState | null {
+function postGameState(
+  value: unknown,
+  status: MatchStatus,
+): PostGameState | null {
   if (value === null || value === undefined) {
     return status === "ended"
       ? {
@@ -125,13 +132,23 @@ function postGameState(value: unknown, status: MatchStatus): PostGameState | nul
       throw new Error(`Corrupt PostgreSQL ${side} post-game presence.`);
     }
     const parsed = entry as Record<string, unknown>;
-    if (parsed.presence !== "present" && parsed.presence !== "grace" && parsed.presence !== "absent") {
+    if (
+      parsed.presence !== "present" &&
+      parsed.presence !== "grace" &&
+      parsed.presence !== "absent"
+    ) {
       throw new Error(`Corrupt PostgreSQL ${side} post-game status.`);
     }
-    if (parsed.graceExpiresAt !== null && typeof parsed.graceExpiresAt !== "string") {
+    if (
+      parsed.graceExpiresAt !== null &&
+      typeof parsed.graceExpiresAt !== "string"
+    ) {
       throw new Error(`Corrupt PostgreSQL ${side} post-game deadline.`);
     }
-    if (typeof parsed.graceExpiresAt === "string" && !Number.isFinite(Date.parse(parsed.graceExpiresAt))) {
+    if (
+      typeof parsed.graceExpiresAt === "string" &&
+      !Number.isFinite(Date.parse(parsed.graceExpiresAt))
+    ) {
       throw new Error(`Corrupt PostgreSQL ${side} post-game deadline.`);
     }
     return { presence: parsed.presence, graceExpiresAt: parsed.graceExpiresAt };
@@ -146,13 +163,17 @@ function eventEnvelopes(value: unknown): ServerEventEnvelope[] {
   return value.map((entry) => {
     const validated = validateServerMessage(entry);
     if (!validated.ok) {
-      throw new Error(`Corrupt PostgreSQL command receipt envelope at ${validated.error.path}.`);
+      throw new Error(
+        `Corrupt PostgreSQL command receipt envelope at ${validated.error.path}.`,
+      );
     }
     return validated.value;
   });
 }
 
-export function encodeMatchAggregate(aggregate: MatchAggregate): EncodedMatchAggregate {
+export function encodeMatchAggregate(
+  aggregate: MatchAggregate,
+): EncodedMatchAggregate {
   return {
     matchId: aggregate.matchId,
     inviteCode: aggregate.inviteCode,

@@ -234,14 +234,21 @@ export async function runPostgresMigrations(pool: Pool): Promise<void> {
     const applied = await client.query<AppliedMigrationRow>(
       "SELECT version, name, checksum FROM authoritative_schema_migrations ORDER BY version",
     );
-    const appliedByVersion = new Map(applied.rows.map((row) => [row.version, row] as const));
+    const appliedByVersion = new Map(
+      applied.rows.map((row) => [row.version, row] as const),
+    );
 
     for (const migration of POSTGRES_MIGRATIONS) {
       const expectedChecksum = checksum(migration.sql);
       const existing = appliedByVersion.get(migration.version);
       if (existing) {
-        if (existing.name !== migration.name || existing.checksum !== expectedChecksum) {
-          throw new Error(`PostgreSQL migration ${migration.version} no longer matches the applied checksum.`);
+        if (
+          existing.name !== migration.name ||
+          existing.checksum !== expectedChecksum
+        ) {
+          throw new Error(
+            `PostgreSQL migration ${migration.version} no longer matches the applied checksum.`,
+          );
         }
         continue;
       }

@@ -1,14 +1,24 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { URL } from "node:url";
 import type { AuthenticatedPrincipal } from "@assalto-reale/authoritative-server";
-import { encodeServerMessage, type ServerEventEnvelope } from "@assalto-reale/multiplayer-protocol";
+import {
+  encodeServerMessage,
+  type ServerEventEnvelope,
+} from "@assalto-reale/multiplayer-protocol";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import type { ConnectionAuthenticator } from "./connectionAuth.js";
 import type { AuthenticatedCommandExecutor } from "./contextualAuthenticator.js";
 import type { GuestSessionIssuer } from "./guestSessions.js";
-import { RegisteredAuthError, type RegisteredAuthService } from "./registeredAuth.js";
+import {
+  RegisteredAuthError,
+  type RegisteredAuthService,
+} from "./registeredAuth.js";
 
 const DEFAULT_WEBSOCKET_PATH = "/ws";
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -121,10 +131,14 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 }
 
 function record(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 }
 
-function isPrincipal(value: AuthenticatedPrincipal | null): value is AuthenticatedPrincipal {
+function isPrincipal(
+  value: AuthenticatedPrincipal | null,
+): value is AuthenticatedPrincipal {
   return Boolean(
     value &&
     typeof value.playerId === "string" &&
@@ -159,9 +173,13 @@ export class AuthoritativeTransportServer {
   constructor(private readonly options: TransportServerOptions) {
     this.logger = options.logger ?? silentLogger;
     this.websocketPath = options.websocketPath ?? DEFAULT_WEBSOCKET_PATH;
-    this.allowedOrigins = options.allowedOrigins ? new Set(options.allowedOrigins) : null;
-    this.maxBufferedBytes = options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
-    this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+    this.allowedOrigins = options.allowedOrigins
+      ? new Set(options.allowedOrigins)
+      : null;
+    this.maxBufferedBytes =
+      options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
+    this.heartbeatIntervalMs =
+      options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
     this.shutdownGraceMs = options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS;
     this.websocketServer = new WebSocketServer({
       noServer: true,
@@ -174,7 +192,9 @@ export class AuthoritativeTransportServer {
     });
   }
 
-  async listen(options: TransportListenOptions = {}): Promise<TransportAddress> {
+  async listen(
+    options: TransportListenOptions = {},
+  ): Promise<TransportAddress> {
     if (this.closing) throw new Error("Transport server is closing.");
     if (this.httpServer.listening) {
       const current = this.httpServer.address();
@@ -187,10 +207,14 @@ export class AuthoritativeTransportServer {
     await new Promise<void>((resolve, reject) => {
       const onError = (error: Error): void => reject(error);
       this.httpServer.once("error", onError);
-      this.httpServer.listen(options.port ?? 0, options.host ?? "127.0.0.1", () => {
-        this.httpServer.off("error", onError);
-        resolve();
-      });
+      this.httpServer.listen(
+        options.port ?? 0,
+        options.host ?? "127.0.0.1",
+        () => {
+          this.httpServer.off("error", onError);
+          resolve();
+        },
+      );
     });
     this.startHeartbeat();
 
@@ -257,9 +281,15 @@ export class AuthoritativeTransportServer {
     };
   }
 
-  private async handleHttp(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  private async handleHttp(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
     const path = parsePath(request);
-    const origin = typeof request.headers.origin === "string" ? request.headers.origin : null;
+    const origin =
+      typeof request.headers.origin === "string"
+        ? request.headers.origin
+        : null;
 
     if (path.startsWith("/auth/")) {
       await this.handleRegisteredAuth(request, response, path, origin);
@@ -281,7 +311,13 @@ export class AuthoritativeTransportServer {
         return;
       }
       if (request.method !== "POST") {
-        this.sendJson(response, 405, { status: "method_not_allowed" }, request.method === "HEAD", origin);
+        this.sendJson(
+          response,
+          405,
+          { status: "method_not_allowed" },
+          request.method === "HEAD",
+          origin,
+        );
         return;
       }
       try {
@@ -291,13 +327,24 @@ export class AuthoritativeTransportServer {
         this.logger.error("Guest session issuance failed.", {
           error: error instanceof Error ? error.message : String(error),
         });
-        this.sendJson(response, 503, { status: "service_unavailable" }, false, origin);
+        this.sendJson(
+          response,
+          503,
+          { status: "service_unavailable" },
+          false,
+          origin,
+        );
       }
       return;
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") {
-      this.sendJson(response, 405, { status: "method_not_allowed" }, request.method === "HEAD");
+      this.sendJson(
+        response,
+        405,
+        { status: "method_not_allowed" },
+        request.method === "HEAD",
+      );
       return;
     }
     if (path === "/healthz") {
@@ -314,10 +361,20 @@ export class AuthoritativeTransportServer {
           error: error instanceof Error ? error.message : String(error),
         });
       }
-      this.sendJson(response, ready ? 200 : 503, { status: ready ? "ready" : "not_ready" }, request.method === "HEAD");
+      this.sendJson(
+        response,
+        ready ? 200 : 503,
+        { status: ready ? "ready" : "not_ready" },
+        request.method === "HEAD",
+      );
       return;
     }
-    this.sendJson(response, 404, { status: "not_found" }, request.method === "HEAD");
+    this.sendJson(
+      response,
+      404,
+      { status: "not_found" },
+      request.method === "HEAD",
+    );
   }
 
   private async handleRegisteredAuth(
@@ -342,24 +399,52 @@ export class AuthoritativeTransportServer {
     }
 
     const allowed =
-      (path === "/auth/session" && (request.method === "GET" || request.method === "POST")) ||
+      (path === "/auth/session" &&
+        (request.method === "GET" || request.method === "POST")) ||
       (path === "/auth/matches" && request.method === "GET") ||
-      ((path === "/auth/logout" || path === "/auth/upgrade-guest" || path === "/auth/websocket-ticket") && request.method === "POST");
+      ((path === "/auth/logout" ||
+        path === "/auth/upgrade-guest" ||
+        path === "/auth/websocket-ticket") &&
+        request.method === "POST");
     if (!allowed) {
-      const known = new Set(["/auth/session", "/auth/matches", "/auth/logout", "/auth/upgrade-guest", "/auth/websocket-ticket"]).has(path);
-      this.sendJson(response, known ? 405 : 404, { status: known ? "method_not_allowed" : "not_found" }, request.method === "HEAD", origin);
+      const known = new Set([
+        "/auth/session",
+        "/auth/matches",
+        "/auth/logout",
+        "/auth/upgrade-guest",
+        "/auth/websocket-ticket",
+      ]).has(path);
+      this.sendJson(
+        response,
+        known ? 405 : 404,
+        { status: known ? "method_not_allowed" : "not_found" },
+        request.method === "HEAD",
+        origin,
+      );
       return;
     }
 
     const token = bearerToken(request);
     if (!token) {
-      this.sendJson(response, 401, { status: "unauthorized", code: "invalid_token" }, false, origin);
+      this.sendJson(
+        response,
+        401,
+        { status: "unauthorized", code: "invalid_token" },
+        false,
+        origin,
+      );
       return;
     }
 
     try {
       if (path === "/auth/session") {
-        this.sendJson(response, 200, await auth.establishSession(token), false, origin);
+        this.sendJson(
+          response,
+          200,
+          await auth.establishSession(token),
+          false,
+          origin,
+        );
         return;
       }
       if (path === "/auth/logout") {
@@ -368,46 +453,90 @@ export class AuthoritativeTransportServer {
         return;
       }
       if (path === "/auth/matches") {
-        this.sendJson(response, 200, await auth.listActiveMatches(token), false, origin);
+        this.sendJson(
+          response,
+          200,
+          await auth.listActiveMatches(token),
+          false,
+          origin,
+        );
         return;
       }
 
       const body = record(await readJsonBody(request));
       if (!body) throw new TypeError("invalid_body");
       if (path === "/auth/upgrade-guest") {
-        if (typeof body.guestToken !== "string" || body.guestToken.length === 0 || body.guestToken.length > 4096) {
+        if (
+          typeof body.guestToken !== "string" ||
+          body.guestToken.length === 0 ||
+          body.guestToken.length > 4096
+        ) {
           throw new TypeError("invalid_guest_token");
         }
-        this.sendJson(response, 200, await auth.upgradeGuest(token, body.guestToken), false, origin);
+        this.sendJson(
+          response,
+          200,
+          await auth.upgradeGuest(token, body.guestToken),
+          false,
+          origin,
+        );
         return;
       }
       const matchId = body.matchId;
       if (
         matchId !== undefined &&
         matchId !== null &&
-        (typeof matchId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(matchId))
+        (typeof matchId !== "string" ||
+          !/^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$/.test(matchId))
       ) {
         throw new TypeError("invalid_match_id");
       }
-      this.sendJson(response, 201, await auth.issueWebsocketTicket(token, typeof matchId === "string" ? matchId : null), false, origin);
+      this.sendJson(
+        response,
+        201,
+        await auth.issueWebsocketTicket(
+          token,
+          typeof matchId === "string" ? matchId : null,
+        ),
+        false,
+        origin,
+      );
     } catch (error) {
       if (error instanceof RegisteredAuthError) {
         this.logger.warn("Registered authentication rejected.", {
           category: "registered",
           code: error.code,
         });
-        this.sendJson(response, error.status, { status: "unauthorized", code: error.code, message: error.message }, false, origin);
+        this.sendJson(
+          response,
+          error.status,
+          { status: "unauthorized", code: error.code, message: error.message },
+          false,
+          origin,
+        );
         return;
       }
       if (error instanceof TypeError) {
-        this.sendJson(response, error.message === "request_too_large" ? 413 : 400, { status: "invalid_request" }, false, origin);
+        this.sendJson(
+          response,
+          error.message === "request_too_large" ? 413 : 400,
+          { status: "invalid_request" },
+          false,
+          origin,
+        );
         return;
       }
       this.logger.error("Registered authentication failed unexpectedly.", {
         category: "registered",
         error: error instanceof Error ? error.message : String(error),
       });
-      this.sendJson(response, 503, { status: "service_unavailable" }, false, origin);
+      this.sendJson(
+        response,
+        503,
+        { status: "service_unavailable" },
+        false,
+        origin,
+      );
     }
   }
 
@@ -425,7 +554,13 @@ export class AuthoritativeTransportServer {
     };
   }
 
-  private sendJson(response: ServerResponse, statusCode: number, payload: unknown, headOnly: boolean, origin: string | null = null): void {
+  private sendJson(
+    response: ServerResponse,
+    statusCode: number,
+    payload: unknown,
+    headOnly: boolean,
+    origin: string | null = null,
+  ): void {
     const body = JSON.stringify(payload);
     response.writeHead(statusCode, {
       "content-type": "application/json; charset=utf-8",
@@ -436,7 +571,11 @@ export class AuthoritativeTransportServer {
     response.end(headOnly ? undefined : body);
   }
 
-  private async handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
+  private async handleUpgrade(
+    request: IncomingMessage,
+    socket: Duplex,
+    head: Buffer,
+  ): Promise<void> {
     if (this.closing) {
       this.rejectUpgrade(socket, 503, "Service Unavailable");
       return;
@@ -453,7 +592,8 @@ export class AuthoritativeTransportServer {
 
     let principal: AuthenticatedPrincipal | null;
     try {
-      principal = await this.options.authenticateConnection.authenticate(request);
+      principal =
+        await this.options.authenticateConnection.authenticate(request);
     } catch (error) {
       this.logger.error("Connection authentication failed unexpectedly.", {
         error: error instanceof Error ? error.message : String(error),
@@ -492,7 +632,10 @@ export class AuthoritativeTransportServer {
     socket.destroy();
   }
 
-  private acceptConnection(socket: WebSocket, principal: AuthenticatedPrincipal): void {
+  private acceptConnection(
+    socket: WebSocket,
+    principal: AuthenticatedPrincipal,
+  ): void {
     const state: ConnectionState = {
       socket,
       principal: { ...principal },
@@ -535,7 +678,10 @@ export class AuthoritativeTransportServer {
     });
   }
 
-  private async processMessage(state: ConnectionState, text: string): Promise<void> {
+  private async processMessage(
+    state: ConnectionState,
+    text: string,
+  ): Promise<void> {
     let rawMessage: unknown = text;
     try {
       rawMessage = JSON.parse(text) as unknown;
@@ -543,12 +689,18 @@ export class AuthoritativeTransportServer {
       // CommandHandler returns the canonical structured invalid-message rejection.
     }
 
-    const envelopes = await this.options.executor.execute(state.principal, rawMessage);
+    const envelopes = await this.options.executor.execute(
+      state.principal,
+      rawMessage,
+    );
     this.grantSubscriptions(state, envelopes);
     for (const envelope of envelopes) this.routeEnvelope(state, envelope);
   }
 
-  private grantSubscriptions(state: ConnectionState, envelopes: readonly ServerEventEnvelope[]): void {
+  private grantSubscriptions(
+    state: ConnectionState,
+    envelopes: readonly ServerEventEnvelope[],
+  ): void {
     for (const envelope of envelopes) {
       if (envelope.matchId && SUBSCRIPTION_EVENTS.has(envelope.event.type)) {
         this.subscribe(state, envelope.matchId);
@@ -563,7 +715,10 @@ export class AuthoritativeTransportServer {
     this.addToIndex(this.socketsByMatch, matchId, state.socket);
   }
 
-  private routeEnvelope(origin: ConnectionState, envelope: ServerEventEnvelope): void {
+  private routeEnvelope(
+    origin: ConnectionState,
+    envelope: ServerEventEnvelope,
+  ): void {
     const targets = new Set<WebSocket>();
     if (envelope.recipient === "all") {
       if (envelope.matchId) {
@@ -574,7 +729,9 @@ export class AuthoritativeTransportServer {
         targets.add(origin.socket);
       }
     } else {
-      for (const socket of this.socketsByPlayer.get(envelope.recipient.playerId) ?? []) {
+      for (const socket of this.socketsByPlayer.get(
+        envelope.recipient.playerId,
+      ) ?? []) {
         targets.add(socket);
       }
     }
@@ -615,7 +772,11 @@ export class AuthoritativeTransportServer {
 
   private removeConnection(state: ConnectionState): void {
     if (!this.connections.delete(state.socket)) return;
-    this.removeFromIndex(this.socketsByPlayer, state.principal.playerId, state.socket);
+    this.removeFromIndex(
+      this.socketsByPlayer,
+      state.principal.playerId,
+      state.socket,
+    );
     for (const matchId of state.matches) {
       this.removeFromIndex(this.socketsByMatch, matchId, state.socket);
       if (!this.hasSubscribedSocket(state.principal.playerId, matchId)) {
@@ -669,7 +830,11 @@ export class AuthoritativeTransportServer {
     );
   }
 
-  private schedulePresenceExpiry(state: ConnectionState, matchId: string, expiresAt: string): void {
+  private schedulePresenceExpiry(
+    state: ConnectionState,
+    matchId: string,
+    expiresAt: string,
+  ): void {
     const key = this.presenceKey(state.principal.playerId, matchId);
     this.cancelPresenceTimer(state.principal.playerId, matchId);
     const delay = Math.max(0, Date.parse(expiresAt) - Date.now());
@@ -703,13 +868,21 @@ export class AuthoritativeTransportServer {
     void task.finally(() => this.presenceTasks.delete(task));
   }
 
-  private addToIndex(index: Map<string, Set<WebSocket>>, key: string, socket: WebSocket): void {
+  private addToIndex(
+    index: Map<string, Set<WebSocket>>,
+    key: string,
+    socket: WebSocket,
+  ): void {
     const sockets = index.get(key) ?? new Set<WebSocket>();
     sockets.add(socket);
     index.set(key, sockets);
   }
 
-  private removeFromIndex(index: Map<string, Set<WebSocket>>, key: string, socket: WebSocket): void {
+  private removeFromIndex(
+    index: Map<string, Set<WebSocket>>,
+    key: string,
+    socket: WebSocket,
+  ): void {
     const sockets = index.get(key);
     if (!sockets) return;
     sockets.delete(socket);
@@ -717,6 +890,8 @@ export class AuthoritativeTransportServer {
   }
 }
 
-export function createAuthoritativeTransportServer(options: TransportServerOptions): AuthoritativeTransportServer {
+export function createAuthoritativeTransportServer(
+  options: TransportServerOptions,
+): AuthoritativeTransportServer {
   return new AuthoritativeTransportServer(options);
 }

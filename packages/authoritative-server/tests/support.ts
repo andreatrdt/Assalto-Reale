@@ -7,7 +7,10 @@ import {
   type MatchState,
   type Player,
 } from "@assalto-reale/game-core";
-import type { ClientCommand, OnlineMatchConfig } from "@assalto-reale/multiplayer-protocol";
+import type {
+  ClientCommand,
+  OnlineMatchConfig,
+} from "@assalto-reale/multiplayer-protocol";
 import {
   CommandHandler,
   InMemoryStore,
@@ -58,7 +61,9 @@ export class SequentialSeeds implements SeedGenerator {
 
 /** Trusts the declared actor as the authenticated principal. */
 export class TrustingAuthenticator implements Authenticator {
-  async authenticate(envelope: { actor: AuthenticatedPrincipal }): Promise<AuthenticatedPrincipal | null> {
+  async authenticate(envelope: {
+    actor: AuthenticatedPrincipal;
+  }): Promise<AuthenticatedPrincipal | null> {
     return {
       playerId: envelope.actor.playerId,
       sessionId: envelope.actor.sessionId,
@@ -110,7 +115,10 @@ export interface MessageOptions {
   expectedMatchVersion?: number | null;
 }
 
-export function message(command: ClientCommand, options: MessageOptions): unknown {
+export function message(
+  command: ClientCommand,
+  options: MessageOptions,
+): unknown {
   return {
     protocol: "assalto-reale",
     protocolVersion: 1,
@@ -135,7 +143,10 @@ export const ONLINE_CONFIG: OnlineMatchConfig = {
   timeControl: { kind: "untimed" },
 };
 
-export function playingState(board: BoardState, overrides: Partial<MatchState> = {}): MatchState {
+export function playingState(
+  board: BoardState,
+  overrides: Partial<MatchState> = {},
+): MatchState {
   return {
     board,
     phase: "playing",
@@ -154,7 +165,13 @@ export function playingState(board: BoardState, overrides: Partial<MatchState> =
 }
 
 export function boardWith(
-  pieces: Array<[Player, "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn", [number, number]]>,
+  pieces: Array<
+    [
+      Player,
+      "King" | "AttackPawn" | "DefensePawn" | "ConquestPawn",
+      [number, number],
+    ]
+  >,
   transformSquares: Array<[number, number]> = [],
 ): BoardState {
   const board = createBoard({ transformEnabled: transformSquares.length > 0 });
@@ -165,10 +182,14 @@ export function boardWith(
   // fixtures often specify only the transforming pawn, so add distant kings when
   // the scenario did not provide them explicitly.
   if (transformSquares.length > 0) {
-    if (!pieces.some(([player, type]) => player === "Black" && type === "King")) {
+    if (
+      !pieces.some(([player, type]) => player === "Black" && type === "King")
+    ) {
       setPiece(board, [10, 1], { player: "Black", type: "King" });
     }
-    if (!pieces.some(([player, type]) => player === "White" && type === "King")) {
+    if (
+      !pieces.some(([player, type]) => player === "White" && type === "King")
+    ) {
       setPiece(board, [1, 10], { player: "White", type: "King" });
     }
   }

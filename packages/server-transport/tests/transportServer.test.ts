@@ -26,7 +26,9 @@ import {
 const servers: AuthoritativeTransportServer[] = [];
 const sockets: WebSocket[] = [];
 
-async function start(options: Parameters<typeof createAuthoritativeTransportServer>[0]): Promise<{
+async function start(
+  options: Parameters<typeof createAuthoritativeTransportServer>[0],
+): Promise<{
   server: AuthoritativeTransportServer;
   httpUrl: string;
   wsUrl: string;
@@ -80,7 +82,9 @@ describe("authoritative HTTP/WebSocket transport", () => {
     expect(readiness.check).toHaveBeenCalledOnce();
 
     expect((await fetch(`${httpUrl}/missing`)).status).toBe(404);
-    expect((await fetch(`${httpUrl}/healthz`, { method: "POST" })).status).toBe(405);
+    expect((await fetch(`${httpUrl}/healthz`, { method: "POST" })).status).toBe(
+      405,
+    );
 
     const second = await server.listen();
     expect(second.port).toBe(Number(new URL(httpUrl).port));
@@ -105,7 +109,10 @@ describe("authoritative HTTP/WebSocket transport", () => {
       logger,
     });
     expect((await fetch(`${second.httpUrl}/readyz`)).status).toBe(503);
-    expect(logger.error).toHaveBeenCalledWith("Readiness probe failed.", expect.objectContaining({ error: "database unavailable" }));
+    expect(logger.error).toHaveBeenCalledWith(
+      "Readiness probe failed.",
+      expect.objectContaining({ error: "database unavailable" }),
+    );
   });
 
   it("rejects wrong paths, unauthenticated clients and disallowed origins", async () => {
@@ -172,7 +179,13 @@ describe("authoritative HTTP/WebSocket transport", () => {
     });
 
     const spoofResponse = nextEnvelope(alice);
-    sendJson(alice, commandMessage({ type: "CreateMatch", config: ONLINE_CONFIG }, { commandId: "command_spoof01", playerId: BOB }));
+    sendJson(
+      alice,
+      commandMessage(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "command_spoof01", playerId: BOB },
+      ),
+    );
     expect((await spoofResponse).event).toMatchObject({
       type: "CommandRejected",
       code: "unauthorized",
@@ -193,7 +206,13 @@ describe("authoritative HTTP/WebSocket transport", () => {
     const bob = track(await openSocket(wsUrl, { token: "bob" }));
 
     const createdPromise = nextEnvelope(alice);
-    sendJson(alice, commandMessage({ type: "CreateMatch", config: ONLINE_CONFIG }, { commandId: "command_create1", playerId: ALICE }));
+    sendJson(
+      alice,
+      commandMessage(
+        { type: "CreateMatch", config: ONLINE_CONFIG },
+        { commandId: "command_create1", playerId: ALICE },
+      ),
+    );
     const created = await createdPromise;
     expect(created.event.type).toBe("MatchCreated");
     if (created.event.type !== "MatchCreated" || !created.matchId) {
@@ -213,7 +232,10 @@ describe("authoritative HTTP/WebSocket transport", () => {
         },
       ),
     );
-    const [aliceJoinEvent, bobJoinEvent] = await Promise.all([aliceJoined, bobJoined]);
+    const [aliceJoinEvent, bobJoinEvent] = await Promise.all([
+      aliceJoined,
+      bobJoined,
+    ]);
     expect(aliceJoinEvent).toEqual(bobJoinEvent);
     expect(bobJoinEvent.event.type).toBe("PlayerJoined");
 
@@ -232,7 +254,10 @@ describe("authoritative HTTP/WebSocket transport", () => {
         },
       ),
     );
-    const [oldSync, newSync] = await Promise.all([oldSessionSync, reconnectSync]);
+    const [oldSync, newSync] = await Promise.all([
+      oldSessionSync,
+      reconnectSync,
+    ]);
     expect(oldSync).toEqual(newSync);
     expect(newSync.event.type).toBe("MatchSnapshot");
 
@@ -296,14 +321,32 @@ describe("authoritative HTTP/WebSocket transport", () => {
     let eventSequence = 0;
     const executor: AuthenticatedCommandExecutor = {
       execute: async (principal) => [
-        presenceEnvelope(principal, "present", "reentered", ++eventSequence, { playerId: principal.playerId }),
+        presenceEnvelope(principal, "present", "reentered", ++eventSequence, {
+          playerId: principal.playerId,
+        }),
       ],
       postGameDisconnected: vi.fn(async (principal) => ({
-        envelopes: [presenceEnvelope(principal, "grace", "disconnected", ++eventSequence, "all")],
+        envelopes: [
+          presenceEnvelope(
+            principal,
+            "grace",
+            "disconnected",
+            ++eventSequence,
+            "all",
+          ),
+        ],
         graceExpiresAt: new Date(Date.now() + 100).toISOString(),
       })),
       expirePostGameDisconnect: vi.fn(async (principal) => ({
-        envelopes: [presenceEnvelope(principal, "absent", "grace_expired", ++eventSequence, "all")],
+        envelopes: [
+          presenceEnvelope(
+            principal,
+            "absent",
+            "grace_expired",
+            ++eventSequence,
+            "all",
+          ),
+        ],
         graceExpiresAt: null,
       })),
     };
@@ -337,7 +380,10 @@ describe("authoritative HTTP/WebSocket transport", () => {
       presence: "absent",
       reason: "grace_expired",
     });
-    expect(executor.postGameDisconnected).toHaveBeenCalledWith(expect.objectContaining({ playerId: ALICE }), "match_postgame01");
+    expect(executor.postGameDisconnected).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: ALICE }),
+      "match_postgame01",
+    );
     expect(executor.expirePostGameDisconnect).toHaveBeenCalledOnce();
   });
 
@@ -363,7 +409,10 @@ describe("authoritative HTTP/WebSocket transport", () => {
   });
 });
 
-function privateRejection(principal: AuthenticatedPrincipal, sequence: number): ServerEventEnvelope {
+function privateRejection(
+  principal: AuthenticatedPrincipal,
+  sequence: number,
+): ServerEventEnvelope {
   const commandId = `command_order0${sequence}`;
   return {
     protocol: "assalto-reale",
@@ -389,7 +438,8 @@ function privateRejection(principal: AuthenticatedPrincipal, sequence: number): 
 function presenceEnvelope(
   principal: AuthenticatedPrincipal,
   presence: "present" | "grace" | "absent",
-  reason: "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired",
+  reason:
+    "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired",
   sequence: number,
   recipient: "all" | { playerId: string },
 ): ServerEventEnvelope {
