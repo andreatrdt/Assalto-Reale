@@ -61,6 +61,19 @@ function emptyReceipt(
   };
 }
 
+describe("post-game persistence migration contract", () => {
+  it("adds durable presence and safely backfills legacy completions as absent", () => {
+    const migration = POSTGRES_MIGRATIONS.find(
+      (candidate) => candidate.name === "add_durable_post_game_presence",
+    );
+
+    expect(migration?.version).toBe(4);
+    expect(migration?.sql).toContain("ADD COLUMN post_game_presence JSONB");
+    expect(migration?.sql).toContain("WHERE status = 'ended'");
+    expect(migration?.sql).toContain("'presence', 'absent'");
+  });
+});
+
 describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
   let pool: Pool;
 
@@ -388,6 +401,39 @@ describePostgres("PostgreSQL authoritative persistence (C.8.2)", () => {
         (SELECT COUNT(*)::int FROM authoritative_command_receipts) AS receipts
     `);
     expect(counts.rows[0]).toEqual({ matches: 1, receipts: 2 });
+  });
+
+  it("round-trips durable post-game presence without changing completed state", async () => {
+    const persistence = createPostgresPersistence(pool);
+    const active = createMatchAggregate({
+      matchId: "match_postgame_pg",
+      inviteCode: "POSTGAME",
+      seed: 77,
+      config: ONLINE_CONFIG,
+      creatorPlayerId: ALICE,
+    }).aggregate;
+    const completed = {
+      ...active,
+      status: "ended" as const,
+      endReason: "resignation" as const,
+      members: { Black: ALICE, White: BOB },
+      postGame: {
+        Black: { presence: "present" as const, graceExpiresAt: null },
+        White: {
+          presence: "grace" as const,
+          graceExpiresAt: "2026-01-01T00:00:30.000Z",
+        },
+      },
+    };
+    await persistence.unitOfWork.run(async (tx) => {
+      tx.saveMatch(completed, { kind: "create" });
+    });
+
+    const loaded = await persistence.matches.load(completed.matchId);
+    expect(loaded?.status).toBe("ended");
+    expect(loaded?.endReason).toBe("resignation");
+    expect(loaded?.state).toEqual(completed.state);
+    expect(loaded?.postGame).toEqual(completed.postGame);
   });
 
   it("replays one canonical result when exact CreateMatch retries race", async () => {

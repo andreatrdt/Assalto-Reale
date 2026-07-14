@@ -6,13 +6,13 @@ backend packages.
 
 ## Status (read this first)
 
-| Capability | State |
-| --- | --- |
-| Application core, protocol, PostgreSQL adapter, transport | **Implemented & tested** (packages) |
-| Composed runnable server (`@assalto-reale/server-runtime`) | **Implemented & tested** |
-| Local full-stack via Docker Compose | **Containerized & documented** |
-| Production container image | **Buildable** (validated in CI) |
-| Publicly deployed backend | **Not deployed** — no external infrastructure provisioned |
+| Capability                                                 | State                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
+| Application core, protocol, PostgreSQL adapter, transport  | **Implemented & tested** (packages)                       |
+| Composed runnable server (`@assalto-reale/server-runtime`) | **Implemented & tested**                                  |
+| Local full-stack via Docker Compose                        | **Containerized & documented**                            |
+| Production container image                                 | **Buildable** (validated in CI)                           |
+| Publicly deployed backend                                  | **Not deployed** — no external infrastructure provisioned |
 
 The public web client still **fails closed**: without `VITE_MULTIPLAYER_WS_URL`
 it shows "Server not configured" and online play stays disabled. Nothing in this
@@ -53,20 +53,21 @@ steps, endpoint flow, rollback, and browser variables. Railway must set
 `AUTH_ENABLED=true`, `AUTH_ISSUER_URL`, `AUTH_AUDIENCE`, and
 `AUTH_SESSION_ID_CLAIM` together; `AUTH_WEBSOCKET_TICKET_TTL_SECONDS` defaults to 60. With auth disabled, the deployed guest behavior is unchanged.
 
-| Variable | Required | Default | Notes |
-| --- | --- | --- | --- |
-| `NODE_ENV` | no | `development` | `production` fails fast on weak/missing values |
-| `HOST` | no | `0.0.0.0` (prod) / `127.0.0.1` (dev) | bind address |
-| `PORT` | no | `8080` | 1–65535 |
-| `DATABASE_URL` | **yes** | — | `postgres://` / `postgresql://`. No in-memory fallback |
-| `MULTIPLAYER_ALLOWED_ORIGINS` | **yes in production** | localhost:5173 (dev) | comma-separated origin allowlist |
-| `WEBSOCKET_PATH` | no | `/ws` | absolute path; `/session` is fixed |
-| `GUEST_SESSION_SECRET` | **yes in production** | labelled dev placeholder | HMAC secret, ≥ 32 bytes, never logged |
-| `GUEST_SESSION_TTL_SECONDS` | no | `43200` (12h) | 60 … 604800 |
-| `HEARTBEAT_INTERVAL_MS` | no | `30000` | WebSocket ping/cleanup |
-| `MAX_PAYLOAD_BYTES` | no | `65536` | inbound message cap |
-| `MAX_BUFFERED_BYTES` | no | `1048576` | per-socket backpressure cap |
-| `SHUTDOWN_GRACE_MS` | no | `10000` | force-close window on shutdown |
+| Variable                            | Required              | Default                              | Notes                                                               |
+| ----------------------------------- | --------------------- | ------------------------------------ | ------------------------------------------------------------------- |
+| `NODE_ENV`                          | no                    | `development`                        | `production` fails fast on weak/missing values                      |
+| `HOST`                              | no                    | `0.0.0.0` (prod) / `127.0.0.1` (dev) | bind address                                                        |
+| `PORT`                              | no                    | `8080`                               | 1–65535                                                             |
+| `DATABASE_URL`                      | **yes**               | —                                    | `postgres://` / `postgresql://`. No in-memory fallback              |
+| `MULTIPLAYER_ALLOWED_ORIGINS`       | **yes in production** | localhost:5173 (dev)                 | comma-separated origin allowlist                                    |
+| `WEBSOCKET_PATH`                    | no                    | `/ws`                                | absolute path; `/session` is fixed                                  |
+| `GUEST_SESSION_SECRET`              | **yes in production** | labelled dev placeholder             | HMAC secret, ≥ 32 bytes, never logged                               |
+| `GUEST_SESSION_TTL_SECONDS`         | no                    | `43200` (12h)                        | 60 … 604800                                                         |
+| `POST_GAME_RECONNECT_GRACE_SECONDS` | no                    | `30`                                 | 1 … 300; preserves post-game participation across brief disconnects |
+| `HEARTBEAT_INTERVAL_MS`             | no                    | `30000`                              | WebSocket ping/cleanup                                              |
+| `MAX_PAYLOAD_BYTES`                 | no                    | `65536`                              | inbound message cap                                                 |
+| `MAX_BUFFERED_BYTES`                | no                    | `1048576`                            | per-socket backpressure cap                                         |
+| `SHUTDOWN_GRACE_MS`                 | no                    | `10000`                              | force-close window on shutdown                                      |
 
 Invalid URLs, ports, TTLs or origins cause a `ConfigError` and a non-zero exit
 before any traffic is served. `SESSION_PATH` may only be `/session`.

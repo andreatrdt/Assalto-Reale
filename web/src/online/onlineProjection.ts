@@ -22,7 +22,7 @@ export function applyOnlineSnapshot(snapshot: CanonicalMatchSnapshot, options: O
     ...(options.ended ? { phase: { phase: "gameOver", previousPhase: match.phase } as const } : {}),
     aiEnabled: false,
     aiPlayer: "White",
-    hasActiveMatch: true,
+    hasActiveMatch: !options.ended,
     matchConfig: {
       ...DEFAULT_MATCH_CONFIG,
       opponent: "Human",

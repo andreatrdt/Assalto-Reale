@@ -10,6 +10,7 @@ export interface OnlineRematchControls {
   offer: () => void;
   accept: () => void;
   decline: () => void;
+  opponentPresence: "present" | "grace" | "absent" | null;
 }
 
 interface VictoryOverlayProps {
@@ -25,6 +26,9 @@ interface VictoryOverlayProps {
 }
 
 function OnlineRematchActions({ online }: { online: OnlineRematchControls }) {
+  if (online.opponentPresence === "absent") {
+    return <p className="victoryRematchNote">Opponent left the post-game room.</p>;
+  }
   if (online.status === "received") {
     return (
       <>
@@ -47,6 +51,7 @@ function OnlineRematchActions({ online }: { online: OnlineRematchControls }) {
   }
   return (
     <>
+      {online.opponentPresence === "grace" && <p className="victoryRematchNote">Opponent disconnected. Waiting for reconnect.</p>}
       {online.status === "declined" && <p className="victoryRematchNote">Your opponent declined the rematch.</p>}
       <GameButton variant="primary" disabled={online.busy} onClick={online.offer}>
         Rematch

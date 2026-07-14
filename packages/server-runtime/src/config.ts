@@ -15,6 +15,7 @@ export interface RuntimeConfig {
   readonly sessionPath: "/session";
   guestSessionSecret: string;
   guestSessionTtlMs: number;
+  postGameReconnectGraceMs: number;
   authEnabled: boolean;
   authIssuerUrl: string | null;
   authAudience: string | null;
@@ -275,6 +276,8 @@ export function loadConfig(env: Env = process.env): RuntimeConfig {
         60,
         7 * 24 * 60 * 60,
       ) * 1000,
+    postGameReconnectGraceMs:
+      parseInteger(env, "POST_GAME_RECONNECT_GRACE_SECONDS", 30, 1, 300) * 1000,
     ...auth,
     heartbeatIntervalMs: parseInteger(
       env,

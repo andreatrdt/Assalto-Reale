@@ -41,7 +41,7 @@ Every newly started public web match uses:
 
 - single Assalto Reale title
 - dominant Start Match action
-- conditional Continue Last Match action
+- conditional Resume Match action
 - restrained Load, Rules and Settings utilities
 - no decorative board preview or promotional dashboard content
 

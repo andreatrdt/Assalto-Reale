@@ -9,7 +9,7 @@ The package defines and validates:
 - command idempotency keys;
 - optimistic match-version checks;
 - player/session identity;
-- invite, action, pending-decision, resignation, rematch and sync messages;
+- invite, action, pending-decision, resignation, rematch, post-game presence and sync messages;
 - structured command rejections;
 - JSON codecs.
 

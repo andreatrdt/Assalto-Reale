@@ -18,6 +18,8 @@ export function AppRouter() {
   const [route, navigate] = useAppRoute();
   const hasActiveMatch = useGameStore((state) => state.hasActiveMatch);
   const onlineMatchId = useOnlineMatchStore((state) => state.matchId);
+  const onlineLifecycle = useOnlineMatchStore((state) => state.lifecycle);
+  const canShowGame = hasActiveMatch || (Boolean(onlineMatchId) && onlineLifecycle === "postGame");
   const reducedMotion = useUiSettings((state) => state.reducedMotion);
   const highContrastBoard = useUiSettings((state) => state.highContrastBoard);
   const soundEnabled = useUiSettings((state) => state.soundEnabled);
@@ -39,10 +41,10 @@ export function AppRouter() {
   }, [soundEnabled, volume]);
 
   useEffect(() => {
-    if (route === "/game" && !hasActiveMatch) {
+    if (route === "/game" && !canShowGame) {
       navigate(onlineMatchId ? "/online" : "/setup", true);
     }
-  }, [hasActiveMatch, navigate, onlineMatchId, route]);
+  }, [canShowGame, navigate, onlineMatchId, route]);
 
   if (route === "/setup") {
     return <SetupPage route={route} navigate={navigate} />;
@@ -50,7 +52,7 @@ export function AppRouter() {
   if (route === "/online") {
     return <OnlinePage route={route} navigate={navigate} />;
   }
-  if (route === "/game" && hasActiveMatch) {
+  if (route === "/game" && canShowGame) {
     return (
       <>
         {onlineMatchId && <OnlineGameHud />}

@@ -12,6 +12,17 @@ import {
   playingState,
   seedMatch,
 } from "./support.js";
+import type { Clock } from "../src/index.js";
+
+class MutableClock implements Clock {
+  constructor(public current = new Date("2026-01-01T00:00:00.000Z")) {}
+  now(): Date {
+    return new Date(this.current);
+  }
+  advance(ms: number): void {
+    this.current = new Date(this.current.getTime() + ms);
+  }
+}
 
 const TERMINAL_BOARD = boardWith([
   ["Black", "King", [10, 1]],
@@ -34,9 +45,7 @@ function eventFor<T extends ServerEvent["type"]>(
   );
   if (!found) {
     throw new Error(
-      `No ${type} for ${playerId ?? "any"} in [${envelopes
-        .map((e) => e.event.type)
-        .join(", ")}]`,
+      `No ${type} for ${playerId ?? "any"} in [${envelopes.map((e) => e.event.type).join(", ")}]`,
     );
   }
   return found.event as Extract<ServerEvent, { type: T }>;
@@ -279,5 +288,268 @@ describe("authoritative rematch lifecycle", () => {
       ),
     );
     expect(eventFor(out, "CommandRejected").code).toBe("match_ended");
+  });
+
+  it("makes deliberate departure immediate, cancels an offer, and preserves the result", async () => {
+    const { handler, store } = endedMatch();
+    const completedState = JSON.stringify(store.matches.get(MATCH)?.state);
+    await handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_offer_leave", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const out = await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_bob01", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const presence = eventFor(out, "PostGamePresenceChanged");
+    expect(presence.presence).toBe("absent");
+    expect(presence.offerCancelled).toBe(true);
+    const aggregate = store.matches.get(MATCH)!;
+    expect(aggregate.rematchOfferedBy).toBeNull();
+    expect(JSON.stringify(aggregate.state)).toBe(completedState);
+    expect(aggregate.status).toBe("ended");
+    expect(aggregate.endReason).toBe("resignation");
+  });
+
+  it("rejects rematch actions while either player is absent", async () => {
+    const { handler } = endedMatch();
+    await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_bob02", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const out = await handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_stale_offer", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(out, "CommandRejected").code).toBe("post_game_unavailable");
+  });
+
+  it("keeps rematch availability during reconnect grace, then expires it", async () => {
+    const clock = new MutableClock();
+    const h = harness({
+      clock,
+      postGameReconnectGraceMs: 30_000,
+    });
+    seedMatch(h.store, playingState(TERMINAL_BOARD), {
+      matchId: MATCH,
+      status: "ended",
+      endReason: "resignation",
+    });
+    const disconnected = await h.handler.markPostGameDisconnected(
+      { playerId: BOB, sessionId: "bob_session" },
+      MATCH,
+    );
+    expect(
+      eventFor(disconnected.envelopes, "PostGamePresenceChanged").presence,
+    ).toBe("grace");
+    const offered = await h.handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_grace_offer", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(offered, "RematchOffered").offeredByPlayerId).toBe(ALICE);
+    clock.advance(30_001);
+    const expired = await h.handler.expirePostGameDisconnect(
+      { playerId: BOB, sessionId: "bob_session" },
+      MATCH,
+    );
+    expect(
+      eventFor(expired.envelopes, "PostGamePresenceChanged").presence,
+    ).toBe("absent");
+    expect(h.store.matches.get(MATCH)?.rematchOfferedBy).toBeNull();
+  });
+
+  it("refresh re-entry preserves participation but never revives an expired offer", async () => {
+    const { handler, store } = endedMatch();
+    await handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_offer_refresh", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_refresh", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const sync = await handler.handle(
+      message(
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        { commandId: "cmd_sync_refresh", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(sync, "MatchSnapshot").postGame?.presence.White).toBe(
+      "present",
+    );
+    expect(store.matches.get(MATCH)?.rematchOfferedBy).toBeNull();
+  });
+
+  it("applies duplicate departures exactly once", async () => {
+    const { handler, store } = endedMatch();
+    const first = await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_once", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const version = store.matches.get(MATCH)!.version;
+    const second = await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_twice", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(first, "PostGamePresenceChanged").presence).toBe("absent");
+    expect(eventFor(second, "MatchSnapshot").postGame?.presence.Black).toBe(
+      "absent",
+    );
+    expect(store.matches.get(MATCH)!.version).toBe(version);
+  });
+
+  it("does not replay a stale rematch receipt after departure", async () => {
+    const { handler, store } = endedMatch();
+    const offer = message(
+      { type: "OfferRematch" },
+      { commandId: "cmd_replay_offer", playerId: ALICE, matchId: MATCH },
+    );
+    await handler.handle(offer);
+    await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_leave_replay", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const replay = await handler.handle(offer);
+    expect(
+      eventFor(replay, "MatchSnapshot").postGame?.rematchOfferedBy,
+    ).toBeNull();
+    expect(store.matches.size).toBe(1);
+  });
+
+  it("makes Home followed by immediate return deterministic", async () => {
+    const { handler } = endedMatch();
+    await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_home_now01", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const returned = await handler.handle(
+      message(
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        { commandId: "cmd_return_now", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const snapshot = eventFor(returned, "MatchSnapshot");
+    expect(snapshot.postGame?.presence.Black).toBe("present");
+    expect(snapshot.postGame?.rematchOfferedBy).toBeNull();
+  });
+
+  it("converges simultaneous departures and explicit departure plus close", async () => {
+    const { handler, store } = endedMatch();
+    await Promise.all([
+      handler.handle(
+        message(
+          { type: "LeavePostGame" },
+          { commandId: "cmd_both_alice", playerId: ALICE, matchId: MATCH },
+        ),
+      ),
+      handler.handle(
+        message(
+          { type: "LeavePostGame" },
+          { commandId: "cmd_both_bob01", playerId: BOB, matchId: MATCH },
+        ),
+      ),
+    ]);
+    const version = store.matches.get(MATCH)!.version;
+    await handler.markPostGameDisconnected(
+      { playerId: ALICE, sessionId: "alice_session" },
+      MATCH,
+    );
+    const aggregate = store.matches.get(MATCH)!;
+    expect(aggregate.postGame?.Black.presence).toBe("absent");
+    expect(aggregate.postGame?.White.presence).toBe("absent");
+    expect(aggregate.version).toBe(version);
+  });
+
+  it("restores durable absence after a server restart", async () => {
+    const first = endedMatch();
+    await first.handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_restart_leave", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const restarted = harness({ store: first.store });
+    const rejected = await restarted.handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_restart_offer", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(rejected, "CommandRejected").code).toBe(
+      "post_game_unavailable",
+    );
+  });
+
+  it("does not roll back a successor after the creation commit boundary", async () => {
+    const { handler, store } = endedMatch();
+    await handler.handle(
+      message(
+        { type: "OfferRematch" },
+        { commandId: "cmd_commit_offer", playerId: ALICE, matchId: MATCH },
+      ),
+    );
+    const created = await handler.handle(
+      message(
+        { type: "RespondToRematch", accept: true },
+        { commandId: "cmd_commit_accept", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    const successor = eventFor(created, "RematchCreated", BOB).newMatchId;
+    const lateLeave = await handler.handle(
+      message(
+        { type: "LeavePostGame" },
+        { commandId: "cmd_commit_leave", playerId: BOB, matchId: MATCH },
+      ),
+    );
+    expect(eventFor(lateLeave, "RematchCreated", BOB).newMatchId).toBe(
+      successor,
+    );
+    expect(store.matches.get(successor)?.status).toBe("active");
+    expect(store.matches.get(MATCH)?.successorMatchId).toBe(successor);
+  });
+
+  it("uses the same presence rules for guest and registered principals", async () => {
+    const guest = endedMatch();
+    const registered = endedMatch();
+    const guestUpdate = await guest.handler.markPostGameDisconnected(
+      { playerId: BOB, sessionId: "guest_session", authKind: "guest" },
+      MATCH,
+    );
+    const registeredUpdate = await registered.handler.markPostGameDisconnected(
+      {
+        playerId: BOB,
+        sessionId: "registered_session",
+        authKind: "registered",
+      },
+      MATCH,
+    );
+    expect(
+      eventFor(guestUpdate.envelopes, "PostGamePresenceChanged").presence,
+    ).toBe("grace");
+    expect(
+      eventFor(registeredUpdate.envelopes, "PostGamePresenceChanged").presence,
+    ).toBe("grace");
   });
 });

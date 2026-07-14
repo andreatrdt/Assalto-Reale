@@ -93,4 +93,12 @@ describe("online-only control visibility", () => {
     expect(online).not.toContain("New Match");
     expect(online).not.toContain(">Save<");
   });
+
+  it("disables the board-level rematch action when the opponent left", () => {
+    const online = renderToStaticMarkup(
+      <VictoryPanel message="Black wins" saveGame={noop} rematch={noop} newMatch={noop} home={noop} online rematchUnavailable />,
+    );
+    expect(online).toContain("Opponent left the post-game room.");
+    expect(online).toContain("disabled");
+  });
 });

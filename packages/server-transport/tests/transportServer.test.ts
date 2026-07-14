@@ -317,6 +317,76 @@ describe("authoritative HTTP/WebSocket transport", () => {
     expect(secondEnvelope.causationCommandId).toBe("command_order02");
   });
 
+  it("publishes post-game disconnect grace and authoritative expiry", async () => {
+    let eventSequence = 0;
+    const executor: AuthenticatedCommandExecutor = {
+      execute: async (principal) => [
+        presenceEnvelope(principal, "present", "reentered", ++eventSequence, {
+          playerId: principal.playerId,
+        }),
+      ],
+      postGameDisconnected: vi.fn(async (principal) => ({
+        envelopes: [
+          presenceEnvelope(
+            principal,
+            "grace",
+            "disconnected",
+            ++eventSequence,
+            "all",
+          ),
+        ],
+        graceExpiresAt: new Date(Date.now() + 100).toISOString(),
+      })),
+      expirePostGameDisconnect: vi.fn(async (principal) => ({
+        envelopes: [
+          presenceEnvelope(
+            principal,
+            "absent",
+            "grace_expired",
+            ++eventSequence,
+            "all",
+          ),
+        ],
+        graceExpiresAt: null,
+      })),
+    };
+    const { wsUrl } = await start({
+      executor,
+      authenticateConnection: new TokenConnectionAuthenticator({
+        alice: { playerId: ALICE, sessionId: "session_alice" },
+        bob: { playerId: BOB, sessionId: "session_bob" },
+      }),
+    });
+    const alice = track(await openSocket(wsUrl, { token: "alice" }));
+    const bob = track(await openSocket(wsUrl, { token: "bob" }));
+    const aliceSubscribed = nextEnvelope(alice);
+    const bobSubscribed = nextEnvelope(bob);
+    alice.send("{}");
+    bob.send("{}");
+    await Promise.all([aliceSubscribed, bobSubscribed]);
+
+    const grace = nextEnvelope(bob);
+    const aliceClosed = closeCode(alice);
+    alice.close(1000, "refresh");
+    await aliceClosed;
+    expect((await grace).event).toMatchObject({
+      type: "PostGamePresenceChanged",
+      presence: "grace",
+      reason: "disconnected",
+    });
+    const absent = nextEnvelope(bob);
+    expect((await absent).event).toMatchObject({
+      type: "PostGamePresenceChanged",
+      presence: "absent",
+      reason: "grace_expired",
+    });
+    expect(executor.postGameDisconnected).toHaveBeenCalledWith(
+      expect.objectContaining({ playerId: ALICE }),
+      "match_postgame01",
+    );
+    expect(executor.expirePostGameDisconnect).toHaveBeenCalledOnce();
+  });
+
   it("closes binary clients and performs graceful idempotent shutdown", async () => {
     const { server, wsUrl } = await start({
       executor: { execute: async () => [] },
@@ -361,6 +431,42 @@ function privateRejection(
       code: "invalid_message",
       message: `sequence ${sequence}`,
       currentMatchVersion: null,
+    },
+  };
+}
+
+function presenceEnvelope(
+  principal: AuthenticatedPrincipal,
+  presence: "present" | "grace" | "absent",
+  reason:
+    "reconnected" | "reentered" | "disconnected" | "left" | "grace_expired",
+  sequence: number,
+  recipient: "all" | { playerId: string },
+): ServerEventEnvelope {
+  return {
+    protocol: "assalto-reale",
+    protocolVersion: 1,
+    messageType: "event",
+    eventId: `event_presence${String(sequence).padStart(4, "0")}`,
+    emittedAt: new Date().toISOString(),
+    matchId: "match_postgame01",
+    matchVersion: sequence,
+    streamSequence: sequence,
+    causationCommandId: null,
+    recipient,
+    event: {
+      type: "PostGamePresenceChanged",
+      side: principal.playerId === ALICE ? "Black" : "White",
+      presence,
+      reason,
+      offerCancelled: presence === "absent",
+      postGame: {
+        presence: {
+          Black: principal.playerId === ALICE ? presence : "present",
+          White: principal.playerId === BOB ? presence : "present",
+        },
+        rematchOfferedBy: null,
+      },
     },
   };
 }

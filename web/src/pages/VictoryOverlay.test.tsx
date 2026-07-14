@@ -36,4 +36,28 @@ describe("VictoryOverlay", () => {
     expect(html).toContain("White wins on time.");
     expect(html).toContain("isDefeat");
   });
+
+  it("removes rematch controls after the opponent authoritatively leaves", () => {
+    const html = renderToStaticMarkup(
+      <VictoryOverlay
+        message="Black wins by resignation."
+        humanIsWinner
+        rematch={noop}
+        newMatch={noop}
+        home={noop}
+        saveGame={noop}
+        online={{
+          status: "received",
+          busy: false,
+          opponentPresence: "absent",
+          offer: noop,
+          accept: noop,
+          decline: noop,
+        }}
+      />,
+    );
+    expect(html).toContain("Opponent left the post-game room.");
+    expect(html).not.toContain("Accept Rematch");
+    expect(html).not.toContain("Decline");
+  });
 });

@@ -74,6 +74,7 @@ export function composeServer(options: ComposeOptions): ComposedServer {
     clock: options.clock ?? new SystemClock(),
     ids: options.ids ?? new CryptoIdGenerator(),
     seeds: options.seeds ?? new CryptoSeedGenerator(),
+    postGameReconnectGraceMs: config.postGameReconnectGraceMs,
   });
   const executor = bindCommandHandler(handler, contextual);
 

@@ -123,6 +123,30 @@ describe("multiplayer protocol", () => {
     expect(validateClientMessage(createEnvelope({ type: "RequestSync", lastSeenMatchVersion: 9 })).ok).toBe(true);
   });
 
+  it("round-trips explicit post-game departure and presence state", () => {
+    const departure = {
+      ...createEnvelope({ type: "LeavePostGame" }),
+      expectedMatchVersion: null,
+    };
+    expect(validateClientMessage(departure).ok).toBe(true);
+
+    const presence = serverEnvelope({
+      type: "PostGamePresenceChanged",
+      side: "White",
+      presence: "absent",
+      reason: "left",
+      offerCancelled: true,
+      postGame: {
+        presence: { Black: "present", White: "absent" },
+        rematchOfferedBy: null,
+      },
+    });
+    expect(decodeServerMessage(encodeServerMessage(presence))).toEqual({
+      ok: true,
+      value: presence,
+    });
+  });
+
   it("rejects malformed coordinates and unknown protocol versions", () => {
     const malformed = createEnvelope({ type: "SubmitAction", start: [5, 5], end: [5, 6] });
     (malformed.command as { end: unknown }).end = [-1, 6];

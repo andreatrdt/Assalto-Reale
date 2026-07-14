@@ -35,6 +35,7 @@ const SUBSCRIPTION_EVENTS = new Set([
   "TurnChanged",
   "MatchEnded",
   "MatchSnapshot",
+  "PostGamePresenceChanged",
   // A rematch announcement carries the new match id, so the accepting connection
   // subscribes to the successor and receives its live events.
   "RematchCreated",
@@ -157,6 +158,8 @@ export class AuthoritativeTransportServer {
   private readonly connections = new Map<WebSocket, ConnectionState>();
   private readonly socketsByPlayer = new Map<string, Set<WebSocket>>();
   private readonly socketsByMatch = new Map<string, Set<WebSocket>>();
+  private readonly presenceTimers = new Map<string, NodeJS.Timeout>();
+  private readonly presenceTasks = new Set<Promise<void>>();
   private readonly logger: TransportLogger;
   private readonly websocketPath: string;
   private readonly allowedOrigins: Set<string> | null;
@@ -247,6 +250,9 @@ export class AuthoritativeTransportServer {
     forceClose.unref();
 
     await Promise.all([this.closeWebSockets(), this.closeHttp()]);
+    await Promise.allSettled([...this.presenceTasks]);
+    for (const timer of this.presenceTimers.values()) clearTimeout(timer);
+    this.presenceTimers.clear();
     clearTimeout(forceClose);
     this.logger.info("Authoritative transport stopped.");
   }
@@ -703,6 +709,7 @@ export class AuthoritativeTransportServer {
   }
 
   private subscribe(state: ConnectionState, matchId: string): void {
+    this.cancelPresenceTimer(state.principal.playerId, matchId);
     if (state.matches.has(matchId)) return;
     state.matches.add(matchId);
     this.addToIndex(this.socketsByMatch, matchId, state.socket);
@@ -772,10 +779,93 @@ export class AuthoritativeTransportServer {
     );
     for (const matchId of state.matches) {
       this.removeFromIndex(this.socketsByMatch, matchId, state.socket);
+      if (!this.hasSubscribedSocket(state.principal.playerId, matchId)) {
+        this.markDisconnected(state, matchId);
+      }
     }
     this.logger.info("WebSocket disconnected.", {
       playerId: state.principal.playerId,
     });
+  }
+
+  private hasSubscribedSocket(playerId: string, matchId: string): boolean {
+    for (const socket of this.socketsByPlayer.get(playerId) ?? []) {
+      if (this.connections.get(socket)?.matches.has(matchId)) return true;
+    }
+    return false;
+  }
+
+  private presenceKey(playerId: string, matchId: string): string {
+    return `${matchId}:${playerId}`;
+  }
+
+  private cancelPresenceTimer(playerId: string, matchId: string): void {
+    const key = this.presenceKey(playerId, matchId);
+    const timer = this.presenceTimers.get(key);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.presenceTimers.delete(key);
+  }
+
+  private markDisconnected(state: ConnectionState, matchId: string): void {
+    const operation = this.options.executor.postGameDisconnected;
+    if (!operation) return;
+    this.trackPresenceTask(
+      operation(state.principal, matchId)
+        .then((update) => {
+          for (const envelope of update.envelopes) {
+            this.routeEnvelope(state, envelope);
+          }
+          if (update.graceExpiresAt) {
+            this.schedulePresenceExpiry(state, matchId, update.graceExpiresAt);
+          }
+        })
+        .catch((error: unknown) => {
+          this.logger.error("Post-game disconnect update failed.", {
+            playerId: state.principal.playerId,
+            matchId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }),
+    );
+  }
+
+  private schedulePresenceExpiry(
+    state: ConnectionState,
+    matchId: string,
+    expiresAt: string,
+  ): void {
+    const key = this.presenceKey(state.principal.playerId, matchId);
+    this.cancelPresenceTimer(state.principal.playerId, matchId);
+    const delay = Math.max(0, Date.parse(expiresAt) - Date.now());
+    const timer = setTimeout(() => {
+      this.presenceTimers.delete(key);
+      if (this.hasSubscribedSocket(state.principal.playerId, matchId)) return;
+      const operation = this.options.executor.expirePostGameDisconnect;
+      if (!operation) return;
+      this.trackPresenceTask(
+        operation(state.principal, matchId)
+          .then((update) => {
+            for (const envelope of update.envelopes) {
+              this.routeEnvelope(state, envelope);
+            }
+          })
+          .catch((error: unknown) => {
+            this.logger.error("Post-game reconnect grace expiry failed.", {
+              playerId: state.principal.playerId,
+              matchId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }),
+      );
+    }, delay);
+    timer.unref();
+    this.presenceTimers.set(key, timer);
+  }
+
+  private trackPresenceTask(task: Promise<void>): void {
+    this.presenceTasks.add(task);
+    void task.finally(() => this.presenceTasks.delete(task));
   }
 
   private addToIndex(

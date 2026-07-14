@@ -3,6 +3,7 @@ import type {
   AuthenticatedPrincipal,
   Authenticator,
   CommandHandler,
+  PostGamePresenceUpdate,
 } from "@assalto-reale/authoritative-server";
 import type {
   ClientCommandEnvelope,
@@ -15,6 +16,14 @@ export interface AuthenticatedCommandExecutor {
     principal: AuthenticatedPrincipal,
     rawMessage: unknown,
   ): Promise<ServerEventEnvelope[]>;
+  postGameDisconnected?(
+    principal: AuthenticatedPrincipal,
+    matchId: string,
+  ): Promise<PostGamePresenceUpdate>;
+  expirePostGameDisconnect?(
+    principal: AuthenticatedPrincipal,
+    matchId: string,
+  ): Promise<PostGamePresenceUpdate>;
 }
 
 /**
@@ -44,11 +53,26 @@ export class ContextualAuthenticator implements Authenticator {
  * dependencies. The transport calls only this executor.
  */
 export function bindCommandHandler(
-  handler: Pick<CommandHandler, "handle">,
+  handler: Pick<CommandHandler, "handle"> &
+    Partial<
+      Pick<
+        CommandHandler,
+        "markPostGameDisconnected" | "expirePostGameDisconnect"
+      >
+    >,
   authenticator: ContextualAuthenticator,
 ): AuthenticatedCommandExecutor {
-  return {
+  const executor: AuthenticatedCommandExecutor = {
     execute: (principal, rawMessage) =>
       authenticator.run(principal, () => handler.handle(rawMessage)),
   };
+  if (handler.markPostGameDisconnected) {
+    executor.postGameDisconnected = (principal, matchId) =>
+      handler.markPostGameDisconnected!(principal, matchId);
+  }
+  if (handler.expirePostGameDisconnect) {
+    executor.expirePostGameDisconnect = (principal, matchId) =>
+      handler.expirePostGameDisconnect!(principal, matchId);
+  }
+  return executor;
 }

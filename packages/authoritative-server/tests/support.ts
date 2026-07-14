@@ -81,6 +81,8 @@ export class FixedPrincipalAuthenticator implements Authenticator {
 export interface HarnessOptions {
   authenticator?: Authenticator;
   store?: InMemoryStore;
+  clock?: Clock;
+  postGameReconnectGraceMs?: number;
 }
 
 export function harness(options: HarnessOptions = {}): {
@@ -97,9 +99,10 @@ export function harness(options: HarnessOptions = {}): {
     matches: persistence.matches,
     unitOfWork: persistence.unitOfWork,
     authenticator: options.authenticator ?? new TrustingAuthenticator(),
-    clock: new FixedClock(),
+    clock: options.clock ?? new FixedClock(),
     ids,
     seeds,
+    postGameReconnectGraceMs: options.postGameReconnectGraceMs,
   });
   return { handler, store, ids, seeds };
 }
@@ -209,6 +212,7 @@ export function seedMatch(
     rematchOfferedBy?: string | null;
     successorMatchId?: string | null;
     predecessorMatchId?: string | null;
+    postGame?: MatchAggregate["postGame"];
   } = {},
 ): MatchAggregate {
   const aggregate: MatchAggregate = {
@@ -228,6 +232,14 @@ export function seedMatch(
     rematchOfferedBy: options.rematchOfferedBy ?? null,
     successorMatchId: options.successorMatchId ?? null,
     predecessorMatchId: options.predecessorMatchId ?? null,
+    postGame:
+      options.postGame ??
+      (options.status === "ended"
+        ? {
+            Black: { presence: "present", graceExpiresAt: null },
+            White: { presence: "present", graceExpiresAt: null },
+          }
+        : null),
   };
   store.matches.set(aggregate.matchId, aggregate);
   store.invites.set(aggregate.inviteCode, aggregate.matchId);

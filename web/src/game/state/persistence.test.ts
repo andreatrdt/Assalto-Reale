@@ -426,6 +426,37 @@ describe("save validation rejects malformed data atomically", () => {
   });
 });
 
+describe("completed local lifecycle", () => {
+  it("normalizes an older completed save with a stale active flag", () => {
+    startPlayingMatch({ setupSeed: 60 });
+    const saved = JSON.parse(s().exportSaveJson() ?? "{}") as Record<string, unknown>;
+    saved.phase = { phase: "gameOver" };
+    saved.hasActiveMatch = true;
+
+    expect(s().importSaveJson(JSON.stringify(saved))).toBe(true);
+    expect(s().phase.phase).toBe("gameOver");
+    expect(s().hasActiveMatch).toBe(false);
+  });
+
+  it("clears only the active pointer when returning Home", () => {
+    startPlayingMatch({ setupSeed: 61 });
+    const boardBefore = JSON.stringify(s().board);
+    const historyBefore = JSON.stringify(s().history);
+    useGameStore.setState({
+      phase: { phase: "gameOver" },
+      hasActiveMatch: true,
+      message: "Black wins by resignation.",
+    });
+
+    s().returnHome();
+
+    expect(s().hasActiveMatch).toBe(false);
+    expect(s().phase.phase).toBe("gameOver");
+    expect(JSON.stringify(s().board)).toBe(boardBefore);
+    expect(JSON.stringify(s().history)).toBe(historyBefore);
+  });
+});
+
 // --- Phase 8: storage-failure handling -------------------------------------
 
 describe("storage failures fail safe", () => {

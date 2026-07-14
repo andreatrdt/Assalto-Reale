@@ -1,7 +1,11 @@
 // Authoritative multiplayer server — application/domain core (Phase C.8).
 // Transport-independent. Game rules belong to @assalto-reale/game-core and the
 // wire contract belongs to @assalto-reale/multiplayer-protocol.
-export { CommandHandler, type CommandHandlerDeps } from "./commandHandler.js";
+export {
+  CommandHandler,
+  type CommandHandlerDeps,
+  type PostGamePresenceUpdate,
+} from "./commandHandler.js";
 export type {
   AuthenticatedPrincipal,
   Authenticator,
