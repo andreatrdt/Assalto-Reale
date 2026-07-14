@@ -260,6 +260,10 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+function canonicalState(state: MatchState): string {
+  return stable(JSON.parse(serializeState(state)) as unknown);
+}
+
 function replayIsComplete(
   aggregate: MatchAggregate,
   events: StoredHistoryEvent[],
@@ -294,7 +298,7 @@ function replayIsComplete(
   const finalFrame = replay.frames.at(-1);
   if (
     !finalFrame ||
-    serializeState(finalFrame.state) !== serializeState(aggregate.state)
+    canonicalState(finalFrame.state) !== canonicalState(aggregate.state)
   ) {
     throw new Error(
       `Captured replay final state mismatch for ${aggregate.matchId}.`,
