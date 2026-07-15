@@ -201,116 +201,87 @@
   pointer-events: none;
 }
 
-.previewPath {
-  fill: none;
-  opacity: 0.92;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 6;
-}
-
-.previewAttackPath {
-  stroke: #9a554f;
-  stroke-dasharray: 13 8;
-}
-
-.previewBouncePath {
-  stroke: #315f59;
-  stroke-dasharray: 7 6;
-}
-
-.previewRoute.unselected {
-  opacity: 0.34;
-}
-
-.previewRouteStep circle {
-  fill: #f5f0df;
-  stroke: #315f59;
-  stroke-width: 3;
-}
-
-.previewRouteStep text {
-  fill: #183f3a;
-  font-size: 25px;
-  font-weight: 800;
-}
-
-.previewJumpArc {
-  fill: none;
-  stroke: #735b91;
-  stroke-linecap: round;
-  stroke-width: 7;
-}
-
-.previewTurn {
-  fill: none;
-  stroke: #315f59;
-  stroke-dasharray: 5 5;
-  stroke-width: 4;
-}
-
-.previewGhostAttacker {
-  opacity: 0.48;
-}
-
-.attackPreviewArrow {
-  fill: #9a554f;
-}
-
-.bouncePreviewArrow {
-  fill: #315f59;
-}
-
 .previewSquare {
   fill: none;
 }
 
-.previewAttacker {
-  fill: rgb(154 85 79 / 0.08);
-  stroke: #9a554f;
-  stroke-dasharray: 11 7;
-  stroke-width: 5;
+.previewOriginPiece {
+  opacity: 0.66;
+}
+
+.previewSacrificePiece {
+  filter: saturate(0.55);
+  opacity: 0.48;
 }
 
 .previewKing {
+  fill: rgb(63 81 55 / 0.08);
   stroke: #3f5137;
   stroke-width: 7;
 }
 
-.previewDefender rect {
-  fill: rgb(122 109 60 / 0.13);
-  stroke: #776b3e;
-  stroke-dasharray: 7 6;
+.previewLandingTarget rect {
+  fill: rgb(47 92 68 / 0.16);
+  stroke: #2f5c44;
+  stroke-dasharray: 11 7;
+  stroke-width: 6;
+}
+
+.previewLandingTarget.unselected {
+  opacity: 0.6;
+}
+
+.previewLandingTarget.selected rect {
+  stroke-dasharray: none;
+  stroke-width: 9;
+}
+
+.previewLandingTarget[role="button"],
+.previewRouteChoice[role="button"] {
+  cursor: pointer;
+  outline: none;
+  pointer-events: auto;
+}
+
+.previewLandingTarget[role="button"]:focus rect,
+.previewRouteChoice:focus circle {
+  stroke: #111;
+  stroke-width: 10;
+}
+
+.previewLandingSelectedMark {
+  fill: #183f3a;
+  font-size: 54px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: #f5f0df;
   stroke-width: 5;
 }
 
-.previewDefender circle {
-  fill: #776b3e;
-  stroke: #f4f2ea;
-  stroke-width: 3;
+.previewLandingTarget.triggersTransform rect {
+  fill: rgb(64 97 126 / 0.14);
+  stroke: #466a8b;
 }
 
-.previewLanding rect {
-  fill: rgb(47 92 68 / 0.16);
+.previewRouteChoice circle {
+  fill: #f5f0df;
   stroke: #2f5c44;
-  stroke-dasharray: 15 7;
-  stroke-width: 8;
-}
-
-.previewLanding circle {
-  fill: #2f5c44;
-  stroke: #edf1e9;
   stroke-width: 4;
 }
 
-.previewLanding.triggersTransform rect {
-  fill: rgb(64 97 126 / 0.14);
-  stroke: #466a8b;
-  stroke-dasharray: 5 6;
+.previewRouteChoice text {
+  fill: #183f3a;
+  font-size: 32px;
+  font-weight: 900;
 }
 
-.previewLanding.triggersTransform circle {
-  fill: #466a8b;
+.previewRouteChoice.selected circle {
+  fill: #2f5c44;
+  stroke-width: 7;
+}
+
+.previewRouteChoice.selected text {
+  fill: #fff;
 }
 
 .capturedBox {
@@ -448,48 +419,26 @@ html[data-board-contrast="high"] .transformSquareInner {
   stroke-width: 5;
 }
 
-html[data-board-contrast="high"] .previewAttackPath,
-html[data-board-contrast="high"] .previewAttacker {
-  stroke: #7d211f;
-}
-
-html[data-board-contrast="high"] .attackPreviewArrow {
-  fill: #7d211f;
-}
-
-html[data-board-contrast="high"] .previewBouncePath {
-  stroke: #123f45;
-}
-
-html[data-board-contrast="high"] .bouncePreviewArrow {
-  fill: #123f45;
-}
-
-html[data-board-contrast="high"] .previewRouteStep circle,
-html[data-board-contrast="high"] .previewJumpArc,
-html[data-board-contrast="high"] .previewTurn {
+html[data-board-contrast="high"] .previewKing,
+html[data-board-contrast="high"] .previewLandingTarget rect,
+html[data-board-contrast="high"] .previewRouteChoice circle {
   stroke: #fff;
   stroke-width: 8;
 }
 
-html[data-board-contrast="high"] .previewRouteStep text {
-  fill: #000;
+html[data-board-contrast="high"] .previewLandingSelectedMark,
+html[data-board-contrast="high"] .previewRouteChoice text {
+  paint-order: stroke;
+  stroke: #000;
+  stroke-width: 4;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .defendedKingPreview,
-  .previewLanding,
+  .previewLandingTarget,
   .previewKing {
     animation: none !important;
   }
-}
-
-.transformDecisionAnchor {
-  fill: none;
-  stroke: #f2c76e;
-  stroke-width: 8;
-  stroke-dasharray: 12 8;
-  pointer-events: none;
 }
 
 .transformDecisionChoice {
@@ -497,51 +446,50 @@ html[data-board-contrast="high"] .previewRouteStep text {
   outline: none;
 }
 
-.transformDecisionChoice circle {
-  fill: #112c34;
-  stroke: #f2c76e;
-  stroke-width: 5;
+.transformDecisionHitArea {
+  fill: transparent;
 }
 
-.transformDecisionChoice text {
-  fill: #fff8df;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+.transformDecisionTile {
+  fill: #e7e9e1;
+  stroke: #5f6b61;
+  stroke-width: 3;
+}
+
+.transformDecisionPiece,
+.transformDecisionIgnore {
   pointer-events: none;
 }
 
-.transformDecisionChoice:hover circle,
-.transformDecisionChoice:focus circle {
-  fill: #204551;
-  stroke-width: 9;
+.transformDecisionIgnore {
+  fill: #39433d;
+  font-size: 48px;
+  font-weight: 500;
 }
 
-html[data-board-contrast="high"] .transformDecisionAnchor,
-html[data-board-contrast="high"] .transformDecisionChoice circle {
-  stroke: #fff;
-  stroke-width: 9;
+.transformDecisionChoice:hover .transformDecisionTile,
+.transformDecisionChoice:focus .transformDecisionTile {
+  fill: #f3f4ef;
+  stroke: #243b31;
+  stroke-width: 6;
+}
+
+html[data-board-contrast="high"] .transformDecisionTile {
+  fill: #fff;
+  stroke: #000;
+  stroke-width: 6;
 }
 
 @media (forced-colors: active) {
-  .transformDecisionAnchor,
-  .transformDecisionChoice circle {
+  .transformDecisionTile {
     fill: Canvas;
     stroke: Highlight;
+    stroke-width: 5;
   }
 
-  .transformDecisionChoice text {
+  .transformDecisionIgnore {
     fill: CanvasText;
   }
-}
-
-html[data-board-contrast="high"] .previewLanding rect {
-  stroke: #0f4229;
-  stroke-width: 9;
-}
-
-html[data-board-contrast="high"] .previewLanding circle {
-  fill: #0f4229;
 }
 
 @media (max-width: 1180px) {

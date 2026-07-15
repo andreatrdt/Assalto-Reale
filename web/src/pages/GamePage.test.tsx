@@ -116,9 +116,10 @@ describe("Game decision and control panels", () => {
     );
 
     expect(html).toContain("Defense Pawn");
-    expect(html).toContain("Conquest Pawn");
-    expect(html).toContain("Ignore Transform Square");
-    expect(html).toContain("transformDecisionAnchor");
+    expect(html).not.toContain("Conquest Pawn");
+    expect(html).toContain("Ignore transformation");
+    expect(html).toContain("transformDecisionTile");
+    expect(html).not.toContain("transformDecisionAnchor");
     expect(html).not.toContain("matchPanel");
   });
 
@@ -182,7 +183,7 @@ describe("Game decision and control panels", () => {
     expect(html).not.toContain("specialGlow");
   });
 
-  it("renders the defended-King attack, bounce, defenders and landing preview on the board", () => {
+  it("renders only the defended King, sacrificed defender fade, and final landing preview", () => {
     const html = renderToStaticMarkup(
       <GameBoard
         board={board}
@@ -209,12 +210,14 @@ describe("Game decision and control panels", () => {
     );
 
     expect(html).toContain("defendedKingPreview");
-    expect(html).toContain("previewAttackPath");
-    expect(html).toContain("previewBouncePath");
-    expect(html).toContain("previewAttacker");
     expect(html).toContain("previewKing");
-    expect(html.match(/previewDefender/g)).toHaveLength(2);
-    expect(html).toContain("previewLanding triggersTransform");
+    expect(html).toContain("previewLandingTarget selected triggersTransform");
+    expect(html).not.toContain("previewAttackPath");
+    expect(html).not.toContain("previewBouncePath");
+    expect(html).not.toContain("previewRouteStep");
+    expect(html).not.toContain("previewJumpArc");
+    expect(html).not.toContain("previewTurn");
+    expect(html).not.toContain("previewGhostAttacker");
     expect(html).not.toContain("dialog");
     expect(html).not.toContain("Cancel Attack");
     expect(html).not.toContain("matchPanel");

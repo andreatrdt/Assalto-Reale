@@ -160,7 +160,7 @@ export function legalActionSummaries(board: BoardState, player: Player, movesThi
           if (!inBounds(board, end)) {
             continue;
           }
-          const action = buildAction(board, [row, col], end, { movesThisTurn, kingMoved });
+          const action = buildAction(board, [row, col], end, { movesThisTurn, kingMoved, rulesVersion: 1 });
           if (!action.error) {
             summaries.push(actionSummary(action));
           }
