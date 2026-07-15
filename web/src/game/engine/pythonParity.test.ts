@@ -118,12 +118,14 @@ describe("TypeScript engine parity fixtures", () => {
       movesThisTurn: input.moves_this_turn,
       kingMoved: input.king_moved,
       selectedDefender: input.selected_defender,
+      rulesVersion: 1,
     });
     expect(actionSummary(action)).toEqual(actionSummary(normalizePythonAction(fixture.action as Record<string, unknown>)));
 
     const { board: finalBoard, result } = applyAction(board, action, {
       movesThisTurn: input.moves_this_turn,
       kingMoved: input.king_moved,
+      rulesVersion: 1,
     });
     expect(resultSummary(result)).toEqual(normalizePythonResult(fixture.result as Record<string, unknown>));
     expect(toPythonSnapshot(finalBoard)).toEqual(fixture.final);

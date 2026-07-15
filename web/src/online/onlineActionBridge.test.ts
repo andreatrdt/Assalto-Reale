@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Vec2 } from "../game/engine";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PendingTransform, Vec2 } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { installOnlineGameActionBridge, restoreLocalGameActions } from "./onlineActionBridge";
 import { useOnlineMatchStore } from "./onlineStore";
@@ -81,5 +81,33 @@ describe("online action bridge", () => {
     expect(useGameStore.getState().message).toBe("This action is unavailable during an online match.");
     expect(useGameStore.getState().exportSaveJson()).toBeNull();
     expect(useGameStore.getState().importSaveJson("{}")).toBe(false);
+  });
+
+  it("sends Transform choices without mutating the pending decision optimistically", () => {
+    const chooseTransform = vi.fn(() => true);
+    const declineTransform = vi.fn(() => true);
+    const pendingTransform = {
+      owner: "Black",
+      player: "Black",
+      pos: [5, 5] as Vec2,
+      pieceType: "ConquestPawn" as const,
+      forceTurnSwitch: false,
+    } satisfies PendingTransform;
+    useOnlineMatchStore.setState({
+      connectionStatus: "connected",
+      side: "Black",
+      chooseTransform,
+      declineTransform,
+    });
+    useGameStore.setState({ phase: { phase: "transformSelection" }, pendingTransform });
+    installOnlineGameActionBridge();
+
+    useGameStore.getState().chooseTransform("AttackPawn");
+    expect(chooseTransform).toHaveBeenCalledWith("AttackPawn");
+    expect(useGameStore.getState().pendingTransform).toEqual(pendingTransform);
+
+    useGameStore.getState().declineTransform();
+    expect(declineTransform).toHaveBeenCalledOnce();
+    expect(useGameStore.getState().pendingTransform).toEqual(pendingTransform);
   });
 });

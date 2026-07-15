@@ -4,6 +4,7 @@ import { adjacentDefendersForKing, getDefendedKingPreviewFromPositions, intermed
 import { evaluateVictory } from "./victory.js";
 import { getSpecialControl, updateControl } from "./territory.js";
 import type { Action, BoardState, Piece, TransitionEvent, TransitionResult, Vec2 } from "./types.js";
+import { CURRENT_GAME_RULES_VERSION } from "./versions.js";
 
 function invalid(start: Vec2, end: Vec2, player: Action["player"], error: string): Action {
   return { kind: "invalid", player, start, end, cost: 0, capture: false, endsTurn: false, error };
@@ -96,6 +97,7 @@ export function buildAction(
 ): Action {
   const movesThisTurn = options.movesThisTurn ?? 0;
   const kingMoved = options.kingMoved ?? false;
+  const rulesVersion = options.rulesVersion ?? CURRENT_GAME_RULES_VERSION;
   if (movesThisTurn >= 2) {
     return invalid(start, end, "", "no action points remain");
   }
@@ -123,7 +125,7 @@ export function buildAction(
   if (target.player === mover.player) {
     return invalid(start, end, mover.player, "destination has a friendly piece");
   }
-  if (options.rulesVersion === 2 && mover.type === "AttackPawn" && target.type === "DefensePawn") {
+  if (rulesVersion === 2 && mover.type === "AttackPawn" && target.type === "DefensePawn") {
     const dir = direction(start, end);
     const kingPosition: Vec2 = [end[0] + dir[0], end[1] + dir[1]];
     const protectedAttack = getDefendedKingPreviewFromPositions(board, start, kingPosition, movesThisTurn, 2, options.selectedRouteId);
@@ -133,7 +135,7 @@ export function buildAction(
   }
   const precomputedDefendedKing =
     mover.type === "AttackPawn" && target.type === "King"
-      ? getDefendedKingPreviewFromPositions(board, start, end, movesThisTurn, options.rulesVersion ?? 1, options.selectedRouteId)
+      ? getDefendedKingPreviewFromPositions(board, start, end, movesThisTurn, rulesVersion, options.selectedRouteId)
       : null;
   const [ok, cost, reason] = precomputedDefendedKing
     ? ([true, precomputedDefendedKing.actionCost, ""] as const)
@@ -188,6 +190,7 @@ export function applyAction(
   options: { movesThisTurn?: number; kingMoved?: boolean; validate?: boolean; rulesVersion?: 1 | 2 } = {},
 ): { board: BoardState; result: TransitionResult } {
   const board = cloneBoard(source);
+  const rulesVersion = options.rulesVersion ?? CURRENT_GAME_RULES_VERSION;
   if (action.kind === "pass") {
     return {
       board,
@@ -226,7 +229,7 @@ export function applyAction(
           kingMoved: options.kingMoved ?? false,
           selectedDefender: action.selectedDefender,
           selectedRouteId: action.selectedRouteId,
-          rulesVersion: options.rulesVersion,
+          rulesVersion,
         });
   if (checked.error) {
     return {
@@ -295,7 +298,7 @@ export function applyAction(
     board.capturedPieces[defenderPiece.player].DefensePawn += 1;
     const defendedKingData: Record<string, unknown> = { king: end, defender: defenderPos, landing };
     const bounceData: Record<string, unknown> = { path: checked.defendedKing.bouncePath, landing };
-    if (options.rulesVersion === 2) {
+    if (rulesVersion === 2) {
       const selectedRoute = checked.defendedKing.routes.find((route) => route.id === checked.defendedKing!.selectedRouteId);
       Object.assign(defendedKingData, {
         path_defender: checked.defendedKing.pathDefenderId,
@@ -335,7 +338,7 @@ export function applyAction(
     // Rules v1 recorded the landing prompt even after the second action. Keep
     // that historical behavior replayable; rules v2 never offers a free
     // post-turn transformation.
-    ((options.rulesVersion ?? 1) === 1 || !endsTurn)
+    (rulesVersion === 1 || !endsTurn)
   ) {
     events.push({ kind: "transform_available", data: { player: mover.player, piece_type: mover.type, at: landing } });
   }
