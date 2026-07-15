@@ -30,7 +30,7 @@ describe("board-native Transform decision", () => {
     const view = render(<GameBoard board={board} transformDecision={decision()} onChooseTransform={choose} onDeclineTransform={decline} />);
 
     const picker = view.container.querySelector(".transformDecision");
-    expect(picker?.querySelectorAll(".transformDecisionPiece .piece")).toHaveLength(1);
+    expect(picker?.querySelectorAll(".transformDecisionPiece .piece")).toHaveLength(2);
     expect(picker?.querySelectorAll("circle")).toHaveLength(0);
     expect(picker?.textContent).toBe("×");
     expect(view.container.querySelector(".transformDecisionAnchor")).toBeNull();
