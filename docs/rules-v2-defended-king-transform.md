@@ -38,4 +38,4 @@ Rules, replay, protocol and save version constants remain unchanged because rule
 commands continue through the legacy free/deferred Transform path exactly as recorded; new rules-v2 histories record activation, decline and
 the token-costed choice explicitly.
 
-No database migration is required. Rules, protocol and replay versions are already persisted as numeric history metadata, and canonical JSON snapshots now carry `rulesVersion` and `seed` while accepting old snapshots without those fields as version 1.
+PostgreSQL migration 6 is required to extend the immutable history event-type constraint with activate_transform and decline_transform. It does not rewrite existing history rows. Rules, protocol and replay versions are already persisted as numeric history metadata, and canonical JSON snapshots now carry `rulesVersion` and `seed` while accepting old snapshots without those fields as version 1.
