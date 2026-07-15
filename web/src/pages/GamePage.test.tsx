@@ -116,7 +116,7 @@ describe("Game decision and control panels", () => {
     );
 
     expect(html).toContain("Defense Pawn");
-    expect(html).not.toContain("Conquest Pawn");
+    expect(html).toContain("Conquest Pawn");
     expect(html).toContain("Ignore transformation");
     expect(html).toContain("transformDecisionTile");
     expect(html).not.toContain("transformDecisionAnchor");

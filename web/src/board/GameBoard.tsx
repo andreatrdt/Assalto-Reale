@@ -320,7 +320,7 @@ export function GameBoard({
     return groups;
   }, []);
   const transformOptions = transformDecision
-    ? (["AttackPawn", "DefensePawn"] as const).filter((type) => type !== transformDecision.pieceType)
+    ? (["AttackPawn", "DefensePawn", "ConquestPawn"] as const).filter((type) => type !== transformDecision.pieceType)
     : [];
   const transformChoices = transformDecision ? [...transformOptions, "Ignore" as const] : [];
   const transformPicker = transformDecision
