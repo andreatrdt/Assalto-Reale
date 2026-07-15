@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { BoardState, DeflectionRoute, DeflectionRouteId, PawnType, PendingTransform, Piece, Vec2 } from "../game/engine";
-import { adjacentDefendersForKing, getPiece, hasPos } from "../game/engine";
+import { adjacentDefendersForKing, hasPos } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { useUiSettings } from "../ui/uiSettings";
 import { squareDelta, type BoardMotionEvent } from "./boardMotion";
@@ -29,6 +29,7 @@ interface GameBoardProps {
   defendedKingPreview?: DefendedKingBoardPreview | null;
   transformDecision?: PendingTransform | null;
   onSquareActivate?: (pos: Vec2) => void;
+  onDefendedKingRouteSelect?: (routeId: DeflectionRouteId) => void;
   onChooseTransform?: (newType: PawnType) => void;
   onDeclineTransform?: () => void;
 }
@@ -69,14 +70,6 @@ function posKey(pos: Vec2): string {
   return `${pos[0]}-${pos[1]}`;
 }
 
-function previewPath(start: Vec2, path: Vec2[], end: Vec2): Vec2[] {
-  return [start, ...path, end].filter((pos, index, points) => index === 0 || !samePos(pos, points[index - 1]));
-}
-
-function pathPoints(path: Vec2[], cell: number): string {
-  return path.map(([row, col]) => `${col * cell + cell / 2},${row * cell + cell / 2}`).join(" ");
-}
-
 function cornerMarkPath(x: number, y: number, cell: number): string {
   const inset = cell * 0.18;
   const length = cell * 0.14;
@@ -95,6 +88,18 @@ function cornerMarkPath(x: number, y: number, cell: number): string {
 
 function squareOrigin(pos: Vec2, cell: number): { x: number; y: number } {
   return { x: pos[1] * cell, y: pos[0] * cell };
+}
+
+function routeLabel(routeId: DeflectionRouteId): string {
+  if (routeId === "clockwise") return "clockwise";
+  if (routeId === "counterClockwise") return "counter-clockwise";
+  return "primary";
+}
+
+function routeSymbol(routeId: DeflectionRouteId): string {
+  if (routeId === "clockwise") return "↻";
+  if (routeId === "counterClockwise") return "↺";
+  return "•";
 }
 
 function MotionPiece({ piece, cell }: { piece: Piece; cell: number }) {
@@ -276,6 +281,7 @@ export function GameBoard({
   defendedKingPreview = null,
   transformDecision = null,
   onSquareActivate,
+  onDefendedKingRouteSelect,
   onChooseTransform,
   onDeclineTransform,
 }: GameBoardProps) {
@@ -295,9 +301,6 @@ export function GameBoard({
       : null);
   const size = 1200;
   const cell = size / board.config.rows;
-  const attackPreviewPath = activeDefendedKingPreview
-    ? previewPath(activeDefendedKingPreview.attackerOrigin, activeDefendedKingPreview.attackPath, activeDefendedKingPreview.kingPosition)
-    : [];
   const previewRoutes = activeDefendedKingPreview
     ? (activeDefendedKingPreview.routes ?? [
         {
@@ -309,7 +312,13 @@ export function GameBoard({
         },
       ])
     : [];
-  const attackerPiece = activeDefendedKingPreview ? getPiece(board, activeDefendedKingPreview.attackerOrigin) : null;
+  const selectedRouteId = activeDefendedKingPreview?.selectedRouteId ?? previewRoutes[0]?.id;
+  const previewLandingGroups = previewRoutes.reduce<Array<{ landing: Vec2; routes: DeflectionRoute[] }>>((groups, route) => {
+    const existing = groups.find((group) => samePos(group.landing, route.landingPosition));
+    if (existing) existing.routes.push(route);
+    else groups.push({ landing: route.landingPosition, routes: [route] });
+    return groups;
+  }, []);
   const transformChoiceCenter = transformDecision
     ? {
         x: Math.min(size - cell, Math.max(cell, transformDecision.pos[1] * cell + cell / 2)),
@@ -337,19 +346,10 @@ export function GameBoard({
       >
         {activeDefendedKingPreview && (
           <desc>
-            Defended King projection. The selected route has {activeDefendedKingPreview.bouncePath.length} traversed squares and lands on
-            row {activeDefendedKingPreview.landingPosition[0] + 1}, column {activeDefendedKingPreview.landingPosition[1] + 1}. Click the
-            King again to commit.
+            Defended King projection. The King is protected, the defending pawn will be sacrificed, and the selected final landing is
+            {` ${squareLabel(activeDefendedKingPreview.landingPosition, board.config.rows)}`}. Click the King again to commit.
           </desc>
         )}
-        <defs>
-          <marker id="attackPreviewArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,6 L6,3 Z" className="attackPreviewArrow" />
-          </marker>
-          <marker id="bouncePreviewArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
-            <path d="M0,0 L0,6 L6,3 Z" className="bouncePreviewArrow" />
-          </marker>
-        </defs>
 
         <rect width={size} height={size} className="boardBed" rx="20" />
 
@@ -368,6 +368,8 @@ export function GameBoard({
               const isLegalTarget = hasPos(legalTargets, pos);
               const isPlacementValid = hasPos(placementValid, pos);
               const isCaptureTarget = isLegalTarget && piece !== null;
+              const isPreviewOrigin = Boolean(activeDefendedKingPreview && samePos(activeDefendedKingPreview.attackerOrigin, pos));
+              const isPreviewSacrifice = Boolean(activeDefendedKingPreview && hasPos(activeDefendedKingPreview.defenders, pos));
               const isDefendedKing = piece?.type === "King" && adjacentDefendersForKing(board, pos, piece.player).length > 0;
               const controlledBy = board.controlledSquares.Black.some((item) => item[0] === rowIndex && item[1] === colIndex)
                 ? "Black"
@@ -440,7 +442,14 @@ export function GameBoard({
                     </g>
                   )}
                   {piece && !hiddenPieces.has(posKey(pos)) && (
-                    <svg x={x + cell * 0.16} y={y + cell * 0.1} width={cell * 0.68} height={cell * 0.78} viewBox="0 0 100 100">
+                    <svg
+                      className={`${isPreviewOrigin ? "previewOriginPiece" : ""}${isPreviewSacrifice ? " previewSacrificePiece" : ""}`.trim()}
+                      x={x + cell * 0.16}
+                      y={y + cell * 0.1}
+                      width={cell * 0.68}
+                      height={cell * 0.78}
+                      viewBox="0 0 100 100"
+                    >
                       <PieceGlyph piece={piece} />
                     </svg>
                   )}
@@ -506,58 +515,7 @@ export function GameBoard({
         )}
 
         {activeDefendedKingPreview && (
-          <g className="defendedKingPreview" aria-hidden="true">
-            <polyline
-              className="previewPath previewAttackPath"
-              points={pathPoints(attackPreviewPath, cell)}
-              markerEnd="url(#attackPreviewArrow)"
-            />
-            {previewRoutes.map((route) => {
-              const selectedRoute = route.id === (activeDefendedKingPreview.selectedRouteId ?? previewRoutes[0]?.id);
-              const routed = previewPath(activeDefendedKingPreview.kingPosition, route.path, route.landingPosition);
-              return (
-                <g key={`preview-route-${route.id}`} className={`previewRoute${selectedRoute ? " selected" : " unselected"}`}>
-                  <polyline
-                    className="previewPath previewBouncePath"
-                    points={pathPoints(routed, cell)}
-                    markerEnd="url(#bouncePreviewArrow)"
-                  />
-                  {route.path.map(([row, col], index) => (
-                    <g key={`${route.id}-step-${row}-${col}-${index}`} className="previewRouteStep">
-                      <circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * 0.105} />
-                      <text x={col * cell + cell / 2} y={row * cell + cell * 0.555} textAnchor="middle">
-                        {index + 1}
-                      </text>
-                    </g>
-                  ))}
-                  {route.jumpedSquares.map(([row, col], index) => (
-                    <path
-                      key={`${route.id}-jump-${row}-${col}-${index}`}
-                      className="previewJumpArc"
-                      d={`M ${col * cell + cell * 0.18} ${row * cell + cell * 0.56} Q ${col * cell + cell / 2} ${row * cell + cell * 0.06} ${col * cell + cell * 0.82} ${row * cell + cell * 0.56}`}
-                    />
-                  ))}
-                  {route.turnSquares.map(([row, col], index) => (
-                    <circle
-                      key={`${route.id}-turn-${index}`}
-                      className="previewTurn"
-                      cx={col * cell + cell / 2}
-                      cy={row * cell + cell / 2}
-                      r={cell * 0.2}
-                    />
-                  ))}
-                </g>
-              );
-            })}
-
-            <rect
-              x={activeDefendedKingPreview.attackerOrigin[1] * cell + cell * 0.12}
-              y={activeDefendedKingPreview.attackerOrigin[0] * cell + cell * 0.12}
-              width={cell * 0.76}
-              height={cell * 0.76}
-              rx={cell * 0.12}
-              className="previewSquare previewAttacker"
-            />
+          <g className="defendedKingPreview" role="group" aria-label="Defended King projected outcome">
             <rect
               x={activeDefendedKingPreview.kingPosition[1] * cell + cell * 0.09}
               y={activeDefendedKingPreview.kingPosition[0] * cell + cell * 0.09}
@@ -565,41 +523,108 @@ export function GameBoard({
               height={cell * 0.82}
               rx={cell * 0.14}
               className="previewSquare previewKing"
+              aria-hidden="true"
             />
 
-            {activeDefendedKingPreview.defenders.map(([row, col]) => (
-              <g key={`preview-defender-${row}-${col}`} className="previewDefender">
-                <rect x={col * cell + cell * 0.14} y={row * cell + cell * 0.14} width={cell * 0.72} height={cell * 0.72} rx={cell * 0.12} />
-                <circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * 0.08} />
-              </g>
-            ))}
-
-            <g className={`previewLanding${activeDefendedKingPreview.triggersTransform ? " triggersTransform" : ""}`}>
-              <rect
-                x={activeDefendedKingPreview.landingPosition[1] * cell + cell * 0.08}
-                y={activeDefendedKingPreview.landingPosition[0] * cell + cell * 0.08}
-                width={cell * 0.84}
-                height={cell * 0.84}
-                rx={cell * 0.14}
-              />
-              <circle
-                cx={activeDefendedKingPreview.landingPosition[1] * cell + cell / 2}
-                cy={activeDefendedKingPreview.landingPosition[0] * cell + cell / 2}
-                r={cell * 0.1}
-              />
-              {attackerPiece && (
-                <svg
-                  className="previewGhostAttacker"
-                  x={activeDefendedKingPreview.landingPosition[1] * cell + cell * 0.16}
-                  y={activeDefendedKingPreview.landingPosition[0] * cell + cell * 0.1}
-                  width={cell * 0.68}
-                  height={cell * 0.78}
-                  viewBox="0 0 100 100"
+            {previewLandingGroups.map((group) => {
+              const groupSelected = group.routes.some((route) => route.id === selectedRouteId);
+              const landingLabel = squareLabel(group.landing, board.config.rows);
+              const soleRoute = group.routes.length === 1 ? group.routes[0] : null;
+              const activateRoute = (routeId: DeflectionRouteId) => onDefendedKingRouteSelect?.(routeId);
+              return (
+                <g
+                  key={`preview-landing-${posKey(group.landing)}`}
+                  className={`previewLandingTarget${groupSelected ? " selected" : " unselected"}${activeDefendedKingPreview.triggersTransform ? " triggersTransform" : ""}`}
+                  role={soleRoute && onDefendedKingRouteSelect ? "button" : undefined}
+                  tabIndex={soleRoute && onDefendedKingRouteSelect ? 0 : undefined}
+                  aria-label={
+                    soleRoute
+                      ? `${groupSelected ? "Selected" : "Select"} ${routeLabel(soleRoute.id)} final landing ${landingLabel}`
+                      : `Final landing ${landingLabel} has ${group.routes.length} route choices`
+                  }
+                  data-landing={landingLabel}
+                  data-selected={groupSelected ? "true" : "false"}
+                  onClick={
+                    soleRoute && onDefendedKingRouteSelect
+                      ? (event) => {
+                          event.stopPropagation();
+                          activateRoute(soleRoute.id);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    soleRoute && onDefendedKingRouteSelect
+                      ? (event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            activateRoute(soleRoute.id);
+                          }
+                        }
+                      : undefined
+                  }
                 >
-                  <PieceGlyph piece={attackerPiece} />
-                </svg>
-              )}
-            </g>
+                  <rect
+                    x={group.landing[1] * cell + cell * 0.08}
+                    y={group.landing[0] * cell + cell * 0.08}
+                    width={cell * 0.84}
+                    height={cell * 0.84}
+                    rx={cell * 0.14}
+                    aria-hidden="true"
+                  />
+                  {groupSelected && (
+                    <text
+                      className="previewLandingSelectedMark"
+                      x={group.landing[1] * cell + cell / 2}
+                      y={group.landing[0] * cell + cell * 0.59}
+                      textAnchor="middle"
+                      aria-hidden="true"
+                    >
+                      ✓
+                    </text>
+                  )}
+                  {group.routes.length > 1 &&
+                    group.routes.map((route, index) => {
+                      const routeSelected = route.id === selectedRouteId;
+                      const selectorX = group.landing[1] * cell + cell * (0.38 + index * 0.24);
+                      const selectorY = group.landing[0] * cell + cell * 0.78;
+                      return (
+                        <g
+                          key={`preview-route-choice-${route.id}`}
+                          className={`previewRouteChoice${routeSelected ? " selected" : ""}`}
+                          role={onDefendedKingRouteSelect ? "button" : undefined}
+                          tabIndex={onDefendedKingRouteSelect ? 0 : undefined}
+                          aria-label={`${routeSelected ? "Selected" : "Select"} ${routeLabel(route.id)} route to final landing ${landingLabel}`}
+                          data-route-id={route.id}
+                          onClick={
+                            onDefendedKingRouteSelect
+                              ? (event) => {
+                                  event.stopPropagation();
+                                  activateRoute(route.id);
+                                }
+                              : undefined
+                          }
+                          onKeyDown={
+                            onDefendedKingRouteSelect
+                              ? (event) => {
+                                  if (event.key !== "Enter" && event.key !== " ") return;
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  activateRoute(route.id);
+                                }
+                              : undefined
+                          }
+                        >
+                          <circle cx={selectorX} cy={selectorY} r={cell * 0.105} aria-hidden="true" />
+                          <text x={selectorX} y={selectorY + cell * 0.045} textAnchor="middle" aria-hidden="true">
+                            {routeSymbol(route.id)}
+                          </text>
+                        </g>
+                      );
+                    })}
+                </g>
+              );
+            })}
           </g>
         )}
 
