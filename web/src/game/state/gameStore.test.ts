@@ -363,6 +363,48 @@ describe("game store wiring", () => {
     expect(resolved.board.capturedPieces.White.DefensePawn).toBe(1);
   });
 
+  it("offers a path-defended King, previews it, and commits on the second King click", () => {
+    const board = createBoard();
+    setPiece(board, [5, 1], { player: "Black", type: "AttackPawn" });
+    setPiece(board, [10, 1], { player: "Black", type: "King" });
+    setPiece(board, [5, 2], { player: "White", type: "DefensePawn" });
+    setPiece(board, [5, 3], { player: "White", type: "King" });
+    updateControl(board);
+
+    useGameStore.setState({
+      phase: { phase: "playing" },
+      board,
+      rulesVersion: 2,
+      currentPlayer: "Black",
+      movesThisTurn: 0,
+      kingMoved: false,
+      selected: null,
+      legalTargets: [],
+      history: [],
+      pendingTransform: null,
+      pendingDefendedKing: null,
+      projectedDefendedKing: null,
+      aiEnabled: false,
+      aiPlayer: "White",
+    });
+
+    useGameStore.getState().activateSquare([5, 1]);
+    expect(useGameStore.getState().legalTargets).toContainEqual([5, 3]);
+    expect(useGameStore.getState().legalTargets).not.toContainEqual([5, 2]);
+
+    useGameStore.getState().activateSquare([5, 3]);
+    expect(useGameStore.getState().projectedDefendedKing?.preview.pathDefenderId).toBeTruthy();
+    expect(getPiece(useGameStore.getState().board, [5, 2])).toEqual({ player: "White", type: "DefensePawn" });
+
+    useGameStore.getState().activateSquare([5, 3]);
+    const resolved = useGameStore.getState();
+    expect(resolved.projectedDefendedKing).toBeNull();
+    expect(getPiece(resolved.board, [5, 2])).toBeNull();
+    expect(getPiece(resolved.board, [5, 3])).toEqual({ player: "White", type: "King" });
+    expect(resolved.board.capturedPieces.White.DefensePawn).toBe(1);
+    expect(resolved.currentPlayer).toBe("White");
+  });
+
   it("lets AI resolve owned defended-King decisions by explicit owner", () => {
     const board = createBoard();
     setPiece(board, [5, 1], { player: "Black", type: "AttackPawn" });

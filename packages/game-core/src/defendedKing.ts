@@ -1,6 +1,7 @@
 import { ADJACENT_8, ORTHOGONAL_4 } from "./config.js";
 import { cheb, direction, getPiece, hasPos, inBounds, pieceIdAt, samePos } from "./board.js";
 import type { BoardState, DefendedKingPreview, DeflectionRoute, DeflectionRouteId, Vec2 } from "./types.js";
+import { CURRENT_GAME_RULES_VERSION } from "./versions.js";
 
 function attackPath(start: Vec2, end: Vec2): Vec2[] {
   const dist = cheb(start, end);
@@ -148,7 +149,7 @@ export function getDefendedKingPreviewFromPositions(
   attackerOrigin: Vec2,
   kingPosition: Vec2,
   movesThisTurn = 0,
-  rulesVersion: 1 | 2 = 1,
+  rulesVersion: 1 | 2 = CURRENT_GAME_RULES_VERSION,
   selectedRouteId?: DeflectionRouteId | null,
 ): DefendedKingPreview | null {
   if (!inBounds(board, attackerOrigin) || !inBounds(board, kingPosition)) return null;

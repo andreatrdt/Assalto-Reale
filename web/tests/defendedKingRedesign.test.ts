@@ -6,6 +6,7 @@ import {
   createBoard,
   generateTransformSquare,
   getDefendedKingPreviewFromPositions,
+  getLegalActions,
   getPiece,
   pieceIdAt,
   setPiece,
@@ -48,6 +49,27 @@ function defendedBoard(attacker: Vec2 = [5, 5], king: Vec2 = [5, 6], defender: V
 }
 
 describe("rules-v2 Defended King redesign", () => {
+  it.each([
+    { direction: "left", attacker: [5, 3], defender: [5, 4], king: [5, 5] },
+    { direction: "right", attacker: [5, 7], defender: [5, 6], king: [5, 5] },
+    { direction: "above", attacker: [3, 5], defender: [4, 5], king: [5, 5] },
+    { direction: "below", attacker: [7, 5], defender: [6, 5], king: [5, 5] },
+  ] as const)("offers the King through its $direction path defender", ({ attacker, defender, king }) => {
+    const board = defendedBoard(attacker, king, defender);
+    const direct = buildAction(board, attacker, king);
+    expect(direct.error).toBeFalsy();
+    expect(direct.defendedKing?.pathDefenderId).toBe(pieceIdAt(board, defender));
+
+    const targets = getLegalActions(state(board)).filter(
+      (action) => action.start?.[0] === attacker[0] && action.start?.[1] === attacker[1],
+    );
+    expect(targets.some((action) => action.end?.[0] === king[0] && action.end?.[1] === king[1])).toBe(true);
+    expect(targets.some((action) => action.end?.[0] === defender[0] && action.end?.[1] === defender[1])).toBe(false);
+
+    const bypass = buildAction(board, attacker, defender);
+    expect(bypass.error).toContain("path defender");
+  });
+
   it("attacks through exactly one path defender, auto-sacrifices it, and removes the bypass capture", () => {
     const board = defendedBoard([5, 1], [5, 3], [5, 2]);
     const preview = getDefendedKingPreviewFromPositions(board, [5, 1], [5, 3], 0, 2);
@@ -70,6 +92,15 @@ describe("rules-v2 Defended King redesign", () => {
     expect(buildAction(board, [5, 1], [5, 2], { rulesVersion: 2 }).error).toBeFalsy();
   });
 
+  it("does not enable the path attack for the wrong intervening piece or an over-range defender", () => {
+    const wrongPiece = defendedBoard([5, 1], [5, 3], [4, 3]);
+    setPiece(wrongPiece, [5, 2], { player: "White", type: "ConquestPawn" });
+    expect(buildAction(wrongPiece, [5, 1], [5, 3]).error).toContain("intermediate square");
+
+    const notAdjacent = defendedBoard([5, 1], [5, 4], [5, 2]);
+    expect(buildAction(notAdjacent, [5, 1], [5, 4]).error).toBeTruthy();
+  });
+
   it("rejects diagonal, over-range, late-turn, and multiply-blocked King attacks", () => {
     const diagonal = defendedBoard([5, 1], [6, 2], [6, 1]);
     expect(getDefendedKingPreviewFromPositions(diagonal, [5, 1], [6, 2], 0, 2)).toBeNull();
@@ -83,6 +114,12 @@ describe("rules-v2 Defended King redesign", () => {
     const result = applyCommand(state(defendedBoard()), { type: "SubmitAction", start: [5, 5], end: [5, 6] });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.state.pendingDefendedKing?.owner).toBe("White");
+  });
+
+  it("keeps an explicitly rules-v1 path defender blocked for replay compatibility", () => {
+    const board = defendedBoard([5, 1], [5, 3], [5, 2]);
+    expect(buildAction(board, [5, 1], [5, 3], { rulesVersion: 1 }).error).toContain("intermediate square");
+    expect(getDefendedKingPreviewFromPositions(board, [5, 1], [5, 3], 0, 1)).toBeNull();
   });
 
   it("generates a clear five-square route and counts crossed jump squares", () => {

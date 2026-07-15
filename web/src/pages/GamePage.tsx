@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppRoute } from "../app/routes";
 import { GameBoard, PieceGlyph } from "../board/GameBoard";
-import { canPlacePiece, type BoardState, type PieceType, type Player, type Vec2 } from "../game/engine";
+import { canPlacePiece, type BoardState, type DeflectionRouteId, type PieceType, type Player, type Vec2 } from "../game/engine";
 import { TIMER_PRESETS } from "../game/setup/matchConfig";
 import { useGameStore } from "../game/state/gameStore";
 import { useOnlineMatchStore } from "../online/onlineStore";
@@ -169,6 +169,25 @@ export function GamePage({ navigate }: GamePageProps) {
   const restartSummary = matchConfig ? describeMatchMode(matchConfig) : "No stored match setup";
   const canRestartMatch = Boolean(matchConfig);
 
+  function selectDefendedKingRoute(routeId: DeflectionRouteId) {
+    const game = useGameStore.getState();
+    const projection = game.projectedDefendedKing;
+    const route = projection?.preview.routes.find((candidate) => candidate.id === routeId);
+    if (!projection || !route) return;
+    useGameStore.setState({
+      projectedDefendedKing: {
+        ...projection,
+        preview: {
+          ...projection.preview,
+          selectedRouteId: route.id,
+          bouncePath: route.path,
+          landingPosition: route.landingPosition,
+        },
+      },
+      message: `${route.id === "primary" ? "Primary" : route.id === "clockwise" ? "Clockwise" : "Counter-clockwise"} route selected. Click the King to commit.`,
+    });
+  }
+
   async function confirmReturnHome() {
     if (onlineMatchId && phase === "gameOver") {
       const left = await leavePostGame();
@@ -257,6 +276,7 @@ export function GamePage({ navigate }: GamePageProps) {
             placementValid={placementValid}
             transformDecision={pendingTransform}
             onSquareActivate={activateSquare}
+            onDefendedKingRouteSelect={selectDefendedKingRoute}
             onChooseTransform={chooseTransform}
             onDeclineTransform={declineTransform}
           />

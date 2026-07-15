@@ -52,12 +52,12 @@ function replay(scenario: Scenario): void {
         expect(legalActionSummaries(board, piece.player, movesThisTurn, kingMoved), `${where} legal actions`).toEqual(expected);
       }
 
-      const action = buildAction(board, start, end, { movesThisTurn, kingMoved, selectedDefender });
+      const action = buildAction(board, start, end, { movesThisTurn, kingMoved, selectedDefender, rulesVersion: 1 });
       expect(actionSummary(action), `${where} action`).toEqual(
         actionSummary(normalizePythonAction(step.action as Record<string, unknown>)),
       );
 
-      const { board: nextBoard, result } = applyAction(board, action, { movesThisTurn, kingMoved });
+      const { board: nextBoard, result } = applyAction(board, action, { movesThisTurn, kingMoved, rulesVersion: 1 });
       expect(resultSummary(result), `${where} result`).toEqual(normalizePythonResult(step.result as Record<string, unknown>));
       board = nextBoard;
       expect(compactSnapshot(board), `${where} snapshot`).toEqual(step.snapshot);
@@ -73,7 +73,7 @@ function replay(scenario: Scenario): void {
         actionSummary(normalizePythonAction(step.action as Record<string, unknown>)),
       );
 
-      const { board: nextBoard, result } = applyAction(board, action, { movesThisTurn, kingMoved });
+      const { board: nextBoard, result } = applyAction(board, action, { movesThisTurn, kingMoved, rulesVersion: 1 });
       expect(resultSummary(result), `${where} result`).toEqual(normalizePythonResult(step.result as Record<string, unknown>));
       board = nextBoard;
       expect(compactSnapshot(board), `${where} snapshot`).toEqual(step.snapshot);

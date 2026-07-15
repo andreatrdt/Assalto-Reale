@@ -143,6 +143,36 @@ function combatScenario(defended: boolean): ReplayRecorder {
   return recorder;
 }
 
+function pathDefenderScenario(): ReplayRecorder {
+  const path: Vec2[] = [
+    [5, 0],
+    [5, 1],
+    [5, 2],
+    [5, 3],
+    [5, 4],
+    [5, 5],
+    [5, 6],
+  ];
+  const recorder = manualScenario(
+    19,
+    {
+      "Black:King": [[10, 1]],
+      "White:King": [[5, 6]],
+      "Black:AttackPawn": [[5, 1]],
+      "White:DefensePawn": [[5, 5]],
+    },
+    [...path, [10, 1]],
+  );
+  recorder.command({ type: "SubmitAction", start: [5, 1], end: [5, 2] });
+  recorder.command({ type: "SubmitAction", start: [5, 2], end: [5, 3] });
+  recorder.command({ type: "PassTurn" });
+  recorder.command({ type: "SubmitAction", start: [5, 3], end: [5, 4] });
+  recorder.command({ type: "PassTurn" });
+  recorder.command({ type: "PassTurn" });
+  recorder.command({ type: "SubmitAction", start: [5, 4], end: [5, 6] });
+  return recorder;
+}
+
 function transformScenario(rulesVersion: 1 | 2 = 2): ReplayRecorder {
   const recorder = new ReplayRecorder({ placementMode: "QuickBalanced", transformEnabled: true, seed: 2, rulesVersion });
   for (let index = 0; index < 20; index += 1) recorder.command({ type: "PassTurn" });
@@ -283,6 +313,24 @@ describe("immutable history replay", () => {
       const applied = resolved.events.find((event) => event.type === "ActionApplied");
       expect(applied?.type === "ActionApplied" ? applied.transition.events[0]?.data.route_id : null).toBe("primary");
     }
+  });
+
+  it("replays a path-defender sacrifice and authoritative route deterministically", () => {
+    const recorder = pathDefenderScenario();
+    const replay = replayHistoricalMatch(recorder.input());
+    expect(replay.ok).toBe(true);
+    if (!replay.ok) return;
+    const resolved = replay.frames.at(-1)!;
+    expect(resolved.state.board.capturedPieces.White.DefensePawn).toBe(1);
+    expect(getPiece(resolved.state.board, [5, 5])).toBeNull();
+    expect(getPiece(resolved.state.board, [5, 6])).toEqual({ player: "White", type: "King" });
+    const applied = resolved.events.find((event) => event.type === "ActionApplied");
+    const defended = applied?.type === "ActionApplied" ? applied.transition.events.find((event) => event.kind === "defended_king") : null;
+    const recordedPathDefender = applied?.type === "ActionApplied" ? applied.action.defendedKing?.pathDefenderId : null;
+    expect(recordedPathDefender).toBeTruthy();
+    expect(defended?.data.path_defender).toBe(recordedPathDefender);
+    expect(defended?.data.route).toEqual(expect.any(Array));
+    expect(serializeState(resolved.state)).toBe(serializeState(recorder.state));
   });
 
   it("keeps schema-v1 rules-v1 replays readable without reinterpretation", () => {
