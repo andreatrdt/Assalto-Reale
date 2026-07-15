@@ -206,34 +206,52 @@
 }
 
 .previewOriginPiece {
-  opacity: 0.66;
+  opacity: 0.58;
 }
 
 .previewSacrificePiece {
-  filter: saturate(0.55);
-  opacity: 0.48;
+  filter: saturate(0.35);
+  opacity: 0.38;
 }
 
+/* The King remains the visual anchor, but the cue is deliberately quieter
+   than a capture indicator so the board does not feel alarm-heavy. */
 .previewKing {
-  fill: rgb(63 81 55 / 0.08);
-  stroke: #3f5137;
-  stroke-width: 7;
+  fill: rgb(112 69 66 / 0.08);
+  stroke: #80534f;
+  stroke-width: 5;
 }
 
+/* Landing choices should read like temporary board cells, not debug boxes. */
 .previewLandingTarget rect {
-  fill: rgb(47 92 68 / 0.16);
-  stroke: #2f5c44;
-  stroke-dasharray: 11 7;
-  stroke-width: 6;
+  fill: rgb(237 241 233 / 0.68);
+  stroke: rgb(53 91 69 / 0.72);
+  stroke-width: 3.5;
+  filter: drop-shadow(0 3px 5px rgb(32 38 34 / 0.14));
+  transition:
+    fill 120ms var(--ease-standard),
+    opacity 120ms var(--ease-standard),
+    stroke-width 120ms var(--ease-standard),
+    transform 120ms var(--ease-standard);
 }
 
 .previewLandingTarget.unselected {
-  opacity: 0.6;
+  opacity: 0.48;
+}
+
+.previewLandingTarget.unselected rect {
+  fill: rgb(220 229 215 / 0.58);
+  stroke: rgb(72 93 75 / 0.55);
+}
+
+.previewLandingTarget.selected {
+  opacity: 1;
 }
 
 .previewLandingTarget.selected rect {
-  stroke-dasharray: none;
-  stroke-width: 9;
+  fill: rgb(216 229 214 / 0.84);
+  stroke: #365b43;
+  stroke-width: 5.5;
 }
 
 .previewLandingTarget[role="button"],
@@ -243,45 +261,56 @@
   pointer-events: auto;
 }
 
-.previewLandingTarget[role="button"]:focus rect,
-.previewRouteChoice:focus circle {
-  stroke: #111;
-  stroke-width: 10;
-}
-
-.previewLandingSelectedMark {
-  fill: #183f3a;
-  font-size: 54px;
-  font-weight: 900;
-  paint-order: stroke;
-  stroke: #f5f0df;
+.previewLandingTarget[role="button"]:hover rect {
+  fill: rgb(229 237 225 / 0.96);
+  stroke: #2f5c44;
   stroke-width: 5;
 }
 
+.previewLandingTarget[role="button"]:focus rect,
+.previewRouteChoice:focus circle {
+  stroke: var(--focus-ring);
+  stroke-width: 6;
+}
+
+/* The old oversized tick dominated the board. Selection is now expressed by
+   the cell treatment itself, matching the rest of the board language. */
+.previewLandingSelectedMark {
+  display: none;
+}
+
 .previewLandingTarget.triggersTransform rect {
-  fill: rgb(64 97 126 / 0.14);
-  stroke: #466a8b;
+  fill: rgb(207 222 216 / 0.8);
+  stroke: #466a63;
 }
 
 .previewRouteChoice circle {
-  fill: #f5f0df;
-  stroke: #2f5c44;
-  stroke-width: 4;
+  fill: #edf1e9;
+  stroke: #5a715f;
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 4px rgb(32 38 34 / 0.16));
 }
 
 .previewRouteChoice text {
-  fill: #183f3a;
-  font-size: 32px;
-  font-weight: 900;
+  fill: #284635;
+  font-size: 25px;
+  font-weight: 750;
+}
+
+.previewRouteChoice:hover circle {
+  fill: #f5f7f2;
+  stroke: #365b43;
+  stroke-width: 4;
 }
 
 .previewRouteChoice.selected circle {
-  fill: #2f5c44;
-  stroke-width: 7;
+  fill: #3f6550;
+  stroke: #294837;
+  stroke-width: 4;
 }
 
 .previewRouteChoice.selected text {
-  fill: #fff;
+  fill: #f7f8f4;
 }
 
 .capturedBox {
@@ -423,14 +452,13 @@ html[data-board-contrast="high"] .previewKing,
 html[data-board-contrast="high"] .previewLandingTarget rect,
 html[data-board-contrast="high"] .previewRouteChoice circle {
   stroke: #fff;
-  stroke-width: 8;
+  stroke-width: 7;
 }
 
-html[data-board-contrast="high"] .previewLandingSelectedMark,
 html[data-board-contrast="high"] .previewRouteChoice text {
   paint-order: stroke;
   stroke: #000;
-  stroke-width: 4;
+  stroke-width: 3;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -441,6 +469,8 @@ html[data-board-contrast="high"] .previewRouteChoice text {
   }
 }
 
+/* Compact promotion-style picker. It borrows the board palette and depth, so
+   it reads as a temporary extension of the grid rather than a floating widget. */
 .transformDecisionChoice {
   cursor: pointer;
   outline: none;
@@ -451,9 +481,15 @@ html[data-board-contrast="high"] .previewRouteChoice text {
 }
 
 .transformDecisionTile {
-  fill: #e7e9e1;
-  stroke: #5f6b61;
-  stroke-width: 3;
+  fill: #e4ebe0;
+  stroke: #788876;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 3px 5px rgb(32 38 34 / 0.18));
+  transition:
+    fill 120ms var(--ease-standard),
+    stroke 120ms var(--ease-standard),
+    stroke-width 120ms var(--ease-standard),
+    transform 120ms var(--ease-standard);
 }
 
 .transformDecisionPiece,
@@ -461,23 +497,37 @@ html[data-board-contrast="high"] .previewRouteChoice text {
   pointer-events: none;
 }
 
+.transformDecisionPiece .piece {
+  filter: none;
+  transform: none;
+}
+
 .transformDecisionIgnore {
-  fill: #39433d;
-  font-size: 48px;
-  font-weight: 500;
+  fill: #526058;
+  font-size: 31px;
+  font-weight: 600;
 }
 
 .transformDecisionChoice:hover .transformDecisionTile,
 .transformDecisionChoice:focus .transformDecisionTile {
-  fill: #f3f4ef;
-  stroke: #243b31;
-  stroke-width: 6;
+  fill: #f2f5ef;
+  stroke: #365b43;
+  stroke-width: 4;
+}
+
+.transformDecisionChoice:focus .transformDecisionTile {
+  stroke: var(--focus-ring);
+}
+
+.transformDecisionChoice:active .transformDecisionTile {
+  fill: #d6e2d3;
+  stroke: #2f5c44;
 }
 
 html[data-board-contrast="high"] .transformDecisionTile {
   fill: #fff;
   stroke: #000;
-  stroke-width: 6;
+  stroke-width: 5;
 }
 
 @media (forced-colors: active) {
@@ -512,6 +562,14 @@ html[data-board-contrast="high"] .transformDecisionTile {
     height: 1.75rem;
     width: 1.75rem;
   }
+
+  .previewRouteChoice text {
+    font-size: 23px;
+  }
+
+  .transformDecisionIgnore {
+    font-size: 28px;
+  }
 }
 
 /* ---- Forced colors (Windows High Contrast) ----
@@ -535,5 +593,12 @@ html[data-board-contrast="high"] .transformDecisionTile {
   .captureIndicator circle {
     stroke: Highlight;
     fill: Canvas;
+  }
+
+  .previewKing,
+  .previewLandingTarget rect,
+  .previewRouteChoice circle {
+    fill: Canvas;
+    stroke: Highlight;
   }
 }
