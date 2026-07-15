@@ -87,7 +87,9 @@ export interface OnlineMatchActions {
   sendAction: (start: Vec2, end: Vec2, routeId?: DeflectionRouteId) => boolean;
   chooseDefender: (position: Vec2) => boolean;
   cancelDefendedKing: () => boolean;
+  activateTransform: (position: Vec2) => boolean;
   chooseTransform: (newType: PawnType) => boolean;
+  declineTransform: () => boolean;
   passTurn: () => boolean;
   resign: () => boolean;
   disconnect: (preserveMatch?: boolean) => void;
@@ -959,7 +961,9 @@ export const useOnlineMatchStore = create<OnlineMatchStore>((set, get) => {
     sendAction: (start, end, routeId) => send({ type: "SubmitAction", start: [start[0], start[1]], end: [end[0], end[1]], routeId }),
     chooseDefender: (position) => send({ type: "ChooseDefender", position: [position[0], position[1]] }),
     cancelDefendedKing: () => send({ type: "CancelDefendedKing" }),
+    activateTransform: (position) => send({ type: "ActivateTransform", position: [position[0], position[1]] }),
     chooseTransform: (newType) => send({ type: "ChooseTransform", newType }),
+    declineTransform: () => send({ type: "DeclineTransform" }),
     passTurn: () => send({ type: "PassTurn" }),
     resign: () => send({ type: "Resign" }),
 

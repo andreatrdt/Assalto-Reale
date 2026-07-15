@@ -25,6 +25,17 @@ The first click on a defended King creates a presentation-only projection. It do
 
 ## Transform relocation
 
+In rules version 2, transformation is a separate optional action costing exactly one of the turn's two action tokens. Landing on the square
+with a token remaining opens a board-anchored choice to transform or ignore it. Ignore consumes no token and returns to normal play. Landing
+with the second token opens no decision, changes no piece and leaves the Transform Square in place. Eligibility is derived canonically from
+the current player's pawn occupying the active Transform Square, so a pawn left there can activate the choice on a later turn by selecting
+the pawn and square again. `ActivateTransform` opens that authoritative decision; `DeclineTransform` closes it without passing the turn.
+Only a successful `ChooseTransform` consumes one token and relocates the square.
+
 After a pawn transforms, legal candidates retain all existing rules: interior, empty, non-Special and equidistant to the nearest opposing pawns. Version 2 keeps only candidates at maximum Chebyshev distance from the consumed Transform Square, then maximum Chebyshev distance from the transformed pawn. The shared seeded generator chooses among remaining row-major ties. Version 1 retains the original seeded choice across all legal candidates.
 
-No database migration is required. Rules, protocol and replay versions are already persisted as numeric history metadata, and canonical JSON snapshots now carry `rulesVersion` and `seed` while accepting old snapshots without those fields as version 1.
+Rules, replay, protocol and save version constants remain unchanged because rules version 2 has not been merged or deployed. Rules-v1 replay
+commands continue through the legacy free/deferred Transform path exactly as recorded; new rules-v2 histories record activation, decline and
+the token-costed choice explicitly.
+
+PostgreSQL migration 6 is required to extend the immutable history event-type constraint with activate_transform and decline_transform. It does not rewrite existing history rows. Rules, protocol and replay versions are already persisted as numeric history metadata, and canonical JSON snapshots now carry `rulesVersion` and `seed` while accepting old snapshots without those fields as version 1.

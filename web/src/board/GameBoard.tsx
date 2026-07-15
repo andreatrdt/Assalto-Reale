@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { BoardState, DeflectionRoute, DeflectionRouteId, Piece, Vec2 } from "../game/engine";
+import type { BoardState, DeflectionRoute, DeflectionRouteId, PawnType, PendingTransform, Piece, Vec2 } from "../game/engine";
 import { adjacentDefendersForKing, getPiece, hasPos } from "../game/engine";
 import { useGameStore } from "../game/state/gameStore";
 import { useUiSettings } from "../ui/uiSettings";
@@ -27,7 +27,10 @@ interface GameBoardProps {
   legalTargets?: Vec2[];
   placementValid?: Vec2[];
   defendedKingPreview?: DefendedKingBoardPreview | null;
+  transformDecision?: PendingTransform | null;
   onSquareActivate?: (pos: Vec2) => void;
+  onChooseTransform?: (newType: PawnType) => void;
+  onDeclineTransform?: () => void;
 }
 
 type MotionStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -271,7 +274,10 @@ export function GameBoard({
   legalTargets = [],
   placementValid = [],
   defendedKingPreview = null,
+  transformDecision = null,
   onSquareActivate,
+  onChooseTransform,
+  onDeclineTransform,
 }: GameBoardProps) {
   const pendingDefendedKing = useGameStore((state) => state.pendingDefendedKing);
   const projectedDefendedKing = useGameStore((state) => state.projectedDefendedKing);
@@ -304,6 +310,18 @@ export function GameBoard({
       ])
     : [];
   const attackerPiece = activeDefendedKingPreview ? getPiece(board, activeDefendedKingPreview.attackerOrigin) : null;
+  const transformChoiceCenter = transformDecision
+    ? {
+        x: Math.min(size - cell, Math.max(cell, transformDecision.pos[1] * cell + cell / 2)),
+        y:
+          transformDecision.pos[0] < board.config.rows / 2
+            ? transformDecision.pos[0] * cell + cell * 1.45
+            : transformDecision.pos[0] * cell - cell * 0.45,
+      }
+    : null;
+  const transformOptions = transformDecision
+    ? (["AttackPawn", "DefensePawn", "ConquestPawn"] as const).filter((type) => type !== transformDecision.pieceType)
+    : [];
 
   return (
     <div className={`boardFrame${isAnimating ? " isAnimating" : ""}`}>
@@ -443,6 +461,49 @@ export function GameBoard({
             })}
           </g>
         ))}
+
+        {transformDecision && transformChoiceCenter && (
+          <g className="transformDecision" role="group" aria-label="Transform this pawn or ignore the Transform Square">
+            <circle
+              cx={transformDecision.pos[1] * cell + cell / 2}
+              cy={transformDecision.pos[0] * cell + cell / 2}
+              r={cell * 0.4}
+              className="transformDecisionAnchor"
+              aria-hidden="true"
+            />
+            {[...transformOptions, "Ignore" as const].map((option, index) => {
+              const x = transformChoiceCenter.x + (index - 1) * cell * 0.72;
+              const y = transformChoiceCenter.y;
+              const label = option === "Ignore" ? "Ignore" : option.replace("Pawn", "");
+              const activate = (event: { stopPropagation: () => void }) => {
+                event.stopPropagation();
+                if (option === "Ignore") onDeclineTransform?.();
+                else onChooseTransform?.(option);
+              };
+              return (
+                <g
+                  key={option}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={option === "Ignore" ? "Ignore Transform Square" : `Transform into ${option.replace("Pawn", " Pawn")}`}
+                  className="transformDecisionChoice"
+                  onClick={activate}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      activate(event);
+                    }
+                  }}
+                >
+                  <circle cx={x} cy={y} r={cell * 0.29} />
+                  <text x={x} y={y + cell * 0.035} textAnchor="middle">
+                    {label}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
 
         {activeDefendedKingPreview && (
           <g className="defendedKingPreview" aria-hidden="true">

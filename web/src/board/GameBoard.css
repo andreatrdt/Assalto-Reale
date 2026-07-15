@@ -484,6 +484,57 @@ html[data-board-contrast="high"] .previewRouteStep text {
   }
 }
 
+.transformDecisionAnchor {
+  fill: none;
+  stroke: #f2c76e;
+  stroke-width: 8;
+  stroke-dasharray: 12 8;
+  pointer-events: none;
+}
+
+.transformDecisionChoice {
+  cursor: pointer;
+  outline: none;
+}
+
+.transformDecisionChoice circle {
+  fill: #112c34;
+  stroke: #f2c76e;
+  stroke-width: 5;
+}
+
+.transformDecisionChoice text {
+  fill: #fff8df;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.transformDecisionChoice:hover circle,
+.transformDecisionChoice:focus circle {
+  fill: #204551;
+  stroke-width: 9;
+}
+
+html[data-board-contrast="high"] .transformDecisionAnchor,
+html[data-board-contrast="high"] .transformDecisionChoice circle {
+  stroke: #fff;
+  stroke-width: 9;
+}
+
+@media (forced-colors: active) {
+  .transformDecisionAnchor,
+  .transformDecisionChoice circle {
+    fill: Canvas;
+    stroke: Highlight;
+  }
+
+  .transformDecisionChoice text {
+    fill: CanvasText;
+  }
+}
+
 html[data-board-contrast="high"] .previewLanding rect {
   stroke: #0f4229;
   stroke-width: 9;

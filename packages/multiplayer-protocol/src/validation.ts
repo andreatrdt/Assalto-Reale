@@ -228,6 +228,15 @@ function validateClientCommand(
             "command.position",
             "Position must be a valid board coordinate.",
           );
+    case "ActivateTransform":
+      return isCoordinate(value.position) &&
+        Object.keys(value).every((key) => key === "type" || key === "position")
+        ? { ok: true, value: value as ClientCommand }
+        : error(
+            "invalid_command",
+            "command",
+            "ActivateTransform requires exactly one valid board coordinate.",
+          );
     case "SubmitAction":
       return isCoordinate(value.start) &&
         isCoordinate(value.end) &&
@@ -265,6 +274,14 @@ function validateClientCommand(
             "invalid_command",
             "command.lastSeenMatchVersion",
             "Last seen version must be null or non-negative.",
+          );
+    case "DeclineTransform":
+      return Object.keys(value).length === 1
+        ? { ok: true, value: value as ClientCommand }
+        : error(
+            "invalid_command",
+            "command",
+            "DeclineTransform does not accept additional fields.",
           );
     case "CancelDefendedKing":
     case "PassTurn":

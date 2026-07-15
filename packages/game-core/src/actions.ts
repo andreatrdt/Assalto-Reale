@@ -326,12 +326,19 @@ export function applyAction(
     }
   }
   updateControl(board);
-  if (board.transformSquares.some((pos) => samePos(pos, landing)) && PAWN_TYPES.includes(mover.type as (typeof PAWN_TYPES)[number])) {
-    events.push({ kind: "transform_available", data: { player: mover.player, piece_type: mover.type, at: landing } });
-  }
   let nextMoves = movesThisTurn + checked.cost;
   let nextKingMoved = (options.kingMoved ?? false) || mover.type === "King";
   const endsTurn = checked.endsTurn || nextMoves >= 2;
+  if (
+    board.transformSquares.some((pos) => samePos(pos, landing)) &&
+    PAWN_TYPES.includes(mover.type as (typeof PAWN_TYPES)[number]) &&
+    // Rules v1 recorded the landing prompt even after the second action. Keep
+    // that historical behavior replayable; rules v2 never offers a free
+    // post-turn transformation.
+    ((options.rulesVersion ?? 1) === 1 || !endsTurn)
+  ) {
+    events.push({ kind: "transform_available", data: { player: mover.player, piece_type: mover.type, at: landing } });
+  }
   if (endsTurn) {
     nextMoves = 0;
     nextKingMoved = false;

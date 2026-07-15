@@ -370,7 +370,7 @@ describe("authoritative command handler (C.8.1)", () => {
     );
   });
 
-  it("a Transform decision flows through the server", async () => {
+  it("keeps both clients synchronized across Transform decline, reconnect and later activation", async () => {
     const { handler, store } = harness();
     seedMatch(
       store,
@@ -389,6 +389,61 @@ describe("authoritative command handler (C.8.1)", () => {
       ),
     );
     expect(only(move, "DecisionRequired").decision.kind).toBe("transform");
+    const moveUpdate = only(move, "MatchUpdated");
+    expect(moveUpdate.snapshot.pendingTransform).toMatchObject({
+      owner: "Black",
+      pos: [5, 5],
+    });
+    expect(moveUpdate.snapshot.movesThisTurn).toBe(1);
+
+    const synced = await handler.handle(
+      message(
+        { type: "RequestSync", lastSeenMatchVersion: null },
+        {
+          commandId: "cmd_tf_sync01",
+          playerId: ALICE,
+          matchId: "match_seed01",
+          expectedMatchVersion: null,
+        },
+      ),
+    );
+    expect(only(synced, "MatchSnapshot").snapshot).toMatchObject({
+      phase: "transformSelection",
+      movesThisTurn: 1,
+      pendingTransform: { owner: "Black", pos: [5, 5] },
+    });
+
+    const declineVersion = store.matches.get("match_seed01")!.version;
+    const declined = await handler.handle(
+      message(
+        { type: "DeclineTransform" },
+        {
+          commandId: "cmd_tf_no001",
+          playerId: ALICE,
+          matchId: "match_seed01",
+          expectedMatchVersion: declineVersion,
+        },
+      ),
+    );
+    expect(only(declined, "MatchUpdated").snapshot).toMatchObject({
+      phase: "playing",
+      movesThisTurn: 1,
+      pendingTransform: null,
+    });
+
+    const activateVersion = store.matches.get("match_seed01")!.version;
+    const activated = await handler.handle(
+      message(
+        { type: "ActivateTransform", position: [5, 5] },
+        {
+          commandId: "cmd_tf_on001",
+          playerId: ALICE,
+          matchId: "match_seed01",
+          expectedMatchVersion: activateVersion,
+        },
+      ),
+    );
+    expect(only(activated, "DecisionRequired").decision.kind).toBe("transform");
 
     const version = store.matches.get("match_seed01")!.version;
     const resolve = await handler.handle(

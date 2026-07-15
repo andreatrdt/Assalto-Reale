@@ -30,7 +30,9 @@ export type ProtocolGameCommand = Extract<
       | "SubmitAction"
       | "ChooseDefender"
       | "CancelDefendedKing"
+      | "ActivateTransform"
       | "ChooseTransform"
+      | "DeclineTransform"
       | "PassTurn";
   }
 >;
@@ -43,7 +45,9 @@ export function isProtocolGameCommand(
     case "SubmitAction":
     case "ChooseDefender":
     case "CancelDefendedKing":
+    case "ActivateTransform":
     case "ChooseTransform":
+    case "DeclineTransform":
     case "PassTurn":
       return true;
     default:
@@ -67,8 +71,12 @@ export function toCoreCommand(command: ProtocolGameCommand): GameCommand {
       return { type: "ChooseDefender", position: command.position };
     case "CancelDefendedKing":
       return { type: "CancelDefendedKing" };
+    case "ActivateTransform":
+      return { type: "ActivateTransform", position: command.position };
     case "ChooseTransform":
       return { type: "ChooseTransform", newType: command.newType };
+    case "DeclineTransform":
+      return { type: "DeclineTransform" };
     case "PassTurn":
       return { type: "PassTurn" };
   }

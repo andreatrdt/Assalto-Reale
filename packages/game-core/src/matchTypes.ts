@@ -67,14 +67,16 @@ export type GameCommand =
   | { type: "SubmitAction"; start: Vec2; end: Vec2; routeId?: import("./types.js").DeflectionRouteId }
   | { type: "ChooseDefender"; position: Vec2 }
   | { type: "CancelDefendedKing" }
+  | { type: "ActivateTransform"; position: Vec2 }
   | { type: "ChooseTransform"; newType: PawnType }
+  | { type: "DeclineTransform" }
   | { type: "PassTurn" };
 
 export type MatchEvent =
   | { type: "PiecePlaced"; player: Player; pieceType: PieceType; position: Vec2 }
   | { type: "ActionApplied"; action: Action; transition: TransitionResult }
   | { type: "DecisionRequired"; decision: PendingDecision }
-  | { type: "DecisionCancelled"; decision: "defendedKing" }
+  | { type: "DecisionCancelled"; decision: "defendedKing" | "transform" }
   | { type: "TurnChanged"; player: Player; turnCounter: number }
   | { type: "MatchEnded"; victory: VictoryResult };
 

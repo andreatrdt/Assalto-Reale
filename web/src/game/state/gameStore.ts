@@ -1,12 +1,27 @@
 import { create } from "zustand";
 import { chooseDeterministicAction } from "../ai/search";
-import { buildAction, chooseQuickPlacementSquare, getPiece, hasPos, type DeflectionRouteId, type Player, type Vec2 } from "../engine";
+import {
+  buildAction,
+  chooseQuickPlacementSquare,
+  getPiece,
+  getTransformEligibility,
+  hasPos,
+  type DeflectionRouteId,
+  type Player,
+  type Vec2,
+} from "../engine";
 import { DEFAULT_MATCH_CONFIG, resolveMatchConfig } from "../setup/matchConfig";
 import { computeClockPatch, initialTimeLeft, monotonicNow } from "../clocks/clockController";
 import { restoreHistoryPatch } from "../history/historyController";
 import { SAVE_KEY, buildRestorePatch, loadSavedGame, localStorageAvailable, savedGameFromState } from "../persistence/saveGame";
 import { actionTargets, describePiece } from "../turn/turnHelpers";
-import { createMatchState, runStoreCommand, runStoreSubmittedAction, storePatchFromCoreMatch } from "../core/matchAdapter";
+import {
+  createMatchState,
+  runStoreCommand,
+  runStoreSubmittedAction,
+  storePatchFromCoreMatch,
+  toCoreMatchState,
+} from "../core/matchAdapter";
 import type { GameCommand } from "../engine";
 import type { GameState, GameStore, SavedGame } from "./storeTypes";
 
@@ -233,6 +248,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       if (piece?.player === state.currentPlayer) {
+        if (state.selected && hasPos([state.selected], pos) && hasPos(state.board.transformSquares, pos)) {
+          applyStoreCommand({ type: "ActivateTransform", position: pos });
+          return;
+        }
         set({
           selected: pos,
           legalTargets: actionTargets(state.board, pos, state.movesThisTurn, state.kingMoved, state.rulesVersion),
@@ -264,7 +283,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     chooseDefender: (pos) => applyStoreCommand({ type: "ChooseDefender", position: pos }),
     cancelDefenderSelection: () => applyStoreCommand({ type: "CancelDefendedKing" }),
+    activateTransform: (pos) => applyStoreCommand({ type: "ActivateTransform", position: pos }),
     chooseTransform: (newType) => applyStoreCommand({ type: "ChooseTransform", newType }),
+    declineTransform: () => applyStoreCommand({ type: "DeclineTransform" }),
     passTurn: () => applyStoreCommand({ type: "PassTurn" }),
 
     undo: () => {
@@ -300,6 +321,11 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
       if (state.currentPlayer !== state.aiPlayer || state.phase.phase !== "playing") return;
+      const transform = getTransformEligibility(toCoreMatchState(state));
+      if (transform) {
+        state.activateTransform(transform.pos);
+        return;
+      }
       const action = chooseDeterministicAction(state.board, state.currentPlayer, state.movesThisTurn, state.kingMoved, state.rulesVersion);
       if (action.kind === "pass") {
         state.passTurn();
